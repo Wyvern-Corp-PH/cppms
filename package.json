@@ -2,18 +2,42 @@
   "name": "cppms",
   "version": "0.0.1",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bakajieyan/cppms.git"
+  },
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "prepare": "husky",
+    "commitlint": "commitlint --edit",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run",
+    "docker:dev": "docker compose -f docker-compose.local.yml --env-file .env.local up --build",
+    "docker:clean-cache": "docker compose -f docker-compose.local.yml --env-file .env.local exec admin-frontend rm -rf /app/apps/admin-frontend/.next && docker compose -f docker-compose.local.yml --env-file .env.local exec public-frontend rm -rf /app/apps/public-frontend/.next",
+    "seed:dev": "bun --env-file .env.local packages/pocketbase/scripts/seed-dev.ts",
+    "seed:dev:force": "bun --env-file .env.local packages/pocketbase/scripts/seed-dev.ts --force",
+    "seed:dev:docker": "docker compose -f docker-compose.local.yml --env-file .env.local exec -e POCKETBASE_INTERNAL_URL=http://pocketbase:8090 admin-frontend bun --env-file /app/.env.local /app/packages/pocketbase/scripts/seed-dev.ts",
+    "seed:dev:docker:force": "docker compose -f docker-compose.local.yml --env-file .env.local exec -e POCKETBASE_INTERNAL_URL=http://pocketbase:8090 admin-frontend bun --env-file /app/.env.local /app/packages/pocketbase/scripts/seed-dev.ts --force",
+    "docker:watch": "docker compose -f docker-compose.local.yml --env-file .env.local watch pocketbase",
+    "docker:down": "docker compose -f docker-compose.local.yml down",
+    "docker:config": "docker compose -f docker-compose.local.yml --env-file .env.local config"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "husky": "^9.1.7",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
+    "semantic-release": "^25.0.5",
     "turbo": "^2.9.15",
     "typescript": "^5"
   },
