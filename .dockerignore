@@ -1,0 +1,30 @@
+# dependencies
+**/node_modules
+
+# build output
+**/.next
+**/out
+**/dist
+**/.turbo
+
+# git
+.git
+.gitignore
+
+# env (injected via compose env_file)
+.env*
+!.env.sample
+
+# IDE / OS
+.DS_Store
+*.md
+!packages/pocketbase/pb_migrations/**
+!packages/pocketbase/pb_hooks/**
+
+# agents / skills (not needed in images)
+**/.agents
+**/skills-lock.json
+
+# docker
+docker-compose*.yml
+Dockerfile*
