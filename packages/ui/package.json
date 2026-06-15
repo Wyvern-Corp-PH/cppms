@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -31,7 +32,8 @@
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
