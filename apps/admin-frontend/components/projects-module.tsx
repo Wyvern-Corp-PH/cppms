@@ -1,0 +1,638 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+
+import {
+  LGU_LEVEL,
+  PROJECT_CATEGORY,
+  PROJECT_STATUS,
+} from "@workspace/pocketbase/schema"
+import {
+  filterProjects,
+  formatProjectDateRange,
+} from "@workspace/pocketbase/domain/project-filters"
+import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
+import {
+  fieldErrorsFromZod,
+  parseRecordList,
+  projectMutateSchema,
+  projectRecordSchema,
+} from "@workspace/pocketbase/schemas"
+import type { ProjectRecord } from "@workspace/pocketbase/types"
+import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import { Progress } from "@workspace/ui/components/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
+import { Textarea } from "@workspace/ui/components/textarea"
+
+import { PageHeaderBand } from "@/components/page-header-band"
+import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
+import { getPocketBase } from "@/lib/pocketbase"
+
+type ProjectFormState = {
+  name: string
+  description: string
+  category: ProjectRecord["category"]
+  status: ProjectRecord["status"]
+  location: string
+  lgu_level: ProjectRecord["lgu_level"] | ""
+  contractor: string
+  start_date: string
+  target_end_date: string
+  budget_year: string
+  total_budget: string
+}
+
+const emptyForm = (): ProjectFormState => ({
+  name: "",
+  description: "",
+  category: "Infrastructure",
+  status: "Planning",
+  location: "",
+  lgu_level: "",
+  contractor: "",
+  start_date: "",
+  target_end_date: "",
+  budget_year: String(new Date().getFullYear()),
+  total_budget: "",
+})
+
+function ProjectCard({
+  project,
+  onEdit,
+  onDelete,
+  onStatusOpen,
+}: {
+  project: ProjectRecord
+  onEdit: () => void
+  onDelete: () => void
+  onStatusOpen: () => void
+}) {
+  return (
+    <article
+      className="rounded-[var(--radius-lg)] border border-border bg-card p-4"
+      data-testid={`project-card-${project.id}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-semibold">{project.name}</h2>
+            <Badge variant="secondary">{project.status}</Badge>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {[project.location, project.category, project.lgu_level].filter(Boolean).join(" · ")}
+          </p>
+          {project.description ? (
+            <p className="text-muted-foreground line-clamp-2 text-sm">{project.description}</p>
+          ) : null}
+          <p className="text-muted-foreground text-xs">
+            {formatProjectDateRange(project.start_date, project.target_end_date)} · FY{" "}
+            {project.budget_year} · {formatPhp(project.total_budget ?? 0)}
+          </p>
+          <div className="space-y-1">
+            <Progress value={project.progress_pct ?? 0} aria-label={`${project.name} progress`} />
+            <span className="text-muted-foreground text-xs">{project.progress_pct ?? 0}%</span>
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="sm" aria-label={`Actions for ${project.name}`}>
+              ⋮
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+            <DropdownMenuItem onClick={onStatusOpen}>Change status</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </article>
+  )
+}
+
+export function ProjectsModule() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState("")
+  const [category, setCategory] = useState("all")
+  const [status, setStatus] = useState("all")
+  const [lguLevel, setLguLevel] = useState("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<ProjectRecord | null>(null)
+  const [form, setForm] = useState<ProjectFormState>(emptyForm())
+  const [moaFile, setMoaFile] = useState<File | null>(null)
+  const [agreementFile, setAgreementFile] = useState<File | null>(null)
+  const [supportingFile, setSupportingFile] = useState<File | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
+
+  const loadProjects = useCallback(async () => {
+    setLoading(true)
+    const pb = getPocketBase()
+    const rows = await pb.collection("projects").getFullList()
+    setProjects(parseRecordList(projectRecordSchema, rows))
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadProjects()
+  }, [loadProjects])
+
+  const { live } = usePocketBaseRealtime(["projects"], () => {
+    void loadProjects()
+  })
+
+  const filtered = useMemo(
+    () =>
+      filterProjects(projects, {
+        query,
+        category:
+          category === "all" ? undefined : (category as ProjectRecord["category"]),
+        status: status === "all" ? undefined : (status as ProjectRecord["status"]),
+        lgu_level:
+          lguLevel === "all" ? undefined : (lguLevel as ProjectRecord["lgu_level"]),
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      }),
+    [projects, query, category, status, lguLevel, dateFrom, dateTo]
+  )
+
+  function openCreate() {
+    setEditing(null)
+    setForm(emptyForm())
+    setMoaFile(null)
+    setAgreementFile(null)
+    setSupportingFile(null)
+    setFieldErrors({})
+    setDialogOpen(true)
+  }
+
+  function openEdit(project: ProjectRecord) {
+    setEditing(project)
+    setForm({
+      name: project.name,
+      description: project.description ?? "",
+      category: project.category,
+      status: project.status,
+      location: project.location ?? "",
+      lgu_level: project.lgu_level ?? "",
+      contractor: project.contractor ?? "",
+      start_date: project.start_date ?? "",
+      target_end_date: project.target_end_date ?? "",
+      budget_year: String(project.budget_year),
+      total_budget: project.total_budget ? String(project.total_budget) : "",
+    })
+    setMoaFile(null)
+    setAgreementFile(null)
+    setSupportingFile(null)
+    setFieldErrors({})
+    setDialogOpen(true)
+  }
+
+  async function handleSave() {
+    const parsed = projectMutateSchema.safeParse({
+      name: form.name,
+      description: form.description,
+      category: form.category,
+      status: form.status,
+      location: form.location,
+      lgu_level: form.lgu_level || undefined,
+      contractor: form.contractor,
+      start_date: form.start_date || undefined,
+      target_end_date: form.target_end_date || undefined,
+      budget_year: form.budget_year,
+      total_budget: form.total_budget || undefined,
+      progress_pct: editing?.progress_pct ?? 0,
+    })
+
+    if (!parsed.success) {
+      setFieldErrors(fieldErrorsFromZod(parsed.error))
+      return
+    }
+
+    setFieldErrors({})
+    const pb = getPocketBase()
+    const hasFiles = moaFile || agreementFile || supportingFile
+
+    if (hasFiles) {
+      const formData = new FormData()
+      for (const [key, value] of Object.entries(parsed.data)) {
+        if (value !== undefined && value !== null) {
+          formData.append(key, String(value))
+        }
+      }
+      if (moaFile) formData.append("moa_file", moaFile)
+      if (agreementFile) formData.append("agreement_file", agreementFile)
+      if (supportingFile) formData.append("supporting_docs", supportingFile)
+
+      if (editing) {
+        await pb.collection("projects").update(editing.id, formData)
+      } else {
+        await pb.collection("projects").create(formData)
+      }
+    } else if (editing) {
+      await pb.collection("projects").update(editing.id, parsed.data)
+    } else {
+      await pb.collection("projects").create(parsed.data)
+    }
+
+    setDialogOpen(false)
+    await loadProjects()
+  }
+
+  async function handleStatusChange(
+    project: ProjectRecord,
+    nextStatus: ProjectRecord["status"]
+  ) {
+    const pb = getPocketBase()
+    await pb.collection("projects").update(project.id, { status: nextStatus })
+    await loadProjects()
+  }
+
+  async function handleDelete(project: ProjectRecord) {
+    const pb = getPocketBase()
+    await pb.collection("projects").delete(project.id)
+    await loadProjects()
+  }
+
+  const ongoing = projects.filter((project) => project.status === "Ongoing").length
+  const planning = projects.filter((project) => project.status === "Planning").length
+
+  if (loading) {
+    return (
+      <div className="space-y-3" data-testid="projects-skeleton">
+        <div className="bg-muted h-10 animate-pulse rounded-md" />
+        <div className="bg-muted h-24 animate-pulse rounded-md" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeaderBand
+        title="Project tracking"
+        context="CRUD for provincial project records."
+        live={live}
+        kpis={[
+          { label: "Total", value: String(projects.length) },
+          { label: "Ongoing", value: String(ongoing) },
+          { label: "Planning", value: String(planning) },
+        ]}
+      />
+
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <Input
+            aria-label="Search projects"
+            placeholder="Search by name"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger aria-label="Filter by status">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {PROJECT_STATUS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger aria-label="Filter by category">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {PROJECT_CATEGORY.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={lguLevel} onValueChange={setLguLevel}>
+            <SelectTrigger aria-label="Filter by LGU level">
+              <SelectValue placeholder="LGU" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All LGU</SelectItem>
+              {LGU_LEVEL.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            aria-label="Filter from date"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+          />
+          <Input
+            aria-label="Filter to date"
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button type="button" onClick={openCreate} data-testid="create-project">
+            New project
+          </Button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-[var(--radius-lg)] border p-8 text-center">
+          <h2 className="font-semibold">No projects yet</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Create a project to start tracking provincial work.
+          </p>
+          <Button className="mt-4" type="button" onClick={openCreate}>
+            Create project
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filtered.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onEdit={() => openEdit(project)}
+              onDelete={() => void handleDelete(project)}
+              onStatusOpen={() => setStatusTarget(project)}
+            />
+          ))}
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit project" : "New project"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="project-name">Project name</Label>
+              <Input
+                id="project-name"
+                value={form.name}
+                aria-invalid={Boolean(fieldErrors.name)}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+              />
+              {fieldErrors.name ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {fieldErrors.name}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-description">Description</Label>
+              <Textarea
+                id="project-description"
+                value={form.description}
+                onChange={(event) =>
+                  setForm({ ...form, description: event.target.value })
+                }
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Category</Label>
+                <Select
+                  value={form.category}
+                  onValueChange={(value) =>
+                    setForm({ ...form, category: value as ProjectRecord["category"] })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_CATEGORY.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(value) =>
+                    setForm({ ...form, status: value as ProjectRecord["status"] })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_STATUS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-location">Location</Label>
+              <Input
+                id="project-location"
+                value={form.location}
+                onChange={(event) => setForm({ ...form, location: event.target.value })}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>LGU level</Label>
+                <Select
+                  value={form.lgu_level || "none"}
+                  onValueChange={(value) =>
+                    setForm({
+                      ...form,
+                      lgu_level: value === "none" ? "" : (value as ProjectRecord["lgu_level"]),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select LGU" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {LGU_LEVEL.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-contractor">Contractor</Label>
+                <Input
+                  id="project-contractor"
+                  value={form.contractor}
+                  onChange={(event) => setForm({ ...form, contractor: event.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="project-start">Start date</Label>
+                <Input
+                  id="project-start"
+                  type="date"
+                  value={form.start_date}
+                  onChange={(event) => setForm({ ...form, start_date: event.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-end">Target end date</Label>
+                <Input
+                  id="project-end"
+                  type="date"
+                  value={form.target_end_date}
+                  onChange={(event) =>
+                    setForm({ ...form, target_end_date: event.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="project-year">Budget year</Label>
+                <Input
+                  id="project-year"
+                  type="number"
+                  value={form.budget_year}
+                  aria-invalid={Boolean(fieldErrors.budget_year)}
+                  onChange={(event) =>
+                    setForm({ ...form, budget_year: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="project-budget">Total budget (PHP)</Label>
+                <Input
+                  id="project-budget"
+                  type="number"
+                  value={form.total_budget}
+                  onChange={(event) =>
+                    setForm({ ...form, total_budget: event.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-sm font-medium">Required documents</p>
+              <div className="space-y-1">
+                <Label htmlFor="moa-file">Memorandum of Agreement</Label>
+                <Input
+                  id="moa-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  onChange={(e) => setMoaFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="agreement-file">Province/Barangay Agreement</Label>
+                <Input
+                  id="agreement-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  onChange={(e) => setAgreementFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="supporting-file">Supporting project documents</Label>
+                <Input
+                  id="supporting-file"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  onChange={(e) => setSupportingFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleSave()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={statusTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setStatusTarget(null)
+        }}
+      >
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Change status</DialogTitle>
+          </DialogHeader>
+          <ul className="space-y-1">
+            {PROJECT_STATUS.map((value) => (
+              <li key={value}>
+                <button
+                  type="button"
+                  className="hover:bg-muted w-full rounded-md px-2 py-1.5 text-left text-sm"
+                  onClick={() => {
+                    if (statusTarget) void handleStatusChange(statusTarget, value)
+                    setStatusTarget(null)
+                  }}
+                >
+                  {value}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

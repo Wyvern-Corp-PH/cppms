@@ -1,0 +1,389 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useState } from "react"
+
+import {
+  computeProjectBudgetBreakdown,
+} from "@workspace/pocketbase/domain/budget-summary"
+import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
+import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
+import { formatProjectDateRange, isApprovalEligible } from "@workspace/pocketbase/domain/project-filters"
+import {
+  approvalFormSchema,
+  fieldErrorsFromZod,
+  parseRecordList,
+  progressUpdateRecordSchema,
+  projectRecordSchema,
+  budgetAllocationRecordSchema,
+  budgetExpenseRecordSchema,
+} from "@workspace/pocketbase/schemas"
+import type {
+  BudgetAllocationRecord,
+  BudgetExpenseRecord,
+  ProgressUpdateRecord,
+  ProjectRecord,
+} from "@workspace/pocketbase/types"
+import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import { Progress } from "@workspace/ui/components/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
+import { Textarea } from "@workspace/ui/components/textarea"
+
+import { PageHeaderBand } from "@/components/page-header-band"
+import { SitePhoto } from "@/components/site-photo"
+import { SitePhotoCarousel } from "@/components/site-photo-carousel"
+import { SummaryCardRow } from "@/components/summary-card-row"
+import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
+import { getPocketBase } from "@/lib/pocketbase"
+
+export function ApprovalsModule() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
+  const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<ProjectRecord | null>(null)
+  const [dialog, setDialog] = useState<"approve" | "reject" | null>(null)
+  const [authorityName, setAuthorityName] = useState("")
+  const [reason, setReason] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const pb = getPocketBase()
+    const [projectRows, updateRows, allocationRows, expenseRows] = await Promise.all([
+      pb.collection("projects").getFullList(),
+      pb.collection("progress_updates").getFullList(),
+      pb.collection("budget_allocations").getFullList(),
+      pb.collection("budget_expenses").getFullList(),
+    ])
+    setProjects(parseRecordList(projectRecordSchema, projectRows))
+    setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
+    setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
+    setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const { live } = usePocketBaseRealtime(["projects", "approval_actions", "progress_updates"], () => {
+    void load()
+  })
+
+  const queue = useMemo(
+    () =>
+      projects.filter(
+        (project) =>
+          isApprovalEligible(project) && project.approval_status !== "approved"
+      ),
+    [projects]
+  )
+  const approved = projects.filter((project) => project.approval_status === "approved")
+  const rejected = projects.filter((project) => project.approval_status === "rejected")
+
+  const reviewedBudgetTotal = useMemo(
+    () =>
+      [...queue, ...approved, ...rejected].reduce(
+        (sum, project) => sum + (project.total_budget ?? 0),
+        0
+      ),
+    [queue, approved, rejected]
+  )
+
+  function projectBudget(project: ProjectRecord) {
+    const breakdown = computeProjectBudgetBreakdown([project], allocations, expenses)[0]
+    return breakdown ?? {
+      spent: 0,
+      totalBudget: project.total_budget ?? 0,
+      remaining: project.total_budget ?? 0,
+    }
+  }
+
+  function projectUpdates(projectId: string) {
+    return updates.filter((update) => update.project === projectId)
+  }
+
+  const missingDocs =
+    selected &&
+    (selected.progress_pct ?? 0) >= 100 &&
+    !selected.moa_file &&
+    !selected.agreement_file
+
+  async function submitAction(action: "approve" | "reject") {
+    if (!selected) return
+
+    const parsed = approvalFormSchema.safeParse({
+      action,
+      authority_name: authorityName,
+      reason,
+    })
+
+    if (!parsed.success) {
+      setFieldErrors(fieldErrorsFromZod(parsed.error))
+      return
+    }
+
+    setFieldErrors({})
+    const pb = getPocketBase()
+    await pb.collection("approval_actions").create({
+      project: selected.id,
+      action: parsed.data.action,
+      authority_name: parsed.data.authority_name,
+      reason: parsed.data.action === "reject" ? parsed.data.reason : undefined,
+    })
+
+    await pb.collection("projects").update(selected.id, {
+      approval_status: parsed.data.action === "approve" ? "approved" : "rejected",
+      status: parsed.data.action === "approve" ? "Approved" : "Rejected",
+      approved_at: parsed.data.action === "approve" ? new Date().toISOString().slice(0, 10) : undefined,
+      approved_by: parsed.data.action === "approve" ? parsed.data.authority_name : undefined,
+      rejection_reason: parsed.data.action === "reject" ? parsed.data.reason : undefined,
+    })
+
+    setDialog(null)
+    setAuthorityName("")
+    setReason("")
+    setSelected(null)
+    await load()
+  }
+
+  function ApprovalCard({ project }: { project: ProjectRecord }) {
+    const budget = projectBudget(project)
+    const projectUpdateList = projectUpdates(project.id)
+    const spent = "spent" in budget ? budget.spent : 0
+    const total = project.total_budget ?? 0
+    const saved = Math.max(0, total - spent)
+    const utilPct = total > 0 ? Math.round((spent / total) * 100) : 0
+    const photos = projectUpdateList.filter((u) => u.site_photo)
+
+    return (
+      <article className="rounded-[var(--radius-lg)] border border-border bg-card p-4" data-testid={`approval-card-${project.id}`}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">{project.name}</h2>
+            <p className="text-muted-foreground text-sm">
+              {[project.location, project.category, project.lgu_level].filter(Boolean).join(" · ")}
+            </p>
+            <p className="text-sm">{formatPhp(total)}</p>
+          </div>
+          <Badge>{project.status}</Badge>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div>
+            <p className="text-xs">Progress {project.progress_pct ?? 0}%</p>
+            <Progress value={project.progress_pct ?? 0} />
+          </div>
+          <div>
+            <p className="text-xs">Utilization {utilPct}% · Spent {formatPhp(spent)} · Saved {formatPhp(saved)}</p>
+            <Progress value={utilPct} />
+          </div>
+          <p className="text-muted-foreground text-xs">{projectUpdateList.length} progress updates</p>
+          <SitePhotoCarousel updates={photos} alt={`${project.name} site photo`} />
+        </div>
+        {(project.progress_pct ?? 0) >= 100 && !project.moa_file && !project.agreement_file ? (
+          <p className="text-warning mt-2 text-sm" role="status" data-testid="missing-docs-banner">
+            No completion documents were uploaded with this project&apos;s 100% progress update.
+          </p>
+        ) : null}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => setSelected(project)}>
+            View details
+          </Button>
+          <Button type="button" size="sm" onClick={() => { setSelected(project); setDialog("approve") }}>
+            Approve
+          </Button>
+          <Button type="button" size="sm" variant="destructive" onClick={() => { setSelected(project); setDialog("reject") }}>
+            Reject
+          </Button>
+        </div>
+      </article>
+    )
+  }
+
+  if (loading) {
+    return <div className="bg-muted h-32 animate-pulse rounded-md" data-testid="approvals-skeleton" />
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeaderBand
+        title="Completion approvals"
+        context="Review finished projects before closure."
+        live={live}
+      />
+
+      {queue.length > 0 ? (
+        <div className="rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 text-sm" role="status">
+          {queue.length} project(s) awaiting completion approval.
+        </div>
+      ) : null}
+
+      <SummaryCardRow
+        cards={[
+          { label: "Pending approval", value: String(queue.length), testId: "approvals-queue" },
+          { label: "Approved", value: String(approved.length), testId: "approvals-approved" },
+          { label: "Rejected", value: String(rejected.length), testId: "approvals-rejected" },
+          { label: "Total budget managed", value: formatPhp(reviewedBudgetTotal), testId: "approvals-budget-managed" },
+        ]}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <Tabs defaultValue="queue">
+          <div className="-mx-1 overflow-x-auto pb-1">
+            <TabsList className="w-max min-w-full">
+            <TabsTrigger value="queue">Completion approval</TabsTrigger>
+            <TabsTrigger value="approved">Approved</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          </TabsList>
+          </div>
+          <TabsContent value="queue" className="space-y-3">
+            {queue.length === 0 ? (
+              <div className="rounded-md border p-6 text-center">
+                <h2 className="font-semibold">Queue is clear</h2>
+              </div>
+            ) : (
+              queue.map((project) => <ApprovalCard key={project.id} project={project} />)
+            )}
+          </TabsContent>
+          <TabsContent value="approved" className="space-y-3">
+            {approved.map((project) => (
+              <ApprovalCard key={project.id} project={project} />
+            ))}
+          </TabsContent>
+          <TabsContent value="rejected" className="space-y-3">
+            {rejected.map((project) => (
+              <ApprovalCard key={project.id} project={project} />
+            ))}
+          </TabsContent>
+        </Tabs>
+
+        <aside className="rounded-[var(--radius-lg)] border border-border bg-card p-4" data-testid="approval-detail-panel">
+          <h2 className="font-semibold">Review detail</h2>
+          {selected ? (
+            <div className="mt-3 space-y-3 text-sm">
+              <p className="font-medium">{selected.name}</p>
+              <p className="text-muted-foreground">
+                {[selected.location, selected.category, selected.lgu_level].filter(Boolean).join(" · ")}
+              </p>
+              <p>{selected.status} · {selected.contractor ?? "—"}</p>
+              <p>{formatProjectDateRange(selected.start_date, selected.target_end_date)}</p>
+              {selected.description ? <p>{selected.description}</p> : null}
+              {(() => {
+                const b = projectBudget(selected)
+                const spent = "spent" in b ? b.spent : 0
+                const total = selected.total_budget ?? 0
+                const savings = Math.max(0, total - spent)
+                return (
+                  <div className="rounded-md border p-3">
+                    <p>Total budget: {formatPhp(total)}</p>
+                    <p className="text-destructive">Total spent: {formatPhp(spent)}</p>
+                    <p className="text-success">Savings: {formatPhp(savings)}</p>
+                  </div>
+                )
+              })()}
+              {missingDocs ? (
+                <p className="text-warning text-sm" role="status">
+                  No completion documents were uploaded with this project&apos;s 100% progress update.
+                  Consider requesting the project team to re-submit with the required documents.
+                </p>
+              ) : null}
+              <ul className="space-y-2">
+                {projectUpdates(selected.id).map((update) => (
+                  <li key={update.id} className="border-b pb-2">
+                    {update.from_pct}% → {update.to_pct}% · {formatDisplayDateTime(update.updated_at ?? update.created)}
+                    {update.notes ? <p className="text-xs">{update.notes}</p> : null}
+                    <SitePhoto
+                      update={update}
+                      alt={`${selected.name} progress update`}
+                      className="mt-1 h-24 w-full max-w-xs"
+                    />
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2">
+                <Button type="button" variant="destructive" size="sm" onClick={() => setDialog("reject")}>
+                  Reject
+                </Button>
+                <Button type="button" size="sm" onClick={() => setDialog("approve")}>
+                  Approve
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-muted-foreground mt-3 text-sm">Select a project to review.</p>
+          )}
+        </aside>
+      </div>
+
+      <Dialog open={dialog !== null} onOpenChange={() => setDialog(null)}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {dialog === "approve" ? "Approve project completion" : "Reject project completion"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            {dialog === "approve"
+              ? "Confirm that all deliverables, documentation, and requirements have been satisfactorily met."
+              : "Provide a reason so the project team can address the issues."}
+          </p>
+          <div className="grid gap-3">
+            <Label htmlFor="authority-name">
+              {dialog === "approve" ? "Approving authority name" : "Reviewing authority name"}
+            </Label>
+            <Input
+              id="authority-name"
+              value={authorityName}
+              aria-invalid={Boolean(fieldErrors.authority_name)}
+              onChange={(e) => setAuthorityName(e.target.value)}
+            />
+            {fieldErrors.authority_name ? (
+              <p className="text-destructive text-sm" role="alert">
+                {fieldErrors.authority_name}
+              </p>
+            ) : null}
+            {dialog === "reject" ? (
+              <>
+                <Label htmlFor="reject-reason">Reason for rejection</Label>
+                <Textarea
+                  id="reject-reason"
+                  value={reason}
+                  aria-invalid={Boolean(fieldErrors.reason)}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+                {fieldErrors.reason ? (
+                  <p className="text-destructive text-sm" role="alert">
+                    {fieldErrors.reason}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              data-testid="confirm-approval-action"
+              onClick={() => void submitAction(dialog ?? "approve")}
+            >
+              {dialog === "approve" ? "Confirm approval" : "Confirm rejection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
