@@ -1,0 +1,31 @@
+{
+  "name": "@workspace/pocketbase",
+  "version": "0.0.0",
+  "description": "PocketBase migrations, hooks, and schema",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "seed:dev": "bun scripts/seed-dev.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "pocketbase": "^0.27.0",
+    "zod": "^4.4.3"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./realtime": "./src/realtime.ts",
+    "./types": "./src/types.ts",
+    "./schema": "./schema/manifest.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./schemas/*": "./src/schemas/*.ts",
+    "./domain/*": "./src/domain/*.ts",
+    "./files": "./src/files.ts"
+  }
+}
