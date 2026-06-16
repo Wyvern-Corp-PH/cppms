@@ -48,19 +48,57 @@ if [[ -n "${IMAGE_TAG:-}" && "${IMAGE_TAG}" != "dev" && -n "${GHCR_REGISTRY:-}" 
   PULL_ONLY=true
 fi
 
+dump_stack_diagnostics() {
+  echo "--- docker compose ps ---"
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -a 2>&1 || true
+  for svc in pocketbase public-frontend admin-frontend caddy; do
+    echo "--- logs: ${svc} (last 40 lines) ---"
+    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --no-color --tail=40 "$svc" 2>&1 || true
+  done
+}
+
+WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT_SEC:-420}"
+
 if [[ "$PULL_ONLY" == "false" ]]; then
-  echo "Validating compose config..."
+  echo "[deploy] validating compose config..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
-  echo "Building and starting stack..."
+  echo "[deploy] building and starting stack..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
 else
-  echo "Pulling images ${GHCR_REGISTRY}/cppms-*:${IMAGE_TAG}..."
+  echo "[deploy] pulling images ${GHCR_REGISTRY}/cppms-*:${IMAGE_TAG}..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull "${APP_SERVICES[@]}"
-  echo "Starting stack (pull-only)..."
+  echo "[deploy] starting stack (pull-only, wait timeout ${WAIT_TIMEOUT}s)..."
   if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --help 2>&1 | grep -q '\-\-wait'; then
-    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --wait
+    if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
+      echo "[deploy] all services healthy"
+    else
+      echo "[deploy] compose --wait failed or timed out after ${WAIT_TIMEOUT}s" >&2
+      dump_stack_diagnostics
+      exit 1
+    fi
   else
     docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+    echo "[deploy] waiting up to ${WAIT_TIMEOUT}s for healthchecks (no compose --wait)..."
+    deadline=$((SECONDS + WAIT_TIMEOUT))
+    while (( SECONDS < deadline )); do
+      unhealthy=$(docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps --format json 2>/dev/null \
+        | grep -c '"Health":"unhealthy"' || true)
+      starting=$(docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps --format json 2>/dev/null \
+        | grep -cE '"Health":"starting"|"State":"starting"' || true)
+      if [[ "$unhealthy" -eq 0 && "$starting" -eq 0 ]]; then
+        running=$(docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps --services --status running 2>/dev/null | wc -l)
+        if [[ "$running" -ge 4 ]]; then
+          echo "[deploy] all services running"
+          break
+        fi
+      fi
+      sleep 5
+    done
+    if (( SECONDS >= deadline )); then
+      echo "[deploy] timed out waiting for services after ${WAIT_TIMEOUT}s" >&2
+      dump_stack_diagnostics
+      exit 1
+    fi
   fi
 fi
 
