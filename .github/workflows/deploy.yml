@@ -9,14 +9,26 @@ on:
       - "docker/**"
       - "docker-compose.prod.yml"
       - "scripts/deploy-remote.sh"
+      - "scripts/deploy-rollback.sh"
+      - "scripts/deploy-smoke-test.sh"
+      - "scripts/deploy-cleanup-remote.sh"
+      - "scripts/pocketbase-backup-remote.sh"
+      - "scripts/pocketbase-backup-prune.sh"
       - "scripts/ec2-bootstrap.sh"
       - "scripts/render-deploy-env.mjs"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
+    inputs:
+      skip_backup:
+        description: Skip pre-deploy PocketBase backup (emergency only)
+        required: false
+        default: false
+        type: boolean
 
+# Never cancel an in-flight deploy; queue overlapping pushes instead.
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -32,7 +44,37 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
+    # Cancel stale builds on rapid pushes; deploy job stays queued safely.
+    concurrency:
+      group: deploy-build-${{ github.ref }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: pocketbase
+            image: cppms-pocketbase
+            context: packages/pocketbase
+            file: Dockerfile
+            target: ""
+          - id: public-frontend
+            image: cppms-public-frontend
+            context: .
+            file: apps/public-frontend/Dockerfile
+            target: production
+            build_args: |
+              NEXT_PUBLIC_POCKETBASE_URL=${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
+              NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}
+              NEXT_PUBLIC_PUBLIC_URL=${{ vars.NEXT_PUBLIC_PUBLIC_URL }}
+          - id: admin-frontend
+            image: cppms-admin-frontend
+            context: .
+            file: apps/admin-frontend/Dockerfile
+            target: production
+            build_args: |
+              NEXT_PUBLIC_POCKETBASE_URL=${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
+              BASE_PATH=/admin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,22 +89,26 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push images
-        env:
-          DOMAIN: ${{ vars.DOMAIN }}
-          ORIGINS: ${{ vars.ORIGINS }}
-          NEXT_PUBLIC_POCKETBASE_URL: ${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
-          NEXT_PUBLIC_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_PUBLIC_URL }}
-          NEXT_PUBLIC_ADMIN_URL: ${{ vars.NEXT_PUBLIC_ADMIN_URL }}
-        run: |
-          docker compose -f docker-compose.prod.yml build
-          docker compose -f docker-compose.prod.yml push \
-            pocketbase public-frontend admin-frontend
+      - name: Build and push ${{ matrix.id }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target || '' }}
+          push: true
+          tags: ${{ env.GHCR_REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
+          build-args: ${{ matrix.build_args || '' }}
+          cache-from: type=gha,scope=${{ matrix.id }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.id }}
+
+      - name: Prune runner build cache
+        if: always()
+        run: docker builder prune -f >/dev/null 2>&1 || true
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,18 +132,32 @@ jobs:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
 
-      - name: Configure SSH
+      - name: Configure SSH multiplex
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config <<EOF
+          Host ec2-deploy
+            HostName ${{ secrets.EC2_HOST }}
+            User ${{ secrets.EC2_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            ControlMaster auto
+            ControlPath ~/.ssh/cm-%C
+            ControlPersist 600
+            StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh -O check ec2-deploy 2>/dev/null || ssh -fnNT ec2-deploy
 
       - name: Sync stack files to EC2
         run: |
-          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_APP_DIR}'"
+          ssh ec2-deploy "mkdir -p '${EC2_APP_DIR}'"
           rsync -az --delete \
             --exclude '.git/' \
+            --exclude '.deploy/' \
             --exclude 'node_modules/' \
             --exclude '**/.next/' \
             --exclude '**/.turbo/' \
@@ -115,23 +175,54 @@ jobs:
             --exclude '**/.agents/' \
             --exclude '**/*.test.ts' \
             --exclude '**/*.test.tsx' \
-            -e "ssh -i ~/.ssh/deploy_key" \
-            ./ "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/"
+            -e "ssh ec2-deploy" \
+            ./ "ec2-deploy:${EC2_APP_DIR}/"
 
-      - name: Bootstrap, pull, and deploy
+      - name: Pre-deploy backup and deploy
+        id: deploy
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SKIP_BACKUP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_backup }}
         run: |
-          scp -i ~/.ssh/deploy_key .env "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/.env"
-          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
-            "set -euo pipefail
+          ssh ec2-deploy "set -euo pipefail
+            mkdir -p '${EC2_APP_DIR}/.deploy'
+            if [[ -s '${EC2_APP_DIR}/.deploy/current-image-tag' ]]; then
+              cp '${EC2_APP_DIR}/.deploy/current-image-tag' '${EC2_APP_DIR}/.deploy/previous-image-tag'
+            elif [[ -f '${EC2_APP_DIR}/.env' ]]; then
+              prev=\$(grep '^IMAGE_TAG=' '${EC2_APP_DIR}/.env' | head -1 | cut -d= -f2- | tr -d '\"')
+              [[ -n \"\$prev\" ]] && printf '%s\\n' \"\$prev\" > '${EC2_APP_DIR}/.deploy/previous-image-tag'
+            fi"
+          scp .env "ec2-deploy:${EC2_APP_DIR}/.env"
+          ssh ec2-deploy "set -euo pipefail
+            chmod +x '${EC2_APP_DIR}/scripts/'*.sh
+            if [[ \"${SKIP_BACKUP}\" != \"true\" ]]; then
+              bash '${EC2_APP_DIR}/scripts/pocketbase-backup-remote.sh' '${EC2_APP_DIR}'
+            fi
             echo \"${GHCR_TOKEN}\" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null \
               || echo \"${GHCR_TOKEN}\" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
             EC2_APP_DIR='${EC2_APP_DIR}' bash '${EC2_APP_DIR}/scripts/ec2-bootstrap.sh'
             bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
 
       - name: Smoke test
+        id: smoke
+        run: ssh ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-smoke-test.sh'"
+
+      - name: Roll back on smoke failure
+        if: failure() && steps.deploy.outcome == 'success'
+        run: ssh ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-rollback.sh' '${EC2_APP_DIR}'" || true
+
+      - name: Postflight cleanup
+        if: always() && steps.deploy.outcome != 'skipped'
+        continue-on-error: true
         run: |
-          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
-            "curl -fsS --retry 5 --retry-delay 5 --retry-all-errors http://127.0.0.1/ >/dev/null"
-          echo "HTTP smoke test passed on EC2"
+          ssh ec2-deploy "set +e
+            bash '${EC2_APP_DIR}/scripts/pocketbase-backup-prune.sh' '${EC2_APP_DIR}' 5
+            bash '${EC2_APP_DIR}/scripts/deploy-cleanup-remote.sh' '${EC2_APP_DIR}' 3
+            echo '--- deploy state ---'
+            cat '${EC2_APP_DIR}/.deploy/current-image-tag' 2>/dev/null && echo '(current tag)'
+            cat '${EC2_APP_DIR}/.deploy/previous-image-tag' 2>/dev/null && echo '(previous tag)'
+            cat '${EC2_APP_DIR}/.deploy/last-backup.txt' 2>/dev/null && echo '(last backup)'"
+
+      - name: Close SSH multiplex
+        if: always()
+        run: ssh -O exit ec2-deploy 2>/dev/null || true
