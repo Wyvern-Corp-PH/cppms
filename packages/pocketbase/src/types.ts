@@ -1,3 +1,5 @@
+export type { RecordModel } from "pocketbase"
+
 export type {
   ApprovalActionRecord,
   BudgetAllocationRecord,

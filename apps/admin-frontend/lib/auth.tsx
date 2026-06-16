@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { RecordModel } from "pocketbase"
+import type { RecordModel } from "@workspace/pocketbase/types"
 
 import { getPocketBase } from "@/lib/pocketbase"
 
