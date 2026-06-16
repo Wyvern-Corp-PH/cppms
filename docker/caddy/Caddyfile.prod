@@ -21,7 +21,7 @@
 	}
 }
 
-{env.DOMAIN} {
+{$DOMAIN} {
 	import routes
 }
 
