@@ -1,0 +1,74 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render deploy env
+        run: node scripts/render-deploy-env.mjs > .env.deploy
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+          CADDY_HTTP_PORT: ${{ vars.CADDY_HTTP_PORT }}
+          CADDY_HTTPS_PORT: ${{ vars.CADDY_HTTPS_PORT }}
+          ORIGINS: ${{ vars.ORIGINS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          LOG_STDOUT: ${{ vars.LOG_STDOUT }}
+          NEXT_PUBLIC_POCKETBASE_URL: ${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
+          NEXT_PUBLIC_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_PUBLIC_URL }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ vars.NEXT_PUBLIC_ADMIN_URL }}
+          POCKETBASE_ENCRYPTION_KEY: ${{ secrets.POCKETBASE_ENCRYPTION_KEY }}
+          POCKETBASE_ADMIN_EMAIL: ${{ secrets.POCKETBASE_ADMIN_EMAIL }}
+          POCKETBASE_ADMIN_PASSWORD: ${{ secrets.POCKETBASE_ADMIN_PASSWORD }}
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync application to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_APP_DIR}'"
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'node_modules/' \
+            --exclude '**/.next/' \
+            --exclude '**/.turbo/' \
+            --exclude '.env*' \
+            --exclude '**/.agents/' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/"
+
+      - name: Upload runtime env
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          scp -i ~/.ssh/deploy_key .env.deploy "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/.env"
+
+      - name: Deploy Docker Compose stack
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
+            "bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
