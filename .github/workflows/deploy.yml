@@ -55,8 +55,8 @@ jobs:
         include:
           - id: pocketbase
             image: cppms-pocketbase
-            context: packages/pocketbase
-            file: Dockerfile
+            context: .
+            file: packages/pocketbase/Dockerfile
             target: ""
           - id: public-frontend
             image: cppms-public-frontend
