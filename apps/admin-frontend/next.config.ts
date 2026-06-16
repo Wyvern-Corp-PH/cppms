@@ -1,8 +1,10 @@
 import type { NextConfig } from "next"
 
 const domain = process.env.DOMAIN ?? "cppms.localhost"
+const basePath = process.env.BASE_PATH?.trim() ?? ""
 
 const nextConfig: NextConfig = {
+  ...(basePath ? { basePath } : {}),
   transpilePackages: ["@workspace/ui", "@workspace/pocketbase"],
   allowedDevOrigins: [
     `public.${domain}`,

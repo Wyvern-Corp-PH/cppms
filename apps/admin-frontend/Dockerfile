@@ -31,7 +31,9 @@ CMD ["sh", "-c", "cd apps/admin-frontend && exec bun run dev -- -p 3000 -H 0.0.0
 FROM base AS build
 WORKDIR /app/apps/admin-frontend
 ARG NEXT_PUBLIC_POCKETBASE_URL
+ARG BASE_PATH
 ENV NEXT_PUBLIC_POCKETBASE_URL=$NEXT_PUBLIC_POCKETBASE_URL
+ENV BASE_PATH=$BASE_PATH
 RUN bun run build
 
 # -------- Production --------

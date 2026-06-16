@@ -1,19 +1,22 @@
-public.{env.DOMAIN} {
-	reverse_proxy public-frontend:3000 {
-		header_up Host {host}
-		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto {scheme}
+{env.DOMAIN} {
+	@admin path /admin /admin/*
+	handle @admin {
+		reverse_proxy admin-frontend:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
-}
 
-admin.{env.DOMAIN} {
-	reverse_proxy admin-frontend:3000 {
-		header_up Host {host}
-		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto {scheme}
+	handle_path /v1/* {
+		reverse_proxy pocketbase:8090
 	}
-}
 
-pocketbase.{env.DOMAIN} {
-	reverse_proxy pocketbase:8090
+	handle {
+		reverse_proxy public-frontend:3000 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
 }
