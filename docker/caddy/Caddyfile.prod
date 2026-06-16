@@ -1,4 +1,4 @@
-{env.DOMAIN} {
+(routes) {
 	@admin path /admin /admin/*
 	handle @admin {
 		reverse_proxy admin-frontend:3000 {
@@ -19,4 +19,12 @@
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
+}
+
+{env.DOMAIN} {
+	import routes
+}
+
+:80 {
+	import routes
 }
