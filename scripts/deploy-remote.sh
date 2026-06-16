@@ -17,6 +17,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
 docker_cmd() {
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     docker "$@"
@@ -37,11 +42,23 @@ docker_cmd compose version >/dev/null 2>&1 || {
   exit 1
 }
 
-echo "Validating compose config..."
-docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
+APP_SERVICES=(pocketbase public-frontend admin-frontend)
+PULL_ONLY=false
+if [[ -n "${IMAGE_TAG:-}" && "${IMAGE_TAG}" != "dev" && -n "${GHCR_REGISTRY:-}" ]]; then
+  PULL_ONLY=true
+fi
 
-echo "Building and starting stack..."
-docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
+if [[ "$PULL_ONLY" == "false" ]]; then
+  echo "Validating compose config..."
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
+  echo "Building and starting stack..."
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
+else
+  echo "Pulling images ${GHCR_REGISTRY}/cppms-*:${IMAGE_TAG}..."
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull "${APP_SERVICES[@]}"
+  echo "Starting stack (pull-only)..."
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+fi
 
 echo "Pruning dangling images..."
 docker_cmd image prune -f >/dev/null || true
