@@ -29,6 +29,7 @@ CMD ["sh", "-c", "cd apps/public-frontend && exec bun run dev -- -p 3000 -H 0.0.
 
 # -------- Build --------
 FROM base AS build
+ENV PATH="/app/node_modules/.bin:${PATH}"
 WORKDIR /app/apps/public-frontend
 ARG NEXT_PUBLIC_POCKETBASE_URL
 ARG NEXT_PUBLIC_ADMIN_URL
@@ -41,6 +42,7 @@ RUN bun run build
 # -------- Production --------
 FROM oven/bun:canary-alpine AS production
 WORKDIR /app
+ENV PATH="/app/node_modules/.bin:${PATH}"
 RUN apk add --no-cache wget
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/public-frontend/.next ./apps/public-frontend/.next
