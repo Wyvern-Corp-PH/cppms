@@ -9,7 +9,7 @@ services:
       - "${CADDY_HTTP_PORT:-80}:80"
       - "${CADDY_HTTPS_PORT:-443}:443"
     environment:
-      DOMAIN: ${DOMAIN:-cppms.local}
+      DOMAIN: ${DOMAIN:-cppms.localhost}
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -86,6 +86,7 @@ services:
     volumes:
       - .:/app
       - node_modules:/app/node_modules
+      - public_next:/app/apps/public-frontend/.next
     depends_on:
       install-deps:
         condition: service_completed_successfully
@@ -104,13 +105,15 @@ services:
     env_file:
       - .env.local
     environment:
-      DOMAIN: ${DOMAIN:-cppms.local}
+      DOMAIN: ${DOMAIN:-cppms.localhost}
+      BASE_PATH: /admin
       HOSTNAME: 0.0.0.0
       PORT: 3000
       POCKETBASE_INTERNAL_URL: http://pocketbase:8090
     volumes:
       - .:/app
       - node_modules:/app/node_modules
+      - admin_next:/app/apps/admin-frontend/.next
     depends_on:
       install-deps:
         condition: service_completed_successfully
@@ -120,5 +123,7 @@ services:
 volumes:
   pocketbase_data:
   node_modules:
+  admin_next:
+  public_next:
   caddy_data:
   caddy_config:

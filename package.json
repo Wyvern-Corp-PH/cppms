@@ -19,6 +19,7 @@
     "release:dry-run": "semantic-release --dry-run",
     "docker:dev": "docker compose -f docker-compose.local.yml --env-file .env.local up --build",
     "docker:clean-cache": "docker compose -f docker-compose.local.yml --env-file .env.local exec admin-frontend rm -rf /app/apps/admin-frontend/.next && docker compose -f docker-compose.local.yml --env-file .env.local exec public-frontend rm -rf /app/apps/public-frontend/.next",
+    "docker:clean-cache:volumes": "docker volume rm -f cppms_admin_next cppms_public_next",
     "seed:dev": "bun --env-file .env.local packages/pocketbase/scripts/seed-dev.ts",
     "seed:dev:force": "bun --env-file .env.local packages/pocketbase/scripts/seed-dev.ts --force",
     "seed:dev:docker": "docker compose -f docker-compose.local.yml --env-file .env.local exec -e POCKETBASE_INTERNAL_URL=http://pocketbase:8090 admin-frontend bun --env-file /app/.env.local /app/packages/pocketbase/scripts/seed-dev.ts",
