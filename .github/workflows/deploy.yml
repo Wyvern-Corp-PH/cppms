@@ -148,6 +148,8 @@ jobs:
             ControlMaster auto
             ControlPath ${SSH_DIR}/cm-%C
             ControlPersist 600
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
             StrictHostKeyChecking accept-new
           EOF
           sed -i 's/^[[:space:]]*//' "${SSH_DIR}/config"
@@ -182,11 +184,7 @@ jobs:
             -e "ssh -F ${SSH_DIR}/config" \
             ./ "ec2-deploy:${EC2_APP_DIR}/"
 
-      - name: Pre-deploy backup and deploy
-        id: deploy
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SKIP_BACKUP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_backup }}
+      - name: Record rollback tag
         run: |
           SSH_CFG="${HOME}/.ssh/config"
           ssh -F "${SSH_CFG}" ec2-deploy "set -euo pipefail
@@ -197,16 +195,32 @@ jobs:
               prev=\$(grep '^IMAGE_TAG=' '${EC2_APP_DIR}/.env' | head -1 | cut -d= -f2- | tr -d '\"')
               [[ -n \"\$prev\" ]] && printf '%s\\n' \"\$prev\" > '${EC2_APP_DIR}/.deploy/previous-image-tag'
             fi"
-          scp -F "${SSH_CFG}" .env "ec2-deploy:${EC2_APP_DIR}/.env"
+
+      - name: Upload deploy env
+        run: scp -F "${HOME}/.ssh/config" .env "ec2-deploy:${EC2_APP_DIR}/.env"
+
+      - name: EC2 bootstrap and GHCR login
+        run: |
+          SSH_CFG="${HOME}/.ssh/config"
           ssh -F "${SSH_CFG}" ec2-deploy "set -euo pipefail
             chmod +x '${EC2_APP_DIR}/scripts/'*.sh
-            if [[ \"${SKIP_BACKUP}\" != \"true\" ]]; then
-              bash '${EC2_APP_DIR}/scripts/pocketbase-backup-remote.sh' '${EC2_APP_DIR}'
-            fi
-            echo \"${GHCR_TOKEN}\" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null \
-              || echo \"${GHCR_TOKEN}\" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
             EC2_APP_DIR='${EC2_APP_DIR}' bash '${EC2_APP_DIR}/scripts/ec2-bootstrap.sh'
-            bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
+            echo \"${{ secrets.GITHUB_TOKEN }}\" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null \
+              || echo \"${{ secrets.GITHUB_TOKEN }}\" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+
+      - name: Pre-deploy PocketBase backup
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.skip_backup != 'true' }}
+        run: |
+          ssh -F "${HOME}/.ssh/config" ec2-deploy \
+            "bash '${EC2_APP_DIR}/scripts/pocketbase-backup-remote.sh' '${EC2_APP_DIR}'"
+
+      - name: Pull and start stack
+        id: deploy
+        env:
+          DEPLOY_WAIT_TIMEOUT_SEC: "420"
+        run: |
+          ssh -F "${HOME}/.ssh/config" ec2-deploy \
+            "DEPLOY_WAIT_TIMEOUT_SEC=${DEPLOY_WAIT_TIMEOUT_SEC} bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
 
       - name: Smoke test
         id: smoke
