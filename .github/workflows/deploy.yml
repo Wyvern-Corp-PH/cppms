@@ -3,21 +3,72 @@ name: Deploy
 on:
   push:
     branches: [master]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "docker/**"
+      - "docker-compose.prod.yml"
+      - "scripts/deploy-remote.sh"
+      - "scripts/ec2-bootstrap.sh"
+      - "scripts/render-deploy-env.mjs"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  IMAGE_TAG: ${{ github.sha }}
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USER: ${{ secrets.EC2_USER }}
+  EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push images
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+          ORIGINS: ${{ vars.ORIGINS }}
+          NEXT_PUBLIC_POCKETBASE_URL: ${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
+          NEXT_PUBLIC_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_PUBLIC_URL }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ vars.NEXT_PUBLIC_ADMIN_URL }}
+        run: |
+          docker compose -f docker-compose.prod.yml build
+          docker compose -f docker-compose.prod.yml push \
+            pocketbase public-frontend admin-frontend
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Render deploy env
-        run: node scripts/render-deploy-env.mjs > .env.deploy
+        run: node scripts/render-deploy-env.mjs > .env
         env:
           DOMAIN: ${{ vars.DOMAIN }}
           CADDY_HTTP_PORT: ${{ vars.CADDY_HTTP_PORT }}
@@ -31,6 +82,8 @@ jobs:
           POCKETBASE_ENCRYPTION_KEY: ${{ secrets.POCKETBASE_ENCRYPTION_KEY }}
           POCKETBASE_ADMIN_EMAIL: ${{ secrets.POCKETBASE_ADMIN_EMAIL }}
           POCKETBASE_ADMIN_PASSWORD: ${{ secrets.POCKETBASE_ADMIN_PASSWORD }}
+          GHCR_REGISTRY: ${{ env.GHCR_REGISTRY }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
 
       - name: Configure SSH
@@ -40,11 +93,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Sync application to EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+      - name: Sync stack files to EC2
         run: |
           ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_APP_DIR}'"
           rsync -az --delete \
@@ -52,33 +101,37 @@ jobs:
             --exclude 'node_modules/' \
             --exclude '**/.next/' \
             --exclude '**/.turbo/' \
-            --exclude '.env*' \
+            --exclude '.env.dev' \
+            --exclude '.env.local' \
+            --exclude '.env.sample' \
+            --exclude 'apps/' \
+            --exclude 'packages/ui/' \
+            --exclude 'packages/eslint-config/' \
+            --exclude 'packages/typescript-config/' \
+            --exclude 'packages/pocketbase/src/' \
+            --exclude 'wireframes/' \
+            --exclude 'docs/' \
+            --exclude '.github/' \
             --exclude '**/.agents/' \
+            --exclude '**/*.test.ts' \
+            --exclude '**/*.test.tsx' \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/"
 
-      - name: Upload runtime env
+      - name: Bootstrap, pull, and deploy
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          scp -i ~/.ssh/deploy_key .env.deploy "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/.env"
+          scp -i ~/.ssh/deploy_key .env "${EC2_USER}@${EC2_HOST}:${EC2_APP_DIR}/.env"
+          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
+            "set -euo pipefail
+            echo \"${GHCR_TOKEN}\" | docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null \
+              || echo \"${GHCR_TOKEN}\" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            EC2_APP_DIR='${EC2_APP_DIR}' bash '${EC2_APP_DIR}/scripts/ec2-bootstrap.sh'
+            bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
 
-      - name: Bootstrap EC2 host
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+      - name: Smoke test
         run: |
           ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
-            "EC2_APP_DIR='${EC2_APP_DIR}' bash '${EC2_APP_DIR}/scripts/ec2-bootstrap.sh'"
-
-      - name: Deploy Docker Compose stack
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
-            "bash '${EC2_APP_DIR}/scripts/deploy-remote.sh' '${EC2_APP_DIR}'"
+            "curl -fsS --retry 5 --retry-delay 5 --retry-all-errors http://127.0.0.1/ >/dev/null"
+          echo "HTTP smoke test passed on EC2"
