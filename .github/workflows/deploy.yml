@@ -134,27 +134,31 @@ jobs:
 
       - name: Configure SSH multiplex
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          cat >> ~/.ssh/config <<EOF
+          SSH_DIR="${HOME}/.ssh"
+          mkdir -p "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > "${SSH_DIR}/deploy_key"
+          chmod 600 "${SSH_DIR}/deploy_key"
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> "${SSH_DIR}/known_hosts" 2>/dev/null
+          cat > "${SSH_DIR}/config" <<EOF
           Host ec2-deploy
             HostName ${{ secrets.EC2_HOST }}
             User ${{ secrets.EC2_USER }}
-            IdentityFile ~/.ssh/deploy_key
+            IdentityFile ${SSH_DIR}/deploy_key
             ControlMaster auto
-            ControlPath ~/.ssh/cm-%C
+            ControlPath ${SSH_DIR}/cm-%C
             ControlPersist 600
             StrictHostKeyChecking accept-new
           EOF
-          chmod 600 ~/.ssh/config
-          ssh -O check ec2-deploy 2>/dev/null || ssh -fnNT ec2-deploy
+          sed -i 's/^[[:space:]]*//' "${SSH_DIR}/config"
+          chmod 600 "${SSH_DIR}/config"
+          ssh -F "${SSH_DIR}/config" -O check ec2-deploy 2>/dev/null \
+            || ssh -F "${SSH_DIR}/config" -fnNT ec2-deploy
 
       - name: Sync stack files to EC2
         run: |
-          ssh ec2-deploy "mkdir -p '${EC2_APP_DIR}'"
+          SSH_DIR="${HOME}/.ssh"
+          ssh -F "${SSH_DIR}/config" ec2-deploy "mkdir -p '${EC2_APP_DIR}'"
           rsync -az --delete \
             --exclude '.git/' \
             --exclude '.deploy/' \
@@ -175,7 +179,7 @@ jobs:
             --exclude '**/.agents/' \
             --exclude '**/*.test.ts' \
             --exclude '**/*.test.tsx' \
-            -e "ssh -F ~/.ssh/config" \
+            -e "ssh -F ${SSH_DIR}/config" \
             ./ "ec2-deploy:${EC2_APP_DIR}/"
 
       - name: Pre-deploy backup and deploy
@@ -184,7 +188,8 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_BACKUP: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.skip_backup }}
         run: |
-          ssh ec2-deploy "set -euo pipefail
+          SSH_CFG="${HOME}/.ssh/config"
+          ssh -F "${SSH_CFG}" ec2-deploy "set -euo pipefail
             mkdir -p '${EC2_APP_DIR}/.deploy'
             if [[ -s '${EC2_APP_DIR}/.deploy/current-image-tag' ]]; then
               cp '${EC2_APP_DIR}/.deploy/current-image-tag' '${EC2_APP_DIR}/.deploy/previous-image-tag'
@@ -192,8 +197,8 @@ jobs:
               prev=\$(grep '^IMAGE_TAG=' '${EC2_APP_DIR}/.env' | head -1 | cut -d= -f2- | tr -d '\"')
               [[ -n \"\$prev\" ]] && printf '%s\\n' \"\$prev\" > '${EC2_APP_DIR}/.deploy/previous-image-tag'
             fi"
-          scp .env "ec2-deploy:${EC2_APP_DIR}/.env"
-          ssh ec2-deploy "set -euo pipefail
+          scp -F "${SSH_CFG}" .env "ec2-deploy:${EC2_APP_DIR}/.env"
+          ssh -F "${SSH_CFG}" ec2-deploy "set -euo pipefail
             chmod +x '${EC2_APP_DIR}/scripts/'*.sh
             if [[ \"${SKIP_BACKUP}\" != \"true\" ]]; then
               bash '${EC2_APP_DIR}/scripts/pocketbase-backup-remote.sh' '${EC2_APP_DIR}'
@@ -205,17 +210,17 @@ jobs:
 
       - name: Smoke test
         id: smoke
-        run: ssh ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-smoke-test.sh'"
+        run: ssh -F "${HOME}/.ssh/config" ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-smoke-test.sh'"
 
       - name: Roll back on smoke failure
         if: failure() && steps.deploy.outcome == 'success'
-        run: ssh ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-rollback.sh' '${EC2_APP_DIR}'" || true
+        run: ssh -F "${HOME}/.ssh/config" ec2-deploy "bash '${EC2_APP_DIR}/scripts/deploy-rollback.sh' '${EC2_APP_DIR}'" || true
 
       - name: Postflight cleanup
         if: always() && steps.deploy.outcome != 'skipped'
         continue-on-error: true
         run: |
-          ssh ec2-deploy "set +e
+          ssh -F "${HOME}/.ssh/config" ec2-deploy "set +e
             bash '${EC2_APP_DIR}/scripts/pocketbase-backup-prune.sh' '${EC2_APP_DIR}' 5
             bash '${EC2_APP_DIR}/scripts/deploy-cleanup-remote.sh' '${EC2_APP_DIR}' 3
             echo '--- deploy state ---'
@@ -225,4 +230,4 @@ jobs:
 
       - name: Close SSH multiplex
         if: always()
-        run: ssh -O exit ec2-deploy 2>/dev/null || true
+        run: ssh -F "${HOME}/.ssh/config" -O exit ec2-deploy 2>/dev/null || true
