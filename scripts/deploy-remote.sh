@@ -42,7 +42,7 @@ docker_cmd compose version >/dev/null 2>&1 || {
   exit 1
 }
 
-APP_SERVICES=(pocketbase public-frontend admin-frontend)
+APP_SERVICES=(pocketbase public-frontend admin-frontend caddy)
 PULL_ONLY=false
 if [[ -n "${IMAGE_TAG:-}" && "${IMAGE_TAG}" != "dev" && -n "${GHCR_REGISTRY:-}" ]]; then
   PULL_ONLY=true
@@ -58,26 +58,44 @@ dump_stack_diagnostics() {
 }
 
 WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT_SEC:-420}"
+CADDY_PORT="${CADDY_HTTP_PORT:-80}"
+
+wait_for_http() {
+  local url="$1"
+  local timeout_sec="${2:-90}"
+  local deadline=$((SECONDS + timeout_sec))
+  echo "[deploy] waiting for HTTP at $url (timeout ${timeout_sec}s)..."
+  while (( SECONDS < deadline )); do
+    if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then
+      echo "[deploy] HTTP ready at $url"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "[deploy] timed out waiting for HTTP at $url" >&2
+  return 1
+}
 
 if [[ "$PULL_ONLY" == "false" ]]; then
   echo "[deploy] validating compose config..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
   echo "[deploy] building and starting stack..."
-  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans --force-recreate
 else
   echo "[deploy] pulling images ${GHCR_REGISTRY}/cppms-*:${IMAGE_TAG}..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull "${APP_SERVICES[@]}"
   echo "[deploy] starting stack (pull-only, wait timeout ${WAIT_TIMEOUT}s)..."
   if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --help 2>&1 | grep -q '\-\-wait'; then
-    if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --wait --wait-timeout "$WAIT_TIMEOUT"; then
-      echo "[deploy] all services healthy"
+    if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" \
+      up -d --remove-orphans --force-recreate --wait --wait-timeout "$WAIT_TIMEOUT"; then
+      echo "[deploy] compose --wait finished"
     else
       echo "[deploy] compose --wait failed or timed out after ${WAIT_TIMEOUT}s" >&2
       dump_stack_diagnostics
       exit 1
     fi
   else
-    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --force-recreate
     echo "[deploy] waiting up to ${WAIT_TIMEOUT}s for healthchecks (no compose --wait)..."
     deadline=$((SECONDS + WAIT_TIMEOUT))
     while (( SECONDS < deadline )); do
@@ -100,6 +118,11 @@ else
       exit 1
     fi
   fi
+fi
+
+if ! wait_for_http "http://127.0.0.1:${CADDY_PORT}/v1/api/health" 90; then
+  dump_stack_diagnostics
+  exit 1
 fi
 
 STATE_DIR=".deploy"
