@@ -29,13 +29,13 @@ CMD ["sh", "-c", "cd apps/admin-frontend && exec bun run dev -- -p 3000 -H 0.0.0
 
 # -------- Build --------
 FROM base AS build
-ENV PATH="/app/node_modules/.bin:${PATH}"
-WORKDIR /app/apps/admin-frontend
+WORKDIR /app
 ARG NEXT_PUBLIC_POCKETBASE_URL
 ARG BASE_PATH
 ENV NEXT_PUBLIC_POCKETBASE_URL=$NEXT_PUBLIC_POCKETBASE_URL
 ENV BASE_PATH=$BASE_PATH
-RUN bun run build
+RUN bun install --frozen-lockfile
+RUN bun run --cwd apps/admin-frontend build
 
 # -------- Production --------
 FROM oven/bun:canary-alpine AS production
@@ -54,6 +54,6 @@ ENV PORT=3000
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -q -O- http://localhost:3000/ || exit 1
-CMD ["bun", "run", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["bun", "run", "--cwd", "/app/apps/admin-frontend", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
 
 FROM production
