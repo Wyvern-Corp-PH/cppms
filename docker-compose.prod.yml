@@ -2,7 +2,10 @@ name: cppms
 
 services:
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ./docker/caddy
+      dockerfile: Dockerfile
+    image: ${GHCR_REGISTRY:-local}/cppms-caddy:${IMAGE_TAG:-dev}
     container_name: cppms-caddy
     restart: unless-stopped
     ports:
@@ -14,6 +17,12 @@ services:
       - ./docker/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     depends_on:
       pocketbase:
         condition: service_healthy

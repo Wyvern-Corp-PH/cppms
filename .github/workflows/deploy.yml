@@ -75,6 +75,11 @@ jobs:
             build_args: |
               NEXT_PUBLIC_POCKETBASE_URL=${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
               BASE_PATH=/admin
+          - id: caddy
+            image: cppms-caddy
+            context: docker/caddy
+            file: docker/caddy/Dockerfile
+            target: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4

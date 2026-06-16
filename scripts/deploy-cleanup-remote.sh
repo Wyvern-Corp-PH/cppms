@@ -41,7 +41,7 @@ add_keep "${IMAGE_TAG:-}"
 [[ -f "${STATE_DIR}/previous-image-tag" ]] && add_keep "$(tr -d '[:space:]' < "${STATE_DIR}/previous-image-tag")"
 
 if [[ -n "${GHCR_REGISTRY:-}" ]]; then
-  for repo in cppms-pocketbase cppms-public-frontend cppms-admin-frontend; do
+  for repo in cppms-pocketbase cppms-public-frontend cppms-admin-frontend cppms-caddy; do
     image_ref="${GHCR_REGISTRY}/${repo}"
     mapfile -t recent_tags < <(
       docker_cmd images "$image_ref" --format '{{.Tag}}' 2>/dev/null | grep -v '^latest$' | head -n "$KEEP_TAGS" || true
@@ -59,7 +59,7 @@ else
 fi
 
 if [[ -n "${GHCR_REGISTRY:-}" ]]; then
-  for repo in cppms-pocketbase cppms-public-frontend cppms-admin-frontend; do
+  for repo in cppms-pocketbase cppms-public-frontend cppms-admin-frontend cppms-caddy; do
     image_ref="${GHCR_REGISTRY}/${repo}"
     mapfile -t all_tags < <(docker_cmd images "$image_ref" --format '{{.Tag}}' 2>/dev/null || true)
     for tag in "${all_tags[@]}"; do
