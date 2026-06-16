@@ -19,8 +19,9 @@ COPY package.json bun.lock ./
 COPY apps ./apps
 COPY packages ./packages
 
-# -------- Development --------
-FROM base AS development
+# -------- Development (source + node_modules from compose volumes) --------
+FROM oven/bun:canary-alpine AS development
+RUN apk add --no-cache wget
 WORKDIR /app
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
@@ -40,23 +41,20 @@ RUN bun install --frozen-lockfile
 RUN mkdir -p apps/public-frontend/public
 RUN bun run --cwd apps/public-frontend build
 
-# -------- Production --------
-FROM oven/bun:canary-alpine AS production
-WORKDIR /app
-ENV PATH="/app/node_modules/.bin:${PATH}"
+# -------- Production (Next.js standalone — minimal traced runtime) --------
+FROM node:22-alpine AS production
 RUN apk add --no-cache wget
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/apps/public-frontend/.next ./apps/public-frontend/.next
-COPY --from=build /app/apps/public-frontend/public ./apps/public-frontend/public
-COPY apps/public-frontend/package.json ./apps/public-frontend/
-COPY package.json bun.lock ./
-COPY packages/ui ./packages/ui
-WORKDIR /app/apps/public-frontend
+WORKDIR /app
+ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+COPY --from=build /app/apps/public-frontend/.next/standalone ./
+COPY --from=build /app/apps/public-frontend/.next/static ./apps/public-frontend/.next/static
+COPY --from=build /app/apps/public-frontend/public ./apps/public-frontend/public
+WORKDIR /app/apps/public-frontend
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -q -O- http://localhost:3000/ || exit 1
-CMD ["bun", "run", "--cwd", "/app/apps/public-frontend", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["node", "server.js"]
 
 FROM production
