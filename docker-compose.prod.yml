@@ -23,6 +23,7 @@ services:
         condition: service_healthy
 
   pocketbase:
+    image: ${GHCR_REGISTRY:-local}/cppms-pocketbase:${IMAGE_TAG:-dev}
     build:
       context: ./packages/pocketbase
       dockerfile: Dockerfile
@@ -59,6 +60,7 @@ services:
       '"
 
   public-frontend:
+    image: ${GHCR_REGISTRY:-local}/cppms-public-frontend:${IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: apps/public-frontend/Dockerfile
@@ -79,6 +81,7 @@ services:
         condition: service_healthy
 
   admin-frontend:
+    image: ${GHCR_REGISTRY:-local}/cppms-admin-frontend:${IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: apps/admin-frontend/Dockerfile
