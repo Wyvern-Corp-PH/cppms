@@ -111,11 +111,12 @@ fi
 deploy_id="${IMAGE_TAG:-unknown}"
 deploy_id="${deploy_id:0:12}"
 timestamp=$(date -u +%Y%m%d_%H%M%S)
-backup_name="pre_deploy_${deploy_id}_${timestamp}.zip"
-backup_name=$(printf '%s' "$backup_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
+backup_base="pre_deploy_${deploy_id}_${timestamp}"
+backup_base=$(printf '%s' "$backup_base" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
+backup_name="${backup_base}.zip"
 
 echo "Creating PocketBase backup: $backup_name"
-create_http=$(pb_curl "$cid" \
+create_http=$(docker_cmd run --rm --network "container:${cid}" curlimages/curl:8.12.1 -sS \
   -X POST "http://127.0.0.1:8090/api/backups" \
   -H "Content-Type: application/json" \
   -H "Authorization: ${token}" \
