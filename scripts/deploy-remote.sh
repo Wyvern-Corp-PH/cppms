@@ -57,7 +57,17 @@ else
   echo "Pulling images ${GHCR_REGISTRY}/cppms-*:${IMAGE_TAG}..."
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull "${APP_SERVICES[@]}"
   echo "Starting stack (pull-only)..."
-  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+  if docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --help 2>&1 | grep -q '\-\-wait'; then
+    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans --wait
+  else
+    docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+  fi
+fi
+
+STATE_DIR=".deploy"
+mkdir -p "$STATE_DIR"
+if [[ -n "${IMAGE_TAG:-}" ]]; then
+  printf '%s\n' "$IMAGE_TAG" > "${STATE_DIR}/current-image-tag"
 fi
 
 echo "Pruning dangling images..."
