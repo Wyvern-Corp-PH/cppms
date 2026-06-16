@@ -45,9 +45,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Cancel stale builds on rapid pushes; deploy job stays queued safely.
+    # Per-service group so matrix legs build in parallel; still cancel stale runs on push.
     concurrency:
-      group: deploy-build-${{ github.ref }}
+      group: deploy-build-${{ github.ref }}-${{ matrix.id }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
