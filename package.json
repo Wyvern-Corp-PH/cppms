@@ -25,7 +25,9 @@
     "seed:dev:docker:force": "docker compose -f docker-compose.local.yml --env-file .env.local exec -e POCKETBASE_INTERNAL_URL=http://pocketbase:8090 admin-frontend bun --env-file /app/.env.local /app/packages/pocketbase/scripts/seed-dev.ts --force",
     "docker:watch": "docker compose -f docker-compose.local.yml --env-file .env.local watch pocketbase",
     "docker:down": "docker compose -f docker-compose.local.yml down",
-    "docker:config": "docker compose -f docker-compose.local.yml --env-file .env.local config"
+    "docker:config": "docker compose -f docker-compose.local.yml --env-file .env.local config",
+    "github:env": "node scripts/set-github-env.mjs",
+    "github:env:apply": "node scripts/set-github-env.mjs --apply"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
