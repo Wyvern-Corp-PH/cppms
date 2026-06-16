@@ -17,10 +17,14 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "Docker installed. Log out and back in so group membership applies."
 fi
 
-if ! docker compose version >/dev/null 2>&1; then
+if ! $SUDO docker compose version >/dev/null 2>&1; then
   echo "Installing Docker Compose plugin..."
   $SUDO mkdir -p /usr/local/lib/docker/cli-plugins
-  COMPOSE_VERSION="$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K[^"]+')"
+  COMPOSE_VERSION="$(
+    curl -fsSL https://api.github.com/repos/docker/compose/releases/latest \
+      | sed -n 's/.*"tag_name": "\(v[^"]*\)".*/\1/p' \
+      | head -n 1
+  )"
   $SUDO curl -fsSL \
     "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
     -o /usr/local/lib/docker/cli-plugins/docker-compose

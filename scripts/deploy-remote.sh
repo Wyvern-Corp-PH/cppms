@@ -17,24 +17,34 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "docker is not installed" >&2
-  exit 1
-fi
+docker_cmd() {
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    docker "$@"
+    return
+  fi
 
-docker compose version >/dev/null 2>&1 || {
+  if command -v docker >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1; then
+    sudo docker "$@"
+    return
+  fi
+
+  echo "docker is not installed or not reachable" >&2
+  exit 1
+}
+
+docker_cmd compose version >/dev/null 2>&1 || {
   echo "docker compose plugin is not available" >&2
   exit 1
 }
 
 echo "Validating compose config..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
+docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config >/dev/null
 
 echo "Building and starting stack..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
+docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build --remove-orphans
 
 echo "Pruning dangling images..."
-docker image prune -f >/dev/null || true
+docker_cmd image prune -f >/dev/null || true
 
 echo "Service status:"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
+docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
