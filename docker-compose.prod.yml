@@ -1,0 +1,102 @@
+name: cppms
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: cppms-caddy
+    restart: unless-stopped
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./docker/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+      public-frontend:
+        condition: service_healthy
+      admin-frontend:
+        condition: service_healthy
+
+  pocketbase:
+    build:
+      context: ./packages/pocketbase
+      dockerfile: Dockerfile
+    container_name: cppms-pocketbase
+    restart: unless-stopped
+    expose:
+      - "8090"
+    environment:
+      ORIGINS: ${ORIGINS}
+      POCKETBASE_ENCRYPTION_KEY: ${POCKETBASE_ENCRYPTION_KEY}
+      POCKETBASE_ADMIN_EMAIL: ${POCKETBASE_ADMIN_EMAIL}
+      POCKETBASE_ADMIN_PASSWORD: ${POCKETBASE_ADMIN_PASSWORD}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_STDOUT: ${LOG_STDOUT:-1}
+    volumes:
+      - pocketbase_data:/pb/pb_data
+      - ./packages/pocketbase/pb_migrations:/pb/pb_migrations:ro
+      - ./packages/pocketbase/pb_hooks:/pb/pb_hooks:ro
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -q -O- http://localhost:8090/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    command: >
+      sh -c "
+      chown -R pbuser:pbgroup /pb/pb_data &&
+      exec su-exec pbuser sh -c '
+      echo \"Creating superuser...\" &&
+      ./pocketbase superuser create \"$$POCKETBASE_ADMIN_EMAIL\" \"$$POCKETBASE_ADMIN_PASSWORD\" || true &&
+      echo \"Starting pocketbase...\" &&
+      exec ./pocketbase serve --http=0.0.0.0:8090 --origins=$$ORIGINS --encryptionEnv=POCKETBASE_ENCRYPTION_KEY
+      '"
+
+  public-frontend:
+    build:
+      context: .
+      dockerfile: apps/public-frontend/Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_POCKETBASE_URL: ${NEXT_PUBLIC_POCKETBASE_URL}
+        NEXT_PUBLIC_ADMIN_URL: ${NEXT_PUBLIC_ADMIN_URL}
+        NEXT_PUBLIC_PUBLIC_URL: ${NEXT_PUBLIC_PUBLIC_URL}
+    container_name: cppms-public
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+
+  admin-frontend:
+    build:
+      context: .
+      dockerfile: apps/admin-frontend/Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_POCKETBASE_URL: ${NEXT_PUBLIC_POCKETBASE_URL}
+    container_name: cppms-admin
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+
+volumes:
+  pocketbase_data:
+  caddy_data:
+  caddy_config:
