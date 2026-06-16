@@ -25,8 +25,15 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+const values = Object.fromEntries(KEYS.map((key) => [key, process.env[key].trim()]));
+
+const publicIp = process.env.EC2_HOST?.trim();
+if (publicIp && !values.ORIGINS.includes(publicIp)) {
+  values.ORIGINS = `${values.ORIGINS},http://${publicIp}`;
+}
+
 for (const key of KEYS) {
-  const value = process.env[key];
+  const value = values[key];
   const needsQuotes = /[\s#"'\\]/.test(value);
   const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   process.stdout.write(`${key}=${needsQuotes ? `"${escaped}"` : value}\n`);
