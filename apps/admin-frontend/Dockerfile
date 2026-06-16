@@ -35,6 +35,7 @@ ARG BASE_PATH
 ENV NEXT_PUBLIC_POCKETBASE_URL=$NEXT_PUBLIC_POCKETBASE_URL
 ENV BASE_PATH=$BASE_PATH
 RUN bun install --frozen-lockfile
+RUN mkdir -p apps/admin-frontend/public
 RUN bun run --cwd apps/admin-frontend build
 
 # -------- Production --------

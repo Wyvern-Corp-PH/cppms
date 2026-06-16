@@ -37,6 +37,7 @@ ENV NEXT_PUBLIC_POCKETBASE_URL=$NEXT_PUBLIC_POCKETBASE_URL
 ENV NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL
 ENV NEXT_PUBLIC_PUBLIC_URL=$NEXT_PUBLIC_PUBLIC_URL
 RUN bun install --frozen-lockfile
+RUN mkdir -p apps/public-frontend/public
 RUN bun run --cwd apps/public-frontend build
 
 # -------- Production --------
