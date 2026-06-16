@@ -77,9 +77,14 @@ pb_curl() {
   docker_cmd run --rm --network "container:${cid}" curlimages/curl:8.12.1 -fsS "$@"
 }
 
+if [[ ! -s "${STATE_DIR}/current-image-tag" && ! -f "${STATE_DIR}/last-backup.txt" ]]; then
+  echo "Fresh deploy — skipping pre-deploy backup (no prior release on this host)."
+  exit 0
+fi
+
 if ! docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps pocketbase 2>/dev/null \
   | grep -qE 'running|healthy'; then
-  echo "PocketBase not running — skipping pre-deploy backup (first deploy or cold start)."
+  echo "PocketBase not running — skipping pre-deploy backup (cold start)."
   exit 0
 fi
 
@@ -104,17 +109,23 @@ if [[ -z "$token" ]]; then
 fi
 
 deploy_id="${IMAGE_TAG:-unknown}"
-timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-backup_name="${BACKUP_PREFIX}_${deploy_id}_${timestamp}.zip"
-backup_name="${backup_name//[^a-zA-Z0-9._-]/_}"
+deploy_id="${deploy_id:0:12}"
+timestamp=$(date -u +%Y%m%d_%H%M%S)
+backup_name="pre_deploy_${deploy_id}_${timestamp}.zip"
+backup_name=$(printf '%s' "$backup_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
 
 echo "Creating PocketBase backup: $backup_name"
-pb_curl "$cid" \
+create_http=$(pb_curl "$cid" \
   -X POST "http://127.0.0.1:8090/api/backups" \
   -H "Content-Type: application/json" \
   -H "Authorization: ${token}" \
   -d "{\"name\":\"${backup_name}\"}" \
-  -o /dev/null -w '' || true
+  -o /dev/null -w '%{http_code}')
+
+if [[ "$create_http" != "204" && "$create_http" != "200" ]]; then
+  echo "PocketBase backup create failed (HTTP ${create_http}). Name must match [a-z0-9_-].zip" >&2
+  exit 1
+fi
 
 deadline=$((SECONDS + MAX_WAIT_SEC))
 found=false
