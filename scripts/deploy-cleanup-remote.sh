@@ -52,7 +52,11 @@ if [[ -n "${GHCR_REGISTRY:-}" ]]; then
   done
 fi
 
-echo "Keeping image tags: ${!keep_set[*]:-<none>}"
+if ((${#keep_set[@]})); then
+  echo "Keeping image tags: ${!keep_set[*]}"
+else
+  echo "Keeping image tags: <none>"
+fi
 
 if [[ -n "${GHCR_REGISTRY:-}" ]]; then
   for repo in cppms-pocketbase cppms-public-frontend cppms-admin-frontend; do
