@@ -8,7 +8,7 @@ import {
   projectCategorySchema,
   projectStatusSchema,
 } from "./enums"
-import { pbEmptyAsUndefined } from "./coerce"
+import { pbEmptyAsUndefined, pbZeroAsUndefined } from "./coerce"
 
 export const baseRecordSchema = z.object({
   id: z.string(),
@@ -31,7 +31,7 @@ export const projectRecordSchema = baseRecordSchema.extend({
   target_end_date: z.string().optional(),
   budget_year: z.number(),
   total_budget: z.number().optional(),
-  number_of_students: z.number().int().positive().optional(),
+  number_of_students: pbZeroAsUndefined(z.number().int().positive().optional()),
   moa_file: z.string().optional(),
   agreement_file: z.string().optional(),
   supporting_docs: z.array(z.string()).optional(),

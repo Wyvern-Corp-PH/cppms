@@ -54,6 +54,22 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
+  it("parses PB zero-default number_of_students as unset for non-Scholarship rows", () => {
+    const result = projectRecordSchema.safeParse({
+      ...base,
+      name: "Bridge repair",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      number_of_students: 0,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.number_of_students).toBeUndefined()
+    }
+  })
+
   it("parses PocketBase project rows with empty optional select fields", () => {
     const result = projectRecordSchema.safeParse({
       ...base,
