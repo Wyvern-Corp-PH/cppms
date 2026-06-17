@@ -61,13 +61,14 @@ export function countUpdatesToday(
 
 export function buildProgressSummaryCards(
   projects: readonly Pick<ProjectRecord, "status" | "progress_pct">[],
-  updates: readonly Pick<ProgressUpdateRecord, "created" | "updated_at">[]
+  updates: readonly Pick<ProgressUpdateRecord, "created" | "updated_at">[],
+  now: Date = new Date()
 ): ProgressSummaryCards {
   const buckets = countProgressBuckets(projects)
   return {
     activeProjects: countActiveProjects(projects),
     onTrack: buckets.onTrack,
     needsAttention: buckets.needsAttention,
-    updatesToday: countUpdatesToday(updates),
+    updatesToday: countUpdatesToday(updates, now),
   }
 }
