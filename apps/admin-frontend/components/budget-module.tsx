@@ -329,7 +329,7 @@ export function BudgetModule() {
                   <tr key={row.id} className="border-b last:border-b-0">
                     <td className="px-4 py-2">{projectName(row.project)}</td>
                     <td className="px-4 py-2 text-green-600">
-                      {formatAllocationAmount(row.amount)} {formatPhp(row.amount)}
+                      {formatAllocationAmount(row.amount)}
                     </td>
                     <td className="px-4 py-2">{row.year}</td>
                     <td className="px-4 py-2">{row.description ?? "—"}</td>
@@ -362,7 +362,7 @@ export function BudgetModule() {
                   <tr key={row.id} className="border-b last:border-b-0">
                     <td className="px-4 py-2">{projectName(row.project)}</td>
                     <td className="px-4 py-2 text-destructive">
-                      {formatExpenseAmount(row.amount)} {formatPhp(row.amount)}
+                      {formatExpenseAmount(row.amount)}
                     </td>
                     <td className="px-4 py-2">{row.category}</td>
                     <td className="px-4 py-2">{formatDisplayDate(row.date)}</td>

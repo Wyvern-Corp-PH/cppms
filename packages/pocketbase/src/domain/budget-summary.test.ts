@@ -50,11 +50,11 @@ describe("computeProjectBudgetBreakdown (V76)", () => {
 
 describe("budget amount display (V10)", () => {
   it("marks expenses as negative display values", () => {
-    expect(formatExpenseAmount(500)).toBe("-500")
+    expect(formatExpenseAmount(100_000)).toBe("-100,000")
     expect(isExpenseDisplayNegative(500)).toBe(true)
   })
 
   it("marks allocations as positive display values", () => {
-    expect(formatAllocationAmount(500)).toBe("+500")
+    expect(formatAllocationAmount(100_000)).toBe("+100,000")
   })
 })

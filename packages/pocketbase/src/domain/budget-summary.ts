@@ -76,13 +76,19 @@ export function computeProjectBudgetBreakdown(
 }
 
 export function formatAllocationAmount(amount: number): string {
-  return `+${amount}`
+  return `+${formatPlainAmount(amount)}`
 }
 
 export function formatExpenseAmount(amount: number): string {
-  return `-${amount}`
+  return `-${formatPlainAmount(amount)}`
 }
 
 export function isExpenseDisplayNegative(amount: number): boolean {
   return amount > 0
+}
+
+function formatPlainAmount(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(Math.abs(amount))
 }
