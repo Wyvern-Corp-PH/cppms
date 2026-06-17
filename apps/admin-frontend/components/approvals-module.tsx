@@ -45,6 +45,19 @@ import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
+function isReviewedProject(project: Pick<ProjectRecord, "approval_status" | "status">) {
+  return (
+    project.approval_status === "approved" ||
+    project.approval_status === "rejected" ||
+    project.status === "Approved" ||
+    project.status === "Rejected"
+  )
+}
+
+function isRejectedProject(project: Pick<ProjectRecord, "approval_status" | "status">) {
+  return project.approval_status === "rejected" || project.status === "Rejected"
+}
+
 export function ApprovalsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
@@ -85,7 +98,7 @@ export function ApprovalsModule() {
     () =>
       projects.filter(
         (project) =>
-          isApprovalEligible(project) && project.approval_status !== "approved"
+          isApprovalEligible(project) && !isReviewedProject(project)
       ),
     [projects]
   )
@@ -117,6 +130,7 @@ export function ApprovalsModule() {
   const missingDocs =
     selected &&
     (selected.progress_pct ?? 0) >= 100 &&
+    !isReviewedProject(selected) &&
     !selected.moa_file &&
     !selected.agreement_file
 
@@ -147,7 +161,6 @@ export function ApprovalsModule() {
       approval_status: parsed.data.action === "approve" ? "approved" : "rejected",
       status: parsed.data.action === "approve" ? "Approved" : "Rejected",
       approved_at: parsed.data.action === "approve" ? new Date().toISOString().slice(0, 10) : undefined,
-      approved_by: parsed.data.action === "approve" ? parsed.data.authority_name : undefined,
       rejection_reason: parsed.data.action === "reject" ? parsed.data.reason : undefined,
     })
 
@@ -166,9 +179,11 @@ export function ApprovalsModule() {
     const saved = Math.max(0, total - spent)
     const utilPct = total > 0 ? Math.round((spent / total) * 100) : 0
     const photos = projectUpdateList.filter((u) => u.site_photo)
+    const isReviewed = isReviewedProject(project)
+    const isRejected = isRejectedProject(project)
 
     return (
-      <article className="rounded-[var(--radius-lg)] border border-border bg-card p-4" data-testid={`approval-card-${project.id}`}>
+      <article className="rounded-lg border border-border bg-card p-4" data-testid={`approval-card-${project.id}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="font-semibold">{project.name}</h2>
@@ -191,7 +206,16 @@ export function ApprovalsModule() {
           <p className="text-muted-foreground text-xs">{projectUpdateList.length} progress updates</p>
           <SitePhotoCarousel updates={photos} alt={`${project.name} site photo`} />
         </div>
-        {(project.progress_pct ?? 0) >= 100 && !project.moa_file && !project.agreement_file ? (
+        {isRejected && project.rejection_reason ? (
+          <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-sm">
+            <p className="font-medium text-destructive">Reason for rejection</p>
+            <p className="text-muted-foreground mt-1">{project.rejection_reason}</p>
+          </div>
+        ) : null}
+        {(project.progress_pct ?? 0) >= 100 &&
+        !isReviewed &&
+        !project.moa_file &&
+        !project.agreement_file ? (
           <p className="text-warning mt-2 text-sm" role="status" data-testid="missing-docs-banner">
             No completion documents were uploaded with this project&apos;s 100% progress update.
           </p>
@@ -200,12 +224,16 @@ export function ApprovalsModule() {
           <Button type="button" size="sm" variant="outline" onClick={() => setSelected(project)}>
             View details
           </Button>
-          <Button type="button" size="sm" onClick={() => { setSelected(project); setDialog("approve") }}>
-            Approve
-          </Button>
-          <Button type="button" size="sm" variant="destructive" onClick={() => { setSelected(project); setDialog("reject") }}>
-            Reject
-          </Button>
+          {!isReviewed ? (
+            <>
+              <Button type="button" size="sm" onClick={() => { setSelected(project); setDialog("approve") }}>
+                Approve
+              </Button>
+              <Button type="button" size="sm" variant="destructive" onClick={() => { setSelected(project); setDialog("reject") }}>
+                Reject
+              </Button>
+            </>
+          ) : null}
         </div>
       </article>
     )
@@ -224,7 +252,7 @@ export function ApprovalsModule() {
       />
 
       {queue.length > 0 ? (
-        <div className="rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 text-sm" role="status">
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm" role="status">
           {queue.length} project(s) awaiting completion approval.
         </div>
       ) : null}
@@ -268,7 +296,7 @@ export function ApprovalsModule() {
           </TabsContent>
         </Tabs>
 
-        <aside className="rounded-[var(--radius-lg)] border border-border bg-card p-4" data-testid="approval-detail-panel">
+        <aside className="rounded-lg border border-border bg-card p-4" data-testid="approval-detail-panel">
           <h2 className="font-semibold">Review detail</h2>
           {selected ? (
             <div className="mt-3 space-y-3 text-sm">
@@ -298,6 +326,12 @@ export function ApprovalsModule() {
                   Consider requesting the project team to re-submit with the required documents.
                 </p>
               ) : null}
+              {isRejectedProject(selected) && selected.rejection_reason ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                  <p className="font-medium text-destructive">Reason for rejection</p>
+                  <p className="text-muted-foreground mt-1">{selected.rejection_reason}</p>
+                </div>
+              ) : null}
               <ul className="space-y-2">
                 {projectUpdates(selected.id).map((update) => (
                   <li key={update.id} className="border-b pb-2">
@@ -311,14 +345,16 @@ export function ApprovalsModule() {
                   </li>
                 ))}
               </ul>
-              <div className="flex gap-2">
-                <Button type="button" variant="destructive" size="sm" onClick={() => setDialog("reject")}>
-                  Reject
-                </Button>
-                <Button type="button" size="sm" onClick={() => setDialog("approve")}>
-                  Approve
-                </Button>
-              </div>
+              {!isReviewedProject(selected) ? (
+                <div className="flex gap-2">
+                  <Button type="button" variant="destructive" size="sm" onClick={() => setDialog("reject")}>
+                    Reject
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setDialog("approve")}>
+                    Approve
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="text-muted-foreground mt-3 text-sm">Select a project to review.</p>
