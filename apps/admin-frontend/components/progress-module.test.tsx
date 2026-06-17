@@ -1,11 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
 }
+
+const createMock = vi.fn()
+const updateMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
@@ -15,8 +18,8 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "progress_updates") return store.updates
         return []
       }),
-      create: vi.fn(),
-      update: vi.fn(),
+      create: createMock,
+      update: updateMock,
     }),
   }),
 }))
@@ -24,6 +27,17 @@ vi.mock("@/lib/pocketbase", () => ({
 import { ProgressModule } from "./progress-module"
 
 describe("ProgressModule (V81, V84)", () => {
+  beforeEach(() => {
+    store.projects = []
+    store.updates = []
+    createMock.mockReset().mockResolvedValue({})
+    updateMock.mockReset().mockResolvedValue({})
+  })
+
+  function makeFile(name: string, type = "application/pdf") {
+    return new File(["content"], name, { type })
+  }
+
   it("shows drag-and-drop site photo upload in update modal", async () => {
     const user = userEvent.setup()
     store.projects = [
@@ -51,7 +65,9 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(screen.getByRole("button", { name: /update progress/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/click to upload or drag an image here/i)).toBeInTheDocument()
+      expect(
+        screen.getByText(/click to upload or drag an image here/i)
+      ).toBeInTheDocument()
     })
   })
 
@@ -67,5 +83,43 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-needs-attention")).toBeInTheDocument()
       expect(screen.getByTestId("progress-updates-today")).toBeInTheDocument()
     })
+  })
+
+  it("blocks saving a 100% progress update until completion documents are uploaded", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 100,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findByText(/certification of completion is required/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/liquidation documents are required/i)
+    ).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })

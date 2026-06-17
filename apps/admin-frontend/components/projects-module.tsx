@@ -63,6 +63,7 @@ type ProjectFormState = {
   target_end_date: string
   budget_year: string
   total_budget: string
+  number_of_students: string
 }
 
 const emptyForm = (): ProjectFormState => ({
@@ -77,6 +78,7 @@ const emptyForm = (): ProjectFormState => ({
   target_end_date: "",
   budget_year: String(new Date().getFullYear()),
   total_budget: "",
+  number_of_students: "",
 })
 
 function namesOnRecord(...values: (string | undefined)[]): string[] {
@@ -105,30 +107,54 @@ function ProjectCard({
             <h2 className="font-semibold">{project.name}</h2>
             <Badge variant="secondary">{project.status}</Badge>
           </div>
-          <p className="text-muted-foreground text-sm">
-            {[project.location, project.category, project.lgu_level].filter(Boolean).join(" · ")}
+          <p className="text-sm text-muted-foreground">
+            {[project.location, project.category, project.lgu_level]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           {project.description ? (
-            <p className="text-muted-foreground line-clamp-2 text-sm">{project.description}</p>
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              {project.description}
+            </p>
           ) : null}
-          <p className="text-muted-foreground text-xs">
-            {formatProjectDateRange(project.start_date, project.target_end_date)} · FY{" "}
-            {project.budget_year} · {formatPhp(project.total_budget ?? 0)}
+          <p className="text-xs text-muted-foreground">
+            {formatProjectDateRange(
+              project.start_date,
+              project.target_end_date
+            )}{" "}
+            · FY {project.budget_year} · {formatPhp(project.total_budget ?? 0)}
           </p>
+          {project.category === "Scholarship" && project.number_of_students ? (
+            <p className="text-xs text-muted-foreground">
+              Students covered: {project.number_of_students}
+            </p>
+          ) : null}
           <div className="space-y-1">
-            <Progress value={project.progress_pct ?? 0} aria-label={`${project.name} progress`} />
-            <span className="text-muted-foreground text-xs">{project.progress_pct ?? 0}%</span>
+            <Progress
+              value={project.progress_pct ?? 0}
+              aria-label={`${project.name} progress`}
+            />
+            <span className="text-xs text-muted-foreground">
+              {project.progress_pct ?? 0}%
+            </span>
           </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" aria-label={`Actions for ${project.name}`}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={`Actions for ${project.name}`}
+            >
               ⋮
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-            <DropdownMenuItem onClick={onStatusOpen}>Change status</DropdownMenuItem>
+            <DropdownMenuItem onClick={onStatusOpen}>
+              Change status
+            </DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={onDelete}>
               Delete
             </DropdownMenuItem>
@@ -184,10 +210,15 @@ export function ProjectsModule() {
       filterProjects(projects, {
         query,
         category:
-          category === "all" ? undefined : (category as ProjectRecord["category"]),
-        status: status === "all" ? undefined : (status as ProjectRecord["status"]),
+          category === "all"
+            ? undefined
+            : (category as ProjectRecord["category"]),
+        status:
+          status === "all" ? undefined : (status as ProjectRecord["status"]),
         lgu_level:
-          lguLevel === "all" ? undefined : (lguLevel as ProjectRecord["lgu_level"]),
+          lguLevel === "all"
+            ? undefined
+            : (lguLevel as ProjectRecord["lgu_level"]),
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
@@ -218,6 +249,9 @@ export function ProjectsModule() {
       target_end_date: project.target_end_date ?? "",
       budget_year: String(project.budget_year),
       total_budget: project.total_budget ? String(project.total_budget) : "",
+      number_of_students: project.number_of_students
+        ? String(project.number_of_students)
+        : "",
     })
     setMoaFile(null)
     setAgreementFile(null)
@@ -239,6 +273,10 @@ export function ProjectsModule() {
       target_end_date: form.target_end_date || undefined,
       budget_year: form.budget_year,
       total_budget: form.total_budget || undefined,
+      number_of_students:
+        form.category === "Scholarship"
+          ? form.number_of_students || undefined
+          : undefined,
       progress_pct: editing?.progress_pct ?? 0,
     })
 
@@ -294,14 +332,18 @@ export function ProjectsModule() {
     await loadProjects()
   }
 
-  const ongoing = projects.filter((project) => project.status === "Ongoing").length
-  const planning = projects.filter((project) => project.status === "Planning").length
+  const ongoing = projects.filter(
+    (project) => project.status === "Ongoing"
+  ).length
+  const planning = projects.filter(
+    (project) => project.status === "Planning"
+  ).length
 
   if (loading) {
     return (
       <div className="space-y-3" data-testid="projects-skeleton">
-        <div className="bg-muted h-10 animate-pulse rounded-md" />
-        <div className="bg-muted h-24 animate-pulse rounded-md" />
+        <div className="h-10 animate-pulse rounded-md bg-muted" />
+        <div className="h-24 animate-pulse rounded-md bg-muted" />
       </div>
     )
   }
@@ -388,7 +430,11 @@ export function ProjectsModule() {
           </div>
         </div>
         <div className="flex justify-end">
-          <Button type="button" onClick={openCreate} data-testid="create-project">
+          <Button
+            type="button"
+            onClick={openCreate}
+            data-testid="create-project"
+          >
             New project
           </Button>
         </div>
@@ -397,7 +443,7 @@ export function ProjectsModule() {
       {filtered.length === 0 ? (
         <div className="rounded-[var(--radius-lg)] border p-8 text-center">
           <h2 className="font-semibold">No projects yet</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="mt-1 text-sm text-muted-foreground">
             Create a project to start tracking provincial work.
           </p>
           <Button className="mt-4" type="button" onClick={openCreate}>
@@ -427,7 +473,9 @@ export function ProjectsModule() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit project" : "New project"}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Edit project" : "New project"}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1">
@@ -436,10 +484,12 @@ export function ProjectsModule() {
                 id="project-name"
                 value={form.name}
                 aria-invalid={Boolean(fieldErrors.name)}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
               />
               {fieldErrors.name ? (
-                <p className="text-destructive text-sm" role="alert">
+                <p className="text-sm text-destructive" role="alert">
                   {fieldErrors.name}
                 </p>
               ) : null}
@@ -459,11 +509,19 @@ export function ProjectsModule() {
                 <Label>Category</Label>
                 <Select
                   value={form.category}
-                  onValueChange={(value) =>
-                    setForm({ ...form, category: value as ProjectRecord["category"] })
-                  }
+                  onValueChange={(value) => {
+                    const nextCategory = value as ProjectRecord["category"]
+                    setForm({
+                      ...form,
+                      category: nextCategory,
+                      number_of_students:
+                        nextCategory === "Scholarship"
+                          ? form.number_of_students
+                          : "",
+                    })
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Category">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -480,7 +538,10 @@ export function ProjectsModule() {
                 <Select
                   value={form.status}
                   onValueChange={(value) =>
-                    setForm({ ...form, status: value as ProjectRecord["status"] })
+                    setForm({
+                      ...form,
+                      status: value as ProjectRecord["status"],
+                    })
                   }
                 >
                   <SelectTrigger>
@@ -496,12 +557,36 @@ export function ProjectsModule() {
                 </Select>
               </div>
             </div>
+            {form.category === "Scholarship" ? (
+              <div className="space-y-1">
+                <Label htmlFor="project-number-of-students">
+                  Number of Students
+                </Label>
+                <Input
+                  id="project-number-of-students"
+                  type="number"
+                  min={1}
+                  value={form.number_of_students}
+                  aria-invalid={Boolean(fieldErrors.number_of_students)}
+                  onChange={(event) =>
+                    setForm({ ...form, number_of_students: event.target.value })
+                  }
+                />
+                {fieldErrors.number_of_students ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {fieldErrors.number_of_students}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="space-y-1">
               <Label htmlFor="project-location">Location</Label>
               <Input
                 id="project-location"
                 value={form.location}
-                onChange={(event) => setForm({ ...form, location: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, location: event.target.value })
+                }
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -512,7 +597,10 @@ export function ProjectsModule() {
                   onValueChange={(value) =>
                     setForm({
                       ...form,
-                      lgu_level: value === "none" ? "" : (value as ProjectRecord["lgu_level"]),
+                      lgu_level:
+                        value === "none"
+                          ? ""
+                          : (value as ProjectRecord["lgu_level"]),
                     })
                   }
                 >
@@ -534,7 +622,9 @@ export function ProjectsModule() {
                 <Input
                   id="project-contractor"
                   value={form.contractor}
-                  onChange={(event) => setForm({ ...form, contractor: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, contractor: event.target.value })
+                  }
                 />
               </div>
             </div>
@@ -545,7 +635,9 @@ export function ProjectsModule() {
                   id="project-start"
                   type="date"
                   value={form.start_date}
-                  onChange={(event) => setForm({ ...form, start_date: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, start_date: event.target.value })
+                  }
                 />
               </div>
               <div className="space-y-1">
@@ -612,7 +704,11 @@ export function ProjectsModule() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="button" onClick={() => void handleSave()}>
@@ -637,9 +733,10 @@ export function ProjectsModule() {
               <li key={value}>
                 <button
                   type="button"
-                  className="hover:bg-muted w-full rounded-md px-2 py-1.5 text-left text-sm"
+                  className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                   onClick={() => {
-                    if (statusTarget) void handleStatusChange(statusTarget, value)
+                    if (statusTarget)
+                      void handleStatusChange(statusTarget, value)
                     setStatusTarget(null)
                   }}
                 >
@@ -649,7 +746,11 @@ export function ProjectsModule() {
             ))}
           </ul>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStatusTarget(null)}
+            >
               Cancel
             </Button>
           </DialogFooter>
