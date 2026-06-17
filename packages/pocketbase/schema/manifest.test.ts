@@ -21,6 +21,11 @@ import {
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const migrationPath = resolve(packageRoot, "pb_migrations", MIGRATION_FILE)
+const zeroProgressMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000003_progress_from_pct_zero.js"
+)
 const rulesMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -78,6 +83,13 @@ describe("pb migration file", () => {
     for (const name of COLLECTION_DELETE_ORDER) {
       expect(downBlock).toContain(`"${name}"`)
     }
+  })
+
+  it("allows 0% as a valid progress update starting point", () => {
+    const migrationSource = readFileSync(zeroProgressMigrationPath, "utf8")
+
+    expect(migrationSource).toContain('getByName("from_pct")')
+    expect(migrationSource).toContain("field.required = false")
   })
 })
 
