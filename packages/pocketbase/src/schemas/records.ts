@@ -31,6 +31,7 @@ export const projectRecordSchema = baseRecordSchema.extend({
   target_end_date: z.string().optional(),
   budget_year: z.number(),
   total_budget: z.number().optional(),
+  number_of_students: z.number().int().positive().optional(),
   moa_file: z.string().optional(),
   agreement_file: z.string().optional(),
   supporting_docs: z.array(z.string()).optional(),
@@ -71,6 +72,13 @@ export const progressUpdateRecordSchema = baseRecordSchema.extend({
   to_pct: z.number().min(0).max(100),
   notes: z.string().optional(),
   site_photo: z.string(),
+  certification_completion: z.string().optional(),
+  certificate_acceptance: z.string().optional(),
+  proof_payment_barangay: z.string().optional(),
+  acknowledgment_completion: z.string().optional(),
+  audit_documents: z.array(z.string()).optional(),
+  verification_documents: z.array(z.string()).optional(),
+  liquidation_documents: z.array(z.string()).optional(),
   updated_by: pbEmptyAsUndefined(z.string().optional()),
   updated_at: z.string().optional(),
 })
@@ -87,16 +95,22 @@ export const approvalActionRecordSchema = baseRecordSchema.extend({
 export type ProjectRecord = z.infer<typeof projectRecordSchema> & {
   collectionName?: "projects"
 }
-export type BudgetAllocationRecord = z.infer<typeof budgetAllocationRecordSchema> & {
+export type BudgetAllocationRecord = z.infer<
+  typeof budgetAllocationRecordSchema
+> & {
   collectionName?: "budget_allocations"
 }
 export type BudgetExpenseRecord = z.infer<typeof budgetExpenseRecordSchema> & {
   collectionName?: "budget_expenses"
 }
-export type ProgressUpdateRecord = z.infer<typeof progressUpdateRecordSchema> & {
+export type ProgressUpdateRecord = z.infer<
+  typeof progressUpdateRecordSchema
+> & {
   collectionName?: "progress_updates"
 }
-export type ApprovalActionRecord = z.infer<typeof approvalActionRecordSchema> & {
+export type ApprovalActionRecord = z.infer<
+  typeof approvalActionRecordSchema
+> & {
   collectionName?: "approval_actions"
 }
 

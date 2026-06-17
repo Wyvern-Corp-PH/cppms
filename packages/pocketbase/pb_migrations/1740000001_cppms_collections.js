@@ -32,7 +32,8 @@ migrate(
 
     const imageMimeTypes = ["image/jpeg", "image/png", "image/webp"]
 
-    const projects = new Collection({      type: "base",
+    const projects = new Collection({
+      type: "base",
       name: "projects",
       fields: [
         { type: "text", name: "name", required: true },
@@ -75,8 +76,15 @@ migrate(
         { type: "text", name: "contractor" },
         { type: "date", name: "start_date" },
         { type: "date", name: "target_end_date" },
-        { type: "number", name: "budget_year", required: true, min: 2000, max: 2100 },
+        {
+          type: "number",
+          name: "budget_year",
+          required: true,
+          min: 2000,
+          max: 2100,
+        },
         { type: "number", name: "total_budget", min: 0 },
+        { type: "number", name: "number_of_students", min: 1, onlyInt: true },
         {
           type: "file",
           name: "moa_file",
@@ -222,6 +230,55 @@ migrate(
           maxSelect: 1,
           maxSize: 5242880,
           mimeTypes: imageMimeTypes,
+        },
+        {
+          type: "file",
+          name: "certification_completion",
+          maxSelect: 1,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "certificate_acceptance",
+          maxSelect: 1,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "proof_payment_barangay",
+          maxSelect: 1,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "acknowledgment_completion",
+          maxSelect: 1,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "audit_documents",
+          maxSelect: 10,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "verification_documents",
+          maxSelect: 10,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
+        },
+        {
+          type: "file",
+          name: "liquidation_documents",
+          maxSelect: 10,
+          maxSize: 10485760,
+          mimeTypes: documentMimeTypes,
         },
         {
           type: "relation",

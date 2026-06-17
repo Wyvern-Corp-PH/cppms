@@ -15,11 +15,16 @@ export type DevSeedProject = {
     target_end_date: string
     budget_year: number
     total_budget: number
+    number_of_students?: number
     progress_pct: number
     approval_status?: ProjectRecord["approval_status"]
   }
   allocation: { amount: number; description: string }
-  expenses: Array<{ amount: number; category: "Materials" | "Labor" | "Equipment" | "Permits & Fees" | "Other"; description: string }>
+  expenses: Array<{
+    amount: number
+    category: "Materials" | "Labor" | "Equipment" | "Permits & Fees" | "Other"
+    description: string
+  }>
   progress?: { from_pct: number; to_pct: number; notes: string }
 }
 
@@ -27,7 +32,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Tuguegarao Bridge Rehabilitation`,
-      description: "Structural repairs and deck resurfacing on the primary provincial crossing.",
+      description:
+        "Structural repairs and deck resurfacing on the primary provincial crossing.",
       category: "Infrastructure",
       status: "Ongoing",
       location: "Tuguegarao City",
@@ -41,7 +47,11 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     },
     allocation: { amount: 12_000_000, description: "FY2026 capital outlay" },
     expenses: [
-      { amount: 4_200_000, category: "Materials", description: "Rebar and concrete" },
+      {
+        amount: 4_200_000,
+        category: "Materials",
+        description: "Rebar and concrete",
+      },
       { amount: 1_800_000, category: "Labor", description: "Crew wages Q1" },
     ],
     progress: { from_pct: 45, to_pct: 62, notes: "Deck segment B poured." },
@@ -49,7 +59,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Provincial Hospital Wing Expansion`,
-      description: "New outpatient wing and equipment bay for Cagayan Provincial Hospital.",
+      description:
+        "New outpatient wing and equipment bay for Cagayan Provincial Hospital.",
       category: "Health",
       status: "Procurement",
       location: "Tuguegarao City",
@@ -61,14 +72,24 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       total_budget: 28_500_000,
       progress_pct: 12,
     },
-    allocation: { amount: 20_000_000, description: "Hospital expansion allotment" },
-    expenses: [{ amount: 950_000, category: "Equipment", description: "Diagnostic package down payment" }],
+    allocation: {
+      amount: 20_000_000,
+      description: "Hospital expansion allotment",
+    },
+    expenses: [
+      {
+        amount: 950_000,
+        category: "Equipment",
+        description: "Diagnostic package down payment",
+      },
+    ],
     progress: { from_pct: 1, to_pct: 12, notes: "Bid documents published." },
   },
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Rice Seed Distribution Program`,
-      description: "Certified seed distribution to farmer cooperatives across the province.",
+      description:
+        "Certified seed distribution to farmer cooperatives across the province.",
       category: "Agriculture",
       status: "Ongoing",
       location: "Provincial-wide",
@@ -82,10 +103,18 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     },
     allocation: { amount: 6_750_000, description: "Agriculture support fund" },
     expenses: [
-      { amount: 2_100_000, category: "Materials", description: "Seed stock procurement" },
+      {
+        amount: 2_100_000,
+        category: "Materials",
+        description: "Seed stock procurement",
+      },
       { amount: 450_000, category: "Other", description: "Warehouse handling" },
     ],
-    progress: { from_pct: 40, to_pct: 58, notes: "Second tranche delivered to Solana." },
+    progress: {
+      from_pct: 40,
+      to_pct: 58,
+      notes: "Second tranche delivered to Solana.",
+    },
   },
   {
     project: {
@@ -103,12 +132,19 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       progress_pct: 5,
     },
     allocation: { amount: 1_500_000, description: "Planning-phase release" },
-    expenses: [{ amount: 120_000, category: "Permits & Fees", description: "Environmental clearance" }],
+    expenses: [
+      {
+        amount: 120_000,
+        category: "Permits & Fees",
+        description: "Environmental clearance",
+      },
+    ],
   },
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} College Scholarship Batch 2026`,
-      description: "Provincial scholarship grants for STEM and teacher education tracks.",
+      description:
+        "Provincial scholarship grants for STEM and teacher education tracks.",
       category: "Scholarship",
       status: "Ongoing",
       location: "Provincial-wide",
@@ -118,16 +154,24 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       target_end_date: "2026-12-15",
       budget_year: 2026,
       total_budget: 9_000_000,
+      number_of_students: 180,
       progress_pct: 78,
     },
     allocation: { amount: 9_000_000, description: "Scholarship fund FY2026" },
-    expenses: [{ amount: 5_600_000, category: "Other", description: "First semester disbursements" }],
+    expenses: [
+      {
+        amount: 5_600_000,
+        category: "Other",
+        description: "First semester disbursements",
+      },
+    ],
     progress: { from_pct: 60, to_pct: 78, notes: "Second tranche validated." },
   },
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Drainage Package Phase 2`,
-      description: "Flood mitigation channels for low-lying barangays near Cagayan River.",
+      description:
+        "Flood mitigation channels for low-lying barangays near Cagayan River.",
       category: "Infrastructure",
       status: "Ongoing",
       location: "Enrile",
@@ -140,13 +184,24 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       progress_pct: 18,
     },
     allocation: { amount: 10_000_000, description: "Drainage continuity fund" },
-    expenses: [{ amount: 1_350_000, category: "Materials", description: "Precast culverts" }],
-    progress: { from_pct: 10, to_pct: 18, notes: "Segment 3 excavation started." },
+    expenses: [
+      {
+        amount: 1_350_000,
+        category: "Materials",
+        description: "Precast culverts",
+      },
+    ],
+    progress: {
+      from_pct: 10,
+      to_pct: 18,
+      notes: "Segment 3 excavation started.",
+    },
   },
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Rural Health Unit Upgrade`,
-      description: "Facility upgrade and cold-chain storage for Barangay Centro RHU.",
+      description:
+        "Facility upgrade and cold-chain storage for Barangay Centro RHU.",
       category: "Health",
       status: "Completed",
       location: "Amulung",
@@ -160,7 +215,11 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     },
     allocation: { amount: 4_500_000, description: "RHU upgrade allotment" },
     expenses: [
-      { amount: 2_800_000, category: "Materials", description: "Clinic fit-out" },
+      {
+        amount: 2_800_000,
+        category: "Materials",
+        description: "Clinic fit-out",
+      },
       { amount: 900_000, category: "Labor", description: "Construction labor" },
     ],
     progress: { from_pct: 85, to_pct: 100, notes: "Final inspection passed." },
@@ -168,7 +227,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
   {
     project: {
       name: `${DEMO_PROJECT_PREFIX} Municipal Road Package A`,
-      description: "Concrete paving for farm-to-market roads in western municipalities.",
+      description:
+        "Concrete paving for farm-to-market roads in western municipalities.",
       category: "Infrastructure",
       status: "Approved",
       location: "Piat",
@@ -183,9 +243,21 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     },
     allocation: { amount: 18_000_000, description: "Road package allotment" },
     expenses: [
-      { amount: 16_200_000, category: "Materials", description: "Paving works" },
-      { amount: 1_200_000, category: "Labor", description: "Quality assurance crew" },
+      {
+        amount: 16_200_000,
+        category: "Materials",
+        description: "Paving works",
+      },
+      {
+        amount: 1_200_000,
+        category: "Labor",
+        description: "Quality assurance crew",
+      },
     ],
-    progress: { from_pct: 92, to_pct: 100, notes: "Provincial approval recorded." },
+    progress: {
+      from_pct: 92,
+      to_pct: 100,
+      notes: "Provincial approval recorded.",
+    },
   },
 ]

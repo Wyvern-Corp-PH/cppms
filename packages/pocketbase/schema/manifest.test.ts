@@ -50,6 +50,28 @@ describe("schema manifest (SPEC §I)", () => {
     expect(EXPENSE_CATEGORY).toContain("Materials")
     expect(APPROVAL_ACTION).toEqual(["approve", "reject"])
   })
+
+  it("declares completion document and scholarship fields (V110, V112)", () => {
+    const projects = COLLECTION_MANIFEST.find(
+      (collection) => collection.name === "projects"
+    )
+    const progressUpdates = COLLECTION_MANIFEST.find(
+      (collection) => collection.name === "progress_updates"
+    )
+
+    expect(projects?.fields).toContain("number_of_students")
+    expect(progressUpdates?.fields).toEqual(
+      expect.arrayContaining([
+        "certification_completion",
+        "certificate_acceptance",
+        "proof_payment_barangay",
+        "acknowledgment_completion",
+        "audit_documents",
+        "verification_documents",
+        "liquidation_documents",
+      ])
+    )
+  })
 })
 
 describe("pb migration file", () => {

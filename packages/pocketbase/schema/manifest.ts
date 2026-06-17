@@ -18,12 +18,7 @@ export const PROJECT_CATEGORY = [
   "Scholarship",
 ] as const
 
-export const LGU_LEVEL = [
-  "Municipality",
-  "Barangay",
-  "District",
-  "SK",
-] as const
+export const LGU_LEVEL = ["Municipality", "Barangay", "District", "SK"] as const
 
 export const EXPENSE_CATEGORY = [
   "Materials",
@@ -56,6 +51,7 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "target_end_date",
       "budget_year",
       "total_budget",
+      "number_of_students",
       "moa_file",
       "agreement_file",
       "supporting_docs",
@@ -102,6 +98,13 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "to_pct",
       "notes",
       "site_photo",
+      "certification_completion",
+      "certificate_acceptance",
+      "proof_payment_barangay",
+      "acknowledgment_completion",
+      "audit_documents",
+      "verification_documents",
+      "liquidation_documents",
       "updated_by",
       "updated_at",
     ],
@@ -109,13 +112,7 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
   },
   {
     name: "approval_actions",
-    fields: [
-      "project",
-      "action",
-      "authority_name",
-      "reason",
-      "created_at",
-    ],
+    fields: ["project", "action", "authority_name", "reason", "created_at"],
     relations: ["project"],
   },
 ] as const

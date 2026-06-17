@@ -38,6 +38,22 @@ describe("collection record schemas (V33, V36)", () => {
     expect(result.success).toBe(true)
   })
 
+  it("retains scholarship student counts on project records (V112)", () => {
+    const result = projectRecordSchema.safeParse({
+      ...base,
+      name: "Scholarship batch",
+      category: "Scholarship",
+      status: "Planning",
+      budget_year: 2026,
+      number_of_students: 120,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.number_of_students).toBe(120)
+    }
+  })
+
   it("parses PocketBase project rows with empty optional select fields", () => {
     const result = projectRecordSchema.safeParse({
       ...base,
@@ -124,15 +140,24 @@ describe("collection record schemas (V33, V36)", () => {
   })
 
   it("parses progress update and approval action records", () => {
-    expect(
-      progressUpdateRecordSchema.safeParse({
-        ...base,
-        project: "p1",
-        from_pct: 0,
-        to_pct: 50,
-        site_photo: "photo.jpg",
-      }).success
-    ).toBe(true)
+    const progress = progressUpdateRecordSchema.safeParse({
+      ...base,
+      project: "p1",
+      from_pct: 0,
+      to_pct: 100,
+      site_photo: "photo.jpg",
+      certification_completion: "certification.pdf",
+      certificate_acceptance: "acceptance.pdf",
+      proof_payment_barangay: "payment.pdf",
+      acknowledgment_completion: "acknowledgment.pdf",
+      audit_documents: ["audit.pdf"],
+      verification_documents: ["verification.pdf"],
+      liquidation_documents: ["liquidation.pdf"],
+    })
+    expect(progress.success).toBe(true)
+    if (progress.success) {
+      expect(progress.data.audit_documents).toEqual(["audit.pdf"])
+    }
 
     expect(
       approvalActionRecordSchema.safeParse({
