@@ -22,12 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
 import { Slider } from "@workspace/ui/components/slider"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { DocumentUploadField, IMAGE_UPLOAD_ACCEPT } from "@/components/document-upload-field"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SitePhoto } from "@/components/site-photo"
 import { SummaryCardRow } from "@/components/summary-card-row"
@@ -289,21 +289,16 @@ export function ProgressModule() {
               <Label htmlFor="update-notes">Update notes</Label>
               <Textarea id="update-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
-            <div>
-              <Label htmlFor="site-photo">Site photo (required)</Label>
-              <Input
-                id="site-photo"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                aria-invalid={Boolean(fieldErrors.sitePhoto)}
-                onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-              />
-              {fieldErrors.sitePhoto ? (
-                <p className="text-destructive text-sm" role="alert">
-                  {fieldErrors.sitePhoto}
-                </p>
-              ) : null}
-            </div>
+            <DocumentUploadField
+              id="site-photo"
+              label="Site photo (required)"
+              accept={IMAGE_UPLOAD_ACCEPT}
+              helperText="JPG, PNG, WebP"
+              dropZoneText="Click to upload or drag an image here"
+              files={photo ? [photo] : []}
+              onChange={(files) => setPhoto(files[0] ?? null)}
+              error={fieldErrors.sitePhoto}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

@@ -46,6 +46,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { DocumentUploadField } from "@/components/document-upload-field"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -73,8 +74,14 @@ export function BudgetModule() {
   const [expenseDescription, setExpenseDescription] = useState("")
   const [moaFile, setMoaFile] = useState<File | null>(null)
   const [agreementFile, setAgreementFile] = useState<File | null>(null)
-  const [supportingFile, setSupportingFile] = useState<File | null>(null)
+  const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  function clearAllocationUploads() {
+    setMoaFile(null)
+    setAgreementFile(null)
+    setSupportingFiles([])
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -151,7 +158,7 @@ export function BudgetModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || agreementFile || supportingFile
+    const hasFiles = moaFile || agreementFile || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
@@ -160,7 +167,9 @@ export function BudgetModule() {
       }
       if (moaFile) formData.append("moa_file", moaFile)
       if (agreementFile) formData.append("agreement_file", agreementFile)
-      if (supportingFile) formData.append("supporting_docs", supportingFile)
+      for (const file of supportingFiles) {
+        formData.append("supporting_docs", file)
+      }
       await pb.collection("budget_allocations").create(formData)
     } else {
       await pb.collection("budget_allocations").create(parsed.data)
@@ -292,7 +301,15 @@ export function BudgetModule() {
         </div>
 
         <TabsContent value="allocations" className="space-y-4">
-          <Button type="button" data-testid="allocate-budget" onClick={() => { setFieldErrors({}); setAllocationOpen(true) }}>
+          <Button
+            type="button"
+            data-testid="allocate-budget"
+            onClick={() => {
+              setFieldErrors({})
+              clearAllocationUploads()
+              setAllocationOpen(true)
+            }}
+          >
             + Allocate
           </Button>
           <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
@@ -358,7 +375,13 @@ export function BudgetModule() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={allocationOpen} onOpenChange={setAllocationOpen}>
+      <Dialog
+        open={allocationOpen}
+        onOpenChange={(open) => {
+          setAllocationOpen(open)
+          if (!open) clearAllocationUploads()
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Allocate budget</DialogTitle>
@@ -394,9 +417,28 @@ export function BudgetModule() {
             </Select>
             <Label htmlFor="allocation-description">Description</Label>
             <Textarea id="allocation-description" value={allocationDescription} onChange={(e) => setAllocationDescription(e.target.value)} />
-            <Input type="file" aria-label="MOA file" onChange={(e) => setMoaFile(e.target.files?.[0] ?? null)} />
-            <Input type="file" aria-label="Agreement file" onChange={(e) => setAgreementFile(e.target.files?.[0] ?? null)} />
-            <Input type="file" aria-label="Supporting docs" onChange={(e) => setSupportingFile(e.target.files?.[0] ?? null)} />
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-sm font-medium">Required documents</p>
+              <DocumentUploadField
+                id="allocation-moa"
+                label="Memorandum of Agreement"
+                files={moaFile ? [moaFile] : []}
+                onChange={(files) => setMoaFile(files[0] ?? null)}
+              />
+              <DocumentUploadField
+                id="allocation-agreement"
+                label="Province/Barangay Agreement"
+                files={agreementFile ? [agreementFile] : []}
+                onChange={(files) => setAgreementFile(files[0] ?? null)}
+              />
+              <DocumentUploadField
+                id="allocation-supporting"
+                label="Supporting project documents"
+                multiple
+                files={supportingFiles}
+                onChange={setSupportingFiles}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" onClick={() => void saveAllocation()}>Allocate budget</Button>

@@ -47,8 +47,19 @@ describe("ProjectsModule (J4)", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument()
-      expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/project name/i)).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /^save$/i })).toBeInTheDocument()
+    })
+  })
+
+  it("shows From and To labels on date range filters", async () => {
+    render(<ProjectsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^from:$/i)).toHaveAttribute("id", "filter-date-from")
+      expect(screen.getByLabelText(/^to:$/i)).toHaveAttribute("id", "filter-date-to")
+      expect(screen.getByLabelText(/^filter from date$/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/^filter to date$/i)).toBeInTheDocument()
     })
   })
 

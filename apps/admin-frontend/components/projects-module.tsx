@@ -47,6 +47,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
+import { DocumentUploadField } from "@/components/document-upload-field"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -77,6 +78,10 @@ const emptyForm = (): ProjectFormState => ({
   budget_year: String(new Date().getFullYear()),
   total_budget: "",
 })
+
+function namesOnRecord(...values: (string | undefined)[]): string[] {
+  return values.filter((value): value is string => Boolean(value?.trim()))
+}
 
 function ProjectCard({
   project,
@@ -148,9 +153,15 @@ export function ProjectsModule() {
   const [form, setForm] = useState<ProjectFormState>(emptyForm())
   const [moaFile, setMoaFile] = useState<File | null>(null)
   const [agreementFile, setAgreementFile] = useState<File | null>(null)
-  const [supportingFile, setSupportingFile] = useState<File | null>(null)
+  const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
+
+  function clearUploadFiles() {
+    setMoaFile(null)
+    setAgreementFile(null)
+    setSupportingFiles([])
+  }
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -188,7 +199,7 @@ export function ProjectsModule() {
     setForm(emptyForm())
     setMoaFile(null)
     setAgreementFile(null)
-    setSupportingFile(null)
+    setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
   }
@@ -210,7 +221,7 @@ export function ProjectsModule() {
     })
     setMoaFile(null)
     setAgreementFile(null)
-    setSupportingFile(null)
+    setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
   }
@@ -238,7 +249,7 @@ export function ProjectsModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || agreementFile || supportingFile
+    const hasFiles = moaFile || agreementFile || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
@@ -249,7 +260,9 @@ export function ProjectsModule() {
       }
       if (moaFile) formData.append("moa_file", moaFile)
       if (agreementFile) formData.append("agreement_file", agreementFile)
-      if (supportingFile) formData.append("supporting_docs", supportingFile)
+      for (const file of supportingFiles) {
+        formData.append("supporting_docs", file)
+      }
 
       if (editing) {
         await pb.collection("projects").update(editing.id, formData)
@@ -353,18 +366,26 @@ export function ProjectsModule() {
               ))}
             </SelectContent>
           </Select>
-          <Input
-            aria-label="Filter from date"
-            type="date"
-            value={dateFrom}
-            onChange={(event) => setDateFrom(event.target.value)}
-          />
-          <Input
-            aria-label="Filter to date"
-            type="date"
-            value={dateTo}
-            onChange={(event) => setDateTo(event.target.value)}
-          />
+          <div className="space-y-1">
+            <Label htmlFor="filter-date-from">From:</Label>
+            <Input
+              id="filter-date-from"
+              aria-label="Filter from date"
+              type="date"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="filter-date-to">To:</Label>
+            <Input
+              id="filter-date-to"
+              aria-label="Filter to date"
+              type="date"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+          </div>
         </div>
         <div className="flex justify-end">
           <Button type="button" onClick={openCreate} data-testid="create-project">
@@ -397,7 +418,13 @@ export function ProjectsModule() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) clearUploadFiles()
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit project" : "New project"}</DialogTitle>
@@ -560,33 +587,28 @@ export function ProjectsModule() {
             </div>
             <div className="space-y-2 border-t pt-3">
               <p className="text-sm font-medium">Required documents</p>
-              <div className="space-y-1">
-                <Label htmlFor="moa-file">Memorandum of Agreement</Label>
-                <Input
-                  id="moa-file"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  onChange={(e) => setMoaFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="agreement-file">Province/Barangay Agreement</Label>
-                <Input
-                  id="agreement-file"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  onChange={(e) => setAgreementFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="supporting-file">Supporting project documents</Label>
-                <Input
-                  id="supporting-file"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  onChange={(e) => setSupportingFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
+              <DocumentUploadField
+                id="moa-file"
+                label="Memorandum of Agreement"
+                files={moaFile ? [moaFile] : []}
+                existingNames={namesOnRecord(editing?.moa_file)}
+                onChange={(files) => setMoaFile(files[0] ?? null)}
+              />
+              <DocumentUploadField
+                id="agreement-file"
+                label="Province/Barangay Agreement"
+                files={agreementFile ? [agreementFile] : []}
+                existingNames={namesOnRecord(editing?.agreement_file)}
+                onChange={(files) => setAgreementFile(files[0] ?? null)}
+              />
+              <DocumentUploadField
+                id="supporting-file"
+                label="Supporting project documents"
+                multiple
+                files={supportingFiles}
+                existingNames={editing?.supporting_docs ?? []}
+                onChange={setSupportingFiles}
+              />
             </div>
           </div>
           <DialogFooter>

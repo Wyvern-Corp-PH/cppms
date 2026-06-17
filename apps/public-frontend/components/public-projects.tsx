@@ -12,6 +12,7 @@ import { parseRecordList, projectRecordSchema } from "@workspace/pocketbase/sche
 import type { ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
 import {
   Select,
@@ -130,8 +131,26 @@ export function PublicProjects() {
             ))}
           </SelectContent>
         </Select>
-        <Input aria-label="Filter from date" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <Input aria-label="Filter to date" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <div className="space-y-1">
+          <Label htmlFor="public-filter-date-from">From:</Label>
+          <Input
+            id="public-filter-date-from"
+            aria-label="Filter from date"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="public-filter-date-to">To:</Label>
+          <Input
+            id="public-filter-date-to"
+            aria-label="Filter to date"
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
       </div>
 
       {filtered.length === 0 ? (

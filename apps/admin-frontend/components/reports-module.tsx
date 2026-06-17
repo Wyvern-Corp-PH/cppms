@@ -35,6 +35,7 @@ import type {
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
 import {
   Select,
   SelectContent,
@@ -247,18 +248,26 @@ export function ReportsModule() {
             ))}
           </SelectContent>
         </Select>
-        <Input
-          aria-label="Filter from date"
-          type="date"
-          value={filters.dateFrom ?? ""}
-          onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-        />
-        <Input
-          aria-label="Filter to date"
-          type="date"
-          value={filters.dateTo ?? ""}
-          onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-        />
+        <div className="space-y-1">
+          <Label htmlFor="reports-filter-date-from">From:</Label>
+          <Input
+            id="reports-filter-date-from"
+            aria-label="Filter from date"
+            type="date"
+            value={filters.dateFrom ?? ""}
+            onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="reports-filter-date-to">To:</Label>
+          <Input
+            id="reports-filter-date-to"
+            aria-label="Filter to date"
+            type="date"
+            value={filters.dateTo ?? ""}
+            onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+          />
+        </div>
       </div>
 
       <SummaryCardRow
