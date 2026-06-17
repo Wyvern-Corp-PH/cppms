@@ -20,28 +20,41 @@ const completionFileFields = [
   { name: "liquidation_documents", maxSelect: 10 },
 ]
 
+function fieldExists(collection, name) {
+  try {
+    collection.fields.getByName(name)
+    return true
+  } catch {
+    return false
+  }
+}
+
 migrate(
   (app) => {
     const projects = app.findCollectionByNameOrId("projects")
-    projects.fields.add(
-      new NumberField({
-        name: "number_of_students",
-        min: 1,
-        onlyInt: true,
-      })
-    )
+    if (!fieldExists(projects, "number_of_students")) {
+      projects.fields.add(
+        new NumberField({
+          name: "number_of_students",
+          min: 1,
+          onlyInt: true,
+        })
+      )
+    }
     app.save(projects)
 
     const progressUpdates = app.findCollectionByNameOrId("progress_updates")
     for (const field of completionFileFields) {
-      progressUpdates.fields.add(
-        new FileField({
-          name: field.name,
-          maxSelect: field.maxSelect,
-          maxSize: 10485760,
-          mimeTypes: documentMimeTypes,
-        })
-      )
+      if (!fieldExists(progressUpdates, field.name)) {
+        progressUpdates.fields.add(
+          new FileField({
+            name: field.name,
+            maxSelect: field.maxSelect,
+            maxSize: 10485760,
+            mimeTypes: documentMimeTypes,
+          })
+        )
+      }
     }
 
     return app.save(progressUpdates)
@@ -49,16 +62,20 @@ migrate(
   (app) => {
     const progressUpdates = app.findCollectionByNameOrId("progress_updates")
     for (const field of completionFileFields) {
-      progressUpdates.fields.removeById(
-        progressUpdates.fields.getByName(field.name).id
-      )
+      if (fieldExists(progressUpdates, field.name)) {
+        progressUpdates.fields.removeById(
+          progressUpdates.fields.getByName(field.name).id
+        )
+      }
     }
     app.save(progressUpdates)
 
     const projects = app.findCollectionByNameOrId("projects")
-    projects.fields.removeById(
-      projects.fields.getByName("number_of_students").id
-    )
+    if (fieldExists(projects, "number_of_students")) {
+      projects.fields.removeById(
+        projects.fields.getByName("number_of_students").id
+      )
+    }
     return app.save(projects)
   }
 )

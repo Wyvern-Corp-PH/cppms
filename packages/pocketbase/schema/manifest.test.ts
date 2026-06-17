@@ -26,6 +26,11 @@ const zeroProgressMigrationPath = resolve(
   "pb_migrations",
   "1740000003_progress_from_pct_zero.js"
 )
+const completionDocsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000004_completion_docs_students.js"
+)
 const rulesMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -112,6 +117,14 @@ describe("pb migration file", () => {
 
     expect(migrationSource).toContain('getByName("from_pct")')
     expect(migrationSource).toContain("field.required = false")
+  })
+
+  it("guards completion field additions for fresh databases", () => {
+    const migrationSource = readFileSync(completionDocsMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("fieldExists")
+    expect(migrationSource).toContain('fieldExists(projects, "number_of_students")')
+    expect(migrationSource).toContain("fieldExists(progressUpdates, field.name)")
   })
 })
 
