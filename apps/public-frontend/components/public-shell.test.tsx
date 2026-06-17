@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("next/link", () => ({
@@ -30,8 +30,8 @@ vi.mock("@/components/theme-toggle", () => ({
 
 import { PublicShell } from "./public-shell"
 
-describe("PublicShell (V31)", () => {
-  it("renders civic header, nav links, and footer without SaaS metric row", () => {
+describe("PublicShell (V31, V100)", () => {
+  it("renders logo, header actions, and footer without header module links", () => {
     render(
       <PublicShell>
         <p>Content</p>
@@ -43,10 +43,10 @@ describe("PublicShell (V31)", () => {
       "href",
       expect.stringContaining("/login")
     )
-    const headerNavs = screen.getAllByRole("navigation", { name: /public/i })
-    expect(headerNavs.length).toBeGreaterThanOrEqual(1)
-    expect(within(headerNavs[0]!).getByRole("link", { name: /^projects$/i })).toBeInTheDocument()
+    expect(screen.getByTestId("theme-toggle")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: /public/i })).not.toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: /footer/i })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /^projects$/i })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /browse projects/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/ARR|MRR|active users/i)).not.toBeInTheDocument()
   })

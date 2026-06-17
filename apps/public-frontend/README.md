@@ -15,9 +15,6 @@ Read-only Next.js app for citizens, journalists, and partners to browse provinci
 |---|---|
 | `/` | Landing — hero, carousel, accountability preview |
 | `/projects` | Project cards with filters |
-| `/budget` | Summary cards + per-project breakdown |
-| `/progress` | Summary cards + update list + detail |
-| `/reports` | Global filters, tab cards, report tables (no export) |
 
 ## Stack
 

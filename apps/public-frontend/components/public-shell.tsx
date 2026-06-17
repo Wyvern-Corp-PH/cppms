@@ -9,12 +9,7 @@ type PublicShellProps = {
   children: React.ReactNode
 }
 
-const footerLinks = [
-  { href: "/projects", label: "Projects" },
-  { href: "/budget", label: "Budget" },
-  { href: "/progress", label: "Progress" },
-  { href: "/reports", label: "Reports" },
-]
+const footerLinks = [{ href: "/projects", label: "Projects" }]
 
 export function PublicShell({ children }: PublicShellProps) {
   const pathname = usePathname()
@@ -23,16 +18,14 @@ export function PublicShell({ children }: PublicShellProps) {
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="sticky top-0 z-[var(--z-sticky)] border-b border-border bg-background">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 sm:gap-4">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <Link
             href="/"
             className="shrink-0 font-semibold tracking-tight transition-colors duration-200 hover:text-primary"
           >
             Cagayan PPMS
           </Link>
-          <div className="min-w-0 flex-1">
-            <PublicNav />
-          </div>
+          <PublicNav />
         </div>
       </header>
       <main
