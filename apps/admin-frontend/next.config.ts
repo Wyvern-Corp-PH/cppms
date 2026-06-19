@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
     "admin.cppms.local",
     "public.cppms.localhost",
     "admin.cppms.localhost",
+    "ppms.cagayan.gov.ph",
     "172.16.50.6",
     "192.168.224.1"
   ],
