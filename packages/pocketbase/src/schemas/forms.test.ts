@@ -106,4 +106,33 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
       expect(errors.liquidation_documents).toMatch(/required/i)
     }
   })
+
+  it("ignores empty completion document arrays below 100% progress", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 22,
+      sitePhoto: makeFile("site.jpg"),
+      completionDocs: {
+        certification_completion: null,
+        certificate_acceptance: null,
+        proof_payment_barangay: null,
+        acknowledgment_completion: null,
+        audit_documents: [],
+        verification_documents: [],
+        liquidation_documents: [],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("accepts multiple site photos", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
+    })
+
+    expect(result.success).toBe(true)
+  })
 })

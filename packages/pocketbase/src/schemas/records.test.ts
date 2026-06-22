@@ -172,6 +172,7 @@ describe("collection record schemas (V33, V36)", () => {
     })
     expect(progress.success).toBe(true)
     if (progress.success) {
+      expect(progress.data.site_photo).toEqual(["photo.jpg"])
       expect(progress.data.audit_documents).toEqual(["audit.pdf"])
     }
 
@@ -183,5 +184,22 @@ describe("collection record schemas (V33, V36)", () => {
         authority_name: "Provincial Engineer",
       }).success
     ).toBe(true)
+  })
+
+  it("parses empty progress update site photo shapes", () => {
+    for (const site_photo of ["", null, undefined, []]) {
+      const progress = progressUpdateRecordSchema.safeParse({
+        ...base,
+        project: "p1",
+        from_pct: 0,
+        to_pct: 50,
+        site_photo,
+      })
+
+      expect(progress.success).toBe(true)
+      if (progress.success) {
+        expect(progress.data.site_photo).toEqual([])
+      }
+    }
   })
 })

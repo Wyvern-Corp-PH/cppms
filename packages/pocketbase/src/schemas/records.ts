@@ -10,6 +10,22 @@ import {
 } from "./enums"
 import { pbEmptyAsUndefined, pbZeroAsUndefined } from "./coerce"
 
+const pbFileList = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined) {
+      return []
+    }
+    if (typeof value === "string") {
+      return value ? [value] : []
+    }
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === "string")
+    }
+    return value
+  },
+  z.array(z.string())
+)
+
 export const baseRecordSchema = z.object({
   id: z.string(),
   collectionId: z.string(),
@@ -71,7 +87,7 @@ export const progressUpdateRecordSchema = baseRecordSchema.extend({
   from_pct: z.number().min(0).max(100),
   to_pct: z.number().min(0).max(100),
   notes: z.string().optional(),
-  site_photo: z.string(),
+  site_photo: pbFileList,
   certification_completion: z.string().optional(),
   certificate_acceptance: z.string().optional(),
   proof_payment_barangay: z.string().optional(),

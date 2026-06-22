@@ -16,6 +16,16 @@ const uploadedFileListSchema = z
   .array(uploadedFileSchema)
   .min(1, "At least one file is required.")
 
+const sitePhotoListSchema = z.preprocess(
+  (value) => (value instanceof File ? [value] : value),
+  z.array(uploadedFileSchema).min(1, "Site photo is required.")
+)
+
+const optionalUploadedFileListSchema = z.preprocess(
+  (value) => (Array.isArray(value) && value.length === 0 ? undefined : value),
+  uploadedFileListSchema.optional()
+)
+
 const optionalUploadedFileSchema = z.preprocess(
   (value) => (value === null ? undefined : value),
   uploadedFileSchema.optional()
@@ -67,9 +77,9 @@ const completionDocsSchema = z.object({
   certificate_acceptance: optionalUploadedFileSchema,
   proof_payment_barangay: optionalUploadedFileSchema,
   acknowledgment_completion: optionalUploadedFileSchema,
-  audit_documents: uploadedFileListSchema.optional(),
-  verification_documents: uploadedFileListSchema.optional(),
-  liquidation_documents: uploadedFileListSchema.optional(),
+  audit_documents: optionalUploadedFileListSchema,
+  verification_documents: optionalUploadedFileListSchema,
+  liquidation_documents: optionalUploadedFileListSchema,
 })
 
 export const loginFormSchema = z.object({
@@ -125,9 +135,7 @@ export const progressUpdateFormSchema = z
     projectId: z.string().min(1, "Project is required."),
     toPct: z.number().min(0).max(100),
     notes: z.string().optional(),
-    sitePhoto: z
-      .custom<File>((value) => value instanceof File, "Site photo is required.")
-      .refine((file) => file.size > 0, "Site photo is required."),
+    sitePhoto: sitePhotoListSchema,
     completionDocs: completionDocsSchema.optional(),
   })
   .superRefine((value, ctx) => {
