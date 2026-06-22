@@ -3,10 +3,13 @@ import { z } from "zod"
 import {
   approvalActionSchema,
   approvalStatusSchema,
+  auditActionSchema,
+  accountStatusSchema,
   expenseCategorySchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
+  roleSchema,
 } from "./enums"
 import { pbEmptyAsUndefined, pbZeroAsUndefined } from "./coerce"
 
@@ -49,7 +52,7 @@ export const projectRecordSchema = baseRecordSchema.extend({
   total_budget: z.number().optional(),
   number_of_students: pbZeroAsUndefined(z.number().int().positive().optional()),
   moa_file: z.string().optional(),
-  agreement_file: z.string().optional(),
+  resolution_file: z.string().optional(),
   supporting_docs: z.array(z.string()).optional(),
   progress_pct: z.number().min(0).max(100).optional(),
   approval_status: pbEmptyAsUndefined(approvalStatusSchema.optional()),
@@ -67,7 +70,7 @@ export const budgetAllocationRecordSchema = baseRecordSchema.extend({
   date: z.string(),
   allocated_by: pbEmptyAsUndefined(z.string().optional()),
   moa_file: z.string().optional(),
-  agreement_file: z.string().optional(),
+  resolution_file: z.string().optional(),
   supporting_docs: z.array(z.string()).optional(),
 })
 
@@ -108,6 +111,44 @@ export const approvalActionRecordSchema = baseRecordSchema.extend({
   created_at: z.string().optional(),
 })
 
+export const userRecordSchema = baseRecordSchema.extend({
+  collectionName: z.literal("users").optional(),
+  email: z.string(),
+  name: z.string().optional(),
+  role: roleSchema,
+  account_status: accountStatusSchema,
+  last_login: z.string().optional(),
+})
+
+export const locationRecordSchema = baseRecordSchema.extend({
+  collectionName: z.literal("locations").optional(),
+  name: z.string(),
+  slug: z.string(),
+  active: z.boolean(),
+  sort_order: z.number().optional(),
+  created_by: pbEmptyAsUndefined(z.string().optional()),
+  updated_by: pbEmptyAsUndefined(z.string().optional()),
+})
+
+export const activityLogRecordSchema = baseRecordSchema.extend({
+  collectionName: z.literal("activity_logs").optional(),
+  actor_user: pbEmptyAsUndefined(z.string().optional()),
+  actor_role: roleSchema,
+  action: auditActionSchema,
+  resource: z.string(),
+  resource_id: z.string().optional(),
+  policy_key: z.string().optional(),
+  target_user: pbEmptyAsUndefined(z.string().optional()),
+  before: z.record(z.string(), z.unknown()).optional(),
+  after: z.record(z.string(), z.unknown()).optional(),
+  outcome: z.enum(["success", "error", "denied"]),
+  error: z.string().optional(),
+  duration_ms: z.number().min(0),
+  request_id: z.string().optional(),
+  env: z.record(z.string(), z.unknown()).optional(),
+  created_at: z.string().optional(),
+})
+
 export type ProjectRecord = z.infer<typeof projectRecordSchema> & {
   collectionName?: "projects"
 }
@@ -129,13 +170,25 @@ export type ApprovalActionRecord = z.infer<
 > & {
   collectionName?: "approval_actions"
 }
+export type UserRecord = z.infer<typeof userRecordSchema> & {
+  collectionName?: "users"
+}
+export type LocationRecord = z.infer<typeof locationRecordSchema> & {
+  collectionName?: "locations"
+}
+export type ActivityLogRecord = z.infer<typeof activityLogRecordSchema> & {
+  collectionName?: "activity_logs"
+}
 
 export const recordSchemas = {
+  users: userRecordSchema,
   projects: projectRecordSchema,
   budget_allocations: budgetAllocationRecordSchema,
   budget_expenses: budgetExpenseRecordSchema,
   progress_updates: progressUpdateRecordSchema,
   approval_actions: approvalActionRecordSchema,
+  locations: locationRecordSchema,
+  activity_logs: activityLogRecordSchema,
 } as const
 
 export type CollectionName = keyof typeof recordSchemas

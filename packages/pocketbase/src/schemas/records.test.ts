@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  activityLogRecordSchema,
   approvalActionRecordSchema,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
+  locationRecordSchema,
   progressUpdateRecordSchema,
   projectRecordSchema,
   recordSchemas,
+  userRecordSchema,
 } from "./records"
 
 const base = {
@@ -17,13 +20,16 @@ const base = {
 }
 
 describe("collection record schemas (V33, V36)", () => {
-  it("exports all five collection schemas", () => {
+  it("exports account, location, audit, and module collection schemas", () => {
     expect(Object.keys(recordSchemas)).toEqual([
+      "users",
       "projects",
       "budget_allocations",
       "budget_expenses",
       "progress_updates",
       "approval_actions",
+      "locations",
+      "activity_logs",
     ])
   })
 
@@ -34,8 +40,12 @@ describe("collection record schemas (V33, V36)", () => {
       category: "Infrastructure",
       status: "Planning",
       budget_year: 2026,
+      resolution_file: "resolution.pdf",
     })
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.resolution_file).toBe("resolution.pdf")
+    }
   })
 
   it("retains scholarship student counts on project records (V112)", () => {
@@ -86,7 +96,7 @@ describe("collection record schemas (V33, V36)", () => {
       budget_year: 2026,
       total_budget: 1_000_000,
       moa_file: "",
-      agreement_file: "",
+      resolution_file: "",
       supporting_docs: [],
       progress_pct: 0,
       approval_status: "",
@@ -119,7 +129,7 @@ describe("collection record schemas (V33, V36)", () => {
       total_budget: 15_000_000,
       progress_pct: 62,
       moa_file: "",
-      agreement_file: "",
+      resolution_file: "",
       supporting_docs: [],
       approval_status: "",
       approved_at: "",
@@ -137,6 +147,7 @@ describe("collection record schemas (V33, V36)", () => {
         amount: 1000,
         year: 2026,
         date: "2026-06-01",
+        resolution_file: "resolution.pdf",
       }).success
     ).toBe(true)
 
@@ -201,5 +212,45 @@ describe("collection record schemas (V33, V36)", () => {
         expect(progress.data.site_photo).toEqual([])
       }
     }
+  })
+
+  it("parses user, location, and activity log records (V115, V123, V127)", () => {
+    expect(
+      userRecordSchema.safeParse({
+        ...base,
+        collectionName: "users",
+        email: "super@example.test",
+        name: "Super Admin",
+        role: "Super Admin",
+        account_status: "Active",
+      }).success
+    ).toBe(true)
+
+    expect(
+      locationRecordSchema.safeParse({
+        ...base,
+        collectionName: "locations",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        active: true,
+      }).success
+    ).toBe(true)
+
+    expect(
+      activityLogRecordSchema.safeParse({
+        ...base,
+        collectionName: "activity_logs",
+        actor_user: "u1",
+        actor_role: "Super Admin",
+        action: "update",
+        resource: "projects",
+        resource_id: "p1",
+        policy_key: "projects.update",
+        outcome: "success",
+        duration_ms: 12,
+        request_id: "req_1",
+        env: { version: "test" },
+      }).success
+    ).toBe(true)
   })
 })

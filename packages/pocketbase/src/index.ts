@@ -10,6 +10,8 @@ export {
   type CollectionRealtimeEvent,
 } from "./realtime"
 export type {
+  AccountStatus,
+  ActivityLogRecord,
   ApprovalActionRecord,
   ApprovalStatus,
   BaseRecord,
@@ -17,11 +19,16 @@ export type {
   BudgetExpenseRecord,
   CollectionName,
   CollectionRecords,
+  LocationRecord,
   ProgressUpdateRecord,
   ProjectRecord,
+  Role,
+  UserRecord,
 } from "./types"
 export {
+  ACCOUNT_STATUS,
   APPROVAL_ACTION,
+  AUDIT_ACTION,
   COLLECTION_ACCESS_RULES,
   COLLECTION_DELETE_ORDER,
   COLLECTION_MANIFEST,
@@ -32,6 +39,7 @@ export {
   PROJECT_CATEGORY,
   PROJECT_STATUS,
   PUBLIC_READ_RULE,
+  ROLE,
   ADMIN_WRITE_RULE,
   RULES_MIGRATION_FILE,
 } from "../schema/manifest"

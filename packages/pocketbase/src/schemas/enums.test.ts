@@ -2,18 +2,24 @@ import { describe, expect, it } from "vitest"
 
 import {
   APPROVAL_ACTION,
+  ACCOUNT_STATUS,
+  AUDIT_ACTION,
   EXPENSE_CATEGORY,
   LGU_LEVEL,
   PROJECT_CATEGORY,
   PROJECT_STATUS,
+  ROLE,
 } from "../../schema/manifest"
 
 import {
   approvalActionSchema,
+  accountStatusSchema,
+  auditActionSchema,
   expenseCategorySchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
+  roleSchema,
 } from "./enums"
 
 describe("schema enums (V36)", () => {
@@ -35,6 +41,9 @@ describe("schema enums (V36)", () => {
     expect(lguLevelSchema.safeParse("Province").success).toBe(false)
     expect(expenseCategorySchema.safeParse("Travel").success).toBe(false)
     expect(approvalActionSchema.safeParse("hold").success).toBe(false)
+    expect(roleSchema.safeParse("Manager").success).toBe(false)
+    expect(accountStatusSchema.safeParse("Suspended").success).toBe(false)
+    expect(auditActionSchema.safeParse("login").success).toBe(false)
   })
 
   it("matches §C enum table cardinality", () => {
@@ -43,5 +52,8 @@ describe("schema enums (V36)", () => {
     expect(LGU_LEVEL).toHaveLength(4)
     expect(EXPENSE_CATEGORY).toHaveLength(5)
     expect(APPROVAL_ACTION).toHaveLength(2)
+    expect(ROLE).toEqual(["Super Admin", "Admin", "User"])
+    expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
+    expect(AUDIT_ACTION).toContain("reset_password")
   })
 })

@@ -29,6 +29,17 @@ export const EXPENSE_CATEGORY = [
 ] as const
 
 export const APPROVAL_ACTION = ["approve", "reject"] as const
+export const ROLE = ["Super Admin", "Admin", "User"] as const
+export const ACCOUNT_STATUS = ["Active", "Inactive"] as const
+export const AUDIT_ACTION = [
+  "create",
+  "update",
+  "delete",
+  "deactivate",
+  "approve",
+  "reject",
+  "reset_password",
+] as const
 
 export type CollectionManifest = {
   name: string
@@ -37,6 +48,10 @@ export type CollectionManifest = {
 }
 
 export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
+  {
+    name: "users",
+    fields: ["name", "role", "account_status"],
+  },
   {
     name: "projects",
     fields: [
@@ -53,7 +68,7 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "total_budget",
       "number_of_students",
       "moa_file",
-      "agreement_file",
+      "resolution_file",
       "supporting_docs",
       "progress_pct",
       "approval_status",
@@ -73,7 +88,7 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "date",
       "allocated_by",
       "moa_file",
-      "agreement_file",
+      "resolution_file",
       "supporting_docs",
     ],
     relations: ["project", "allocated_by"],
@@ -115,6 +130,32 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
     fields: ["project", "action", "authority_name", "reason", "created_at"],
     relations: ["project"],
   },
+  {
+    name: "locations",
+    fields: ["name", "slug", "active", "sort_order", "created_by", "updated_by"],
+    relations: ["created_by", "updated_by"],
+  },
+  {
+    name: "activity_logs",
+    fields: [
+      "actor_user",
+      "actor_role",
+      "action",
+      "resource",
+      "resource_id",
+      "policy_key",
+      "target_user",
+      "before",
+      "after",
+      "outcome",
+      "error",
+      "duration_ms",
+      "request_id",
+      "env",
+      "created_at",
+    ],
+    relations: ["actor_user", "target_user"],
+  },
 ] as const
 
 export const MIGRATION_FILE = "1740000001_cppms_collections.js"
@@ -136,6 +177,8 @@ export const COLLECTION_NAMES = COLLECTION_MANIFEST.map((c) => c.name)
 
 /** Delete order: dependents first */
 export const COLLECTION_DELETE_ORDER = [
+  "activity_logs",
+  "locations",
   "approval_actions",
   "progress_updates",
   "budget_expenses",

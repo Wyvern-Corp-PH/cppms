@@ -15,9 +15,56 @@ function resolveUsersCollection(app) {
   }
 }
 
+function fieldExists(collection, name) {
+  try {
+    collection.fields.getByName(name)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function ensureUserFields(app, users) {
+  let changed = false
+
+  if (!fieldExists(users, "name")) {
+    users.fields.add(new TextField({ name: "name" }))
+    changed = true
+  }
+
+  if (!fieldExists(users, "role")) {
+    users.fields.add(
+      new SelectField({
+        name: "role",
+        required: true,
+        maxSelect: 1,
+        values: ["Super Admin", "Admin", "User"],
+      })
+    )
+    changed = true
+  }
+
+  if (!fieldExists(users, "account_status")) {
+    users.fields.add(
+      new SelectField({
+        name: "account_status",
+        required: true,
+        maxSelect: 1,
+        values: ["Active", "Inactive"],
+      })
+    )
+    changed = true
+  }
+
+  if (changed) {
+    app.save(users)
+  }
+}
+
 migrate(
   (app) => {
     const users = resolveUsersCollection(app)
+    ensureUserFields(app, users)
     const usersId = users.id
 
     const documentMimeTypes = [
@@ -94,7 +141,7 @@ migrate(
         },
         {
           type: "file",
-          name: "agreement_file",
+          name: "resolution_file",
           maxSelect: 1,
           maxSize: 10485760,
           mimeTypes: documentMimeTypes,
@@ -157,7 +204,7 @@ migrate(
         },
         {
           type: "file",
-          name: "agreement_file",
+          name: "resolution_file",
           maxSelect: 1,
           maxSize: 10485760,
           mimeTypes: documentMimeTypes,
@@ -328,9 +375,102 @@ migrate(
     })
 
     app.save(approvalActions)
+
+    const locations = new Collection({
+      type: "base",
+      name: "locations",
+      fields: [
+        { type: "text", name: "name", required: true },
+        { type: "text", name: "slug", required: true },
+        { type: "bool", name: "active", required: true },
+        { type: "number", name: "sort_order", min: 0, onlyInt: true },
+        {
+          type: "relation",
+          name: "created_by",
+          collectionId: usersId,
+          maxSelect: 1,
+        },
+        {
+          type: "relation",
+          name: "updated_by",
+          collectionId: usersId,
+          maxSelect: 1,
+        },
+      ],
+      indexes: ["CREATE UNIQUE INDEX idx_locations_slug ON locations (slug)"],
+    })
+
+    app.save(locations)
+
+    const activityLogs = new Collection({
+      type: "base",
+      name: "activity_logs",
+      fields: [
+        {
+          type: "relation",
+          name: "actor_user",
+          collectionId: usersId,
+          maxSelect: 1,
+        },
+        {
+          type: "select",
+          name: "actor_role",
+          required: true,
+          maxSelect: 1,
+          values: ["Super Admin", "Admin", "User"],
+        },
+        {
+          type: "select",
+          name: "action",
+          required: true,
+          maxSelect: 1,
+          values: [
+            "create",
+            "update",
+            "delete",
+            "deactivate",
+            "approve",
+            "reject",
+            "reset_password",
+          ],
+        },
+        { type: "text", name: "resource", required: true },
+        { type: "text", name: "resource_id" },
+        { type: "text", name: "policy_key" },
+        {
+          type: "relation",
+          name: "target_user",
+          collectionId: usersId,
+          maxSelect: 1,
+        },
+        { type: "json", name: "before" },
+        { type: "json", name: "after" },
+        {
+          type: "select",
+          name: "outcome",
+          required: true,
+          maxSelect: 1,
+          values: ["success", "error", "denied"],
+        },
+        { type: "text", name: "error" },
+        { type: "number", name: "duration_ms", required: true, min: 0 },
+        { type: "text", name: "request_id" },
+        { type: "json", name: "env" },
+        {
+          type: "autodate",
+          name: "created_at",
+          onCreate: true,
+          onUpdate: false,
+        },
+      ],
+    })
+
+    app.save(activityLogs)
   },
   (app) => {
     for (const name of [
+      "activity_logs",
+      "locations",
       "approval_actions",
       "progress_updates",
       "budget_expenses",

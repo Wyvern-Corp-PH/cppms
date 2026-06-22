@@ -63,7 +63,7 @@ services:
       chown -R pbuser:pbgroup /pb/pb_data &&
       exec su-exec pbuser sh -c '
       echo \"Creating superuser...\" &&
-      ./pocketbase superuser create \"$$POCKETBASE_ADMIN_EMAIL\" \"$$POCKETBASE_ADMIN_PASSWORD\" || true &&
+      ./pocketbase superuser upsert \"$$POCKETBASE_ADMIN_EMAIL\" \"$$POCKETBASE_ADMIN_PASSWORD\" --encryptionEnv=POCKETBASE_ENCRYPTION_KEY &&
       echo \"Starting pocketbase...\" &&
       exec ./pocketbase serve --http=0.0.0.0:8090 --origins=$$ORIGINS --encryptionEnv=POCKETBASE_ENCRYPTION_KEY
       '"
