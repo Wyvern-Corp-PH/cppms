@@ -5,6 +5,7 @@ export type ProjectFilters = {
   category?: ProjectRecord["category"]
   status?: ProjectRecord["status"]
   lgu_level?: ProjectRecord["lgu_level"]
+  locationSlug?: string
   dateFrom?: string
   dateTo?: string
 }
@@ -49,6 +50,7 @@ export function filterProjects(
   filters: ProjectFilters
 ): ProjectRecord[] {
   const query = filters.query?.trim().toLowerCase()
+  const locationSlug = normalizeLocationSlug(filters.locationSlug)
 
   return projects.filter((project) => {
     if (filters.category && project.category !== filters.category) {
@@ -60,6 +62,10 @@ export function filterProjects(
     }
 
     if (filters.lgu_level && project.lgu_level !== filters.lgu_level) {
+      return false
+    }
+
+    if (locationSlug && normalizeLocationSlug(project.location) !== locationSlug) {
       return false
     }
 
@@ -78,6 +84,16 @@ export function filterProjects(
 
     return haystack.includes(query)
   })
+}
+
+export function normalizeLocationSlug(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
 }
 
 export function isApprovalEligible(

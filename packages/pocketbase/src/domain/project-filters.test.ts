@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { filterProjects, formatProjectDateRange, isApprovalEligible, projectInDateRange } from "./project-filters"
+import {
+  filterProjects,
+  formatProjectDateRange,
+  isApprovalEligible,
+  normalizeLocationSlug,
+  projectInDateRange,
+} from "./project-filters"
 import type { ProjectRecord } from "../types"
 
 const sampleProjects: ProjectRecord[] = [
@@ -53,6 +59,16 @@ describe("filterProjects (V73)", () => {
     expect(
       filterProjects(sampleProjects, { dateFrom: "2026-01-01", dateTo: "2026-12-31" })
     ).toHaveLength(1)
+  })
+
+  it("filters by normalized city/municipality slug", () => {
+    expect(normalizeLocationSlug("Tuguegarao City")).toBe("tuguegarao-city")
+    expect(
+      filterProjects(sampleProjects, { locationSlug: "tuguegarao" })
+    ).toHaveLength(1)
+    expect(
+      filterProjects(sampleProjects, { locationSlug: "lasam" })
+    ).toHaveLength(0)
   })
 })
 

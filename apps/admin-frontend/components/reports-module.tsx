@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import * as XLSX from "xlsx"
 
+import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDate, formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import {
   computeBudgetSummary,
@@ -20,6 +21,7 @@ import {
 } from "@workspace/pocketbase/domain/reports-filters"
 import { LGU_LEVEL, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
+  activityLogRecordSchema,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
   parseRecordList,
@@ -29,6 +31,7 @@ import {
 import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
+  ActivityLogRecord,
   ProgressUpdateRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
@@ -49,6 +52,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
+import { useAuth } from "@/lib/auth"
 import { getPocketBase } from "@/lib/pocketbase"
 
 type ReportTab = "projects" | "budget" | "progress" | "approvals"
@@ -64,32 +68,41 @@ export function ReportsModule() {
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [activityLogs, setActivityLogs] = useState<ActivityLogRecord[]>([])
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
   const [activeTab, setActiveTab] = useState<ReportTab>("projects")
   const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+  const canViewActivityLogs = canAccess(user, "activity_logs.view")
 
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows, updateRows] = await Promise.all([
+    const [projectRows, allocationRows, expenseRows, updateRows, logRows] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
       pb.collection("progress_updates").getFullList(),
+      canViewActivityLogs
+        ? pb.collection("activity_logs").getFullList()
+        : Promise.resolve([]),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
+    setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
     setLoading(false)
-  }, [])
+  }, [canViewActivityLogs])
 
   useEffect(() => {
     void load()
   }, [load])
 
   const { live } = usePocketBaseRealtime(
-    ["projects", "budget_allocations", "budget_expenses", "progress_updates"],
+    canViewActivityLogs
+      ? ["projects", "budget_allocations", "budget_expenses", "progress_updates", "activity_logs"]
+      : ["projects", "budget_allocations", "budget_expenses", "progress_updates"],
     () => {
       void load()
     }
@@ -374,6 +387,7 @@ export function ReportsModule() {
                   <th className="px-4 py-2 text-left">Project</th>
                   <th className="px-4 py-2 text-left">Category</th>
                   <th className="px-4 py-2 text-left">LGU</th>
+                  <th className="px-4 py-2 text-left">Location</th>
                   <th className="px-4 py-2 text-left">Total</th>
                   <th className="px-4 py-2 text-left">Allocated</th>
                   <th className="px-4 py-2 text-left">Spent</th>
@@ -389,6 +403,7 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{row.name}</td>
                       <td className="px-4 py-2">{project?.category}</td>
                       <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
+                      <td className="px-4 py-2">{project?.location ?? "—"}</td>
                       <td className="px-4 py-2">{formatPhp(row.totalBudget)}</td>
                       <td className="px-4 py-2">{formatPhp(row.allocated)}</td>
                       <td className="px-4 py-2">{formatPhp(row.spent)}</td>
@@ -398,7 +413,7 @@ export function ReportsModule() {
                   )
                 })}
                 <tr className="bg-muted/40 font-medium">
-                  <td className="px-4 py-2" colSpan={3}>
+                  <td className="px-4 py-2" colSpan={4}>
                     Total
                   </td>
                   <td className="px-4 py-2">{formatPhp(summary.totalBudget)}</td>
@@ -420,6 +435,7 @@ export function ReportsModule() {
                   <th className="px-4 py-2 text-left">Project</th>
                   <th className="px-4 py-2 text-left">Category</th>
                   <th className="px-4 py-2 text-left">LGU</th>
+                  <th className="px-4 py-2 text-left">Location</th>
                   <th className="px-4 py-2 text-left">From</th>
                   <th className="px-4 py-2 text-left">To</th>
                   <th className="px-4 py-2 text-left">Change</th>
@@ -437,6 +453,7 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{project?.name}</td>
                       <td className="px-4 py-2">{project?.category}</td>
                       <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
+                      <td className="px-4 py-2">{project?.location ?? "—"}</td>
                       <td className="px-4 py-2">{update.from_pct}%</td>
                       <td className="px-4 py-2">{update.to_pct}%</td>
                       <td className="px-4 py-2">{change >= 0 ? `+${change}` : change}%</td>
@@ -468,6 +485,7 @@ export function ReportsModule() {
                   <th className="px-4 py-2 text-left">Project</th>
                   <th className="px-4 py-2 text-left">Category</th>
                   <th className="px-4 py-2 text-left">LGU</th>
+                  <th className="px-4 py-2 text-left">Location</th>
                   <th className="px-4 py-2 text-left">Status</th>
                   <th className="px-4 py-2 text-left">Budget</th>
                   <th className="px-4 py-2 text-left">Spent</th>
@@ -487,6 +505,7 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{project.name}</td>
                       <td className="px-4 py-2">{project.category}</td>
                       <td className="px-4 py-2">{project.lgu_level ?? "—"}</td>
+                      <td className="px-4 py-2">{project.location ?? "—"}</td>
                       <td className="px-4 py-2">{project.status}</td>
                       <td className="px-4 py-2">{formatPhp(project.total_budget ?? 0)}</td>
                       <td className="px-4 py-2 text-destructive">{formatPhp(spent)}</td>
@@ -503,6 +522,46 @@ export function ReportsModule() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {canViewActivityLogs ? (
+        <section className="space-y-3 rounded-lg border p-4">
+          <div>
+            <h2 className="text-sm font-semibold">Activity Logs</h2>
+            <p className="text-sm text-muted-foreground">
+              Super Admin audit trail for project, budget, progress, approval, and user actions.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="border-b text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left">Actor</th>
+                  <th className="px-3 py-2 text-left">Action</th>
+                  <th className="px-3 py-2 text-left">Resource</th>
+                  <th className="px-3 py-2 text-left">Outcome</th>
+                  <th className="px-3 py-2 text-left">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activityLogs.map((log) => (
+                  <tr key={log.id} className="border-b last:border-b-0">
+                    <td className="px-3 py-2">{log.actor_user ?? log.actor_role}</td>
+                    <td className="px-3 py-2">{log.action}</td>
+                    <td className="px-3 py-2">
+                      {log.resource}
+                      {log.resource_id ? `:${log.resource_id}` : ""}
+                    </td>
+                    <td className="px-3 py-2">{log.outcome}</td>
+                    <td className="px-3 py-2">
+                      {formatDisplayDateTime(log.created_at ?? log.created)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

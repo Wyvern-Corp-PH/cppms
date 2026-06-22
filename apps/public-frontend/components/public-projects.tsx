@@ -8,8 +8,12 @@ import {
 } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import { LGU_LEVEL, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
-import { parseRecordList, projectRecordSchema } from "@workspace/pocketbase/schemas"
-import type { ProjectRecord } from "@workspace/pocketbase/types"
+import {
+  locationRecordSchema,
+  parseRecordList,
+  projectRecordSchema,
+} from "@workspace/pocketbase/schemas"
+import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
@@ -28,28 +32,42 @@ import { getPocketBase } from "@/lib/pocketbase"
 
 export function PublicProjects() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
   const [lguLevel, setLguLevel] = useState("all")
+  const [locationSlug, setLocationSlug] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
   const loadProjects = useCallback(async () => {
-    const rows = await getPocketBase().collection("projects").getFullList()
-    setProjects(parseRecordList(projectRecordSchema, rows))
+    const pb = getPocketBase()
+    const projectRows = await pb.collection("projects").getFullList()
+    setProjects(parseRecordList(projectRecordSchema, projectRows))
+    try {
+      const locationRows = await pb.collection("locations").getFullList()
+      setLocations(
+        parseRecordList(locationRecordSchema, locationRows)
+          .filter((location) => location.active)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+      )
+    } catch {
+      setLocations([])
+    }
     setLoading(false)
   }, [])
 
   useEffect(() => {
     void loadProjects().catch(() => {
       setProjects([])
+      setLocations([])
       setLoading(false)
     })
   }, [loadProjects])
 
-  const { live } = usePocketBaseRealtime(["projects"], () => {
+  const { live } = usePocketBaseRealtime(["projects", "locations"], () => {
     void loadProjects()
   })
 
@@ -62,10 +80,11 @@ export function PublicProjects() {
         status: status === "all" ? undefined : (status as ProjectRecord["status"]),
         lgu_level:
           lguLevel === "all" ? undefined : (lguLevel as ProjectRecord["lgu_level"]),
+        locationSlug: locationSlug === "all" ? undefined : locationSlug,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
-    [projects, query, category, status, lguLevel, dateFrom, dateTo]
+    [projects, query, category, status, lguLevel, locationSlug, dateFrom, dateTo]
   )
 
   if (loading) {
@@ -131,6 +150,19 @@ export function PublicProjects() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={locationSlug} onValueChange={setLocationSlug}>
+          <SelectTrigger aria-label="Filter by city/municipality">
+            <SelectValue placeholder="City/Municipality" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All city/municipality</SelectItem>
+            {locations.map((location) => (
+              <SelectItem key={location.id} value={location.slug}>
+                {location.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="space-y-1">
           <Label htmlFor="public-filter-date-from">From:</Label>
           <Input
@@ -154,13 +186,13 @@ export function PublicProjects() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed p-8 text-center">
+        <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="font-medium">No projects match your filters</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {filtered.map((project) => (
-            <article key={project.id} className="rounded-[var(--radius-lg)] border border-border bg-card p-4">
+            <article key={project.id} className="rounded-lg border border-border bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-semibold">{project.name}</h2>
                 <Badge variant="secondary">{project.status}</Badge>

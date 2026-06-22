@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
+import { normalizeLocationSlug } from "../domain/project-filters"
 import { projectMutateSchema } from "../schemas/forms"
-import { DEMO_PROJECT_PREFIX, DEV_SEED_FIXTURES } from "./dev-fixtures"
+import {
+  CAGAYAN_LOCATIONS,
+  DEMO_PROJECT_PREFIX,
+  DEV_SEED_FIXTURES,
+} from "./dev-fixtures"
+
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
+const seedScriptSource = readFileSync(
+  resolve(packageRoot, "scripts", "seed-dev.ts"),
+  "utf8"
+)
 
 describe("dev seed fixtures (V70)", () => {
   it("defines demo projects with the shared prefix", () => {
@@ -16,5 +30,33 @@ describe("dev seed fixtures (V70)", () => {
       const result = projectMutateSchema.safeParse(fixture.project)
       expect(result.success, fixture.project.name).toBe(true)
     }
+  })
+
+  it("defines canonical Cagayan locations with stable slugs", () => {
+    expect(CAGAYAN_LOCATIONS).toContain("Tuguegarao City")
+    expect(CAGAYAN_LOCATIONS).toContain("Lasam")
+    expect(CAGAYAN_LOCATIONS).toHaveLength(29)
+    expect(new Set(CAGAYAN_LOCATIONS.map(normalizeLocationSlug)).size).toBe(
+      CAGAYAN_LOCATIONS.length
+    )
+  })
+
+  it("uses only canonical locations in seeded demo projects", () => {
+    const canonical = new Set(CAGAYAN_LOCATIONS)
+    for (const fixture of DEV_SEED_FIXTURES) {
+      expect(
+        canonical.has(fixture.project.location as (typeof CAGAYAN_LOCATIONS)[number]),
+        `${fixture.project.name} uses non-canonical location ${fixture.project.location}`
+      ).toBe(true)
+    }
+  })
+
+  it("seeds required completion documents for 100% progress rows", () => {
+    expect(
+      DEV_SEED_FIXTURES.some((fixture) => fixture.progress?.to_pct === 100)
+    ).toBe(true)
+    expect(seedScriptSource).toContain("REQUIRED_COMPLETION_DOCUMENTS")
+    expect(seedScriptSource).toContain("appendCompletionDocuments")
+    expect(seedScriptSource).toContain("fixture.progress.to_pct >= 100")
   })
 })

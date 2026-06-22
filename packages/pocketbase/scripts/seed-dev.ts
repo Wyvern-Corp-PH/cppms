@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url"
 import PocketBase from "pocketbase"
 
 import { resolvePocketBaseUrl } from "../src/client.ts"
-import { DEMO_PROJECT_PREFIX, DEV_SEED_FIXTURES } from "../src/seed/dev-fixtures.ts"
+import { normalizeLocationSlug } from "../src/domain/project-filters.ts"
+import { REQUIRED_COMPLETION_DOCUMENTS } from "../src/schemas/forms.ts"
+import {
+  CAGAYAN_LOCATIONS,
+  DEMO_PROJECT_PREFIX,
+  DEV_SEED_FIXTURES,
+} from "../src/seed/dev-fixtures.ts"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -33,10 +39,22 @@ if (!adminEmail || !adminPassword) {
 
 const pb = new PocketBase(pbUrl)
 pb.autoCancellation(false)
+const canonicalLocations = new Set<string>(CAGAYAN_LOCATIONS)
 
 function sitePhotoFile() {
   const bytes = readFileSync(join(__dirname, "fixtures", "site-photo.png"))
   return new File([bytes], "site-photo.png", { type: "image/png" })
+}
+
+function fixtureDocumentFile(name: string) {
+  const bytes = readFileSync(join(__dirname, "fixtures", "site-photo.png"))
+  return new File([bytes], name, { type: "image/png" })
+}
+
+function appendCompletionDocuments(formData: FormData) {
+  for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
+    formData.append(doc.field, fixtureDocumentFile(`${doc.field}.png`))
+  }
 }
 
 async function ensureAppUser() {
@@ -46,12 +64,50 @@ async function ensureAppUser() {
       password: adminPassword,
       passwordConfirm: adminPassword,
       name: "CPPMS Dev Admin",
+      role: "Super Admin",
+      account_status: "Active",
     })
     console.log(`Created app user ${adminEmail}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (!/unique|already|exists/i.test(message)) {
       console.warn(`App user create skipped: ${message}`)
+    }
+  }
+
+  const existing = await pb
+    .collection("users")
+    .getFirstListItem(`email="${adminEmail}"`)
+    .catch(() => null)
+  if (existing) {
+    await pb.collection("users").update(existing.id, {
+      role: "Super Admin",
+      account_status: "Active",
+      password: adminPassword,
+      passwordConfirm: adminPassword,
+    })
+  }
+}
+
+async function seedLocations() {
+  for (const [index, name] of CAGAYAN_LOCATIONS.entries()) {
+    const slug = normalizeLocationSlug(name)
+    const existing = await pb
+      .collection("locations")
+      .getFirstListItem(`slug="${slug}"`)
+      .catch(() => null)
+
+    const payload = {
+      name,
+      slug,
+      active: true,
+      sort_order: index + 1,
+    }
+
+    if (existing) {
+      await pb.collection("locations").update(existing.id, payload)
+    } else {
+      await pb.collection("locations").create(payload)
     }
   }
 }
@@ -61,6 +117,36 @@ async function listDemoProjects() {
   return rows.filter((row) =>
     String(row.name ?? "").startsWith(DEMO_PROJECT_PREFIX)
   )
+}
+
+async function repairDemoProjectLocations() {
+  const demos = await listDemoProjects()
+  const fixturesByName = new Map(
+    DEV_SEED_FIXTURES.map((fixture) => [fixture.project.name, fixture.project])
+  )
+  let repaired = 0
+
+  for (const demo of demos) {
+    const fixture = fixturesByName.get(String(demo.name ?? ""))
+    if (!fixture) {
+      continue
+    }
+
+    const currentLocation = String(demo.location ?? "")
+    if (canonicalLocations.has(currentLocation)) {
+      continue
+    }
+
+    await pb.collection("projects").update(demo.id, {
+      location: fixture.location,
+      lgu_level: fixture.lgu_level,
+    })
+    repaired += 1
+  }
+
+  if (repaired > 0) {
+    console.log(`Repaired ${repaired} demo project location(s).`)
+  }
 }
 
 async function clearDemoProjects() {
@@ -102,6 +188,9 @@ async function seedDemoProjects() {
       formData.append("to_pct", String(fixture.progress.to_pct))
       formData.append("notes", fixture.progress.notes)
       formData.append("site_photo", sitePhotoFile())
+      if (fixture.progress.to_pct >= 100) {
+        appendCompletionDocuments(formData)
+      }
       try {
         await pb.collection("progress_updates").create(formData)
       } catch (error) {
@@ -121,6 +210,8 @@ async function main() {
   console.log(`Seeding ${pbUrl} …`)
   await pb.collection("_superusers").authWithPassword(adminEmail, adminPassword)
   await ensureAppUser()
+  await seedLocations()
+  await repairDemoProjectLocations()
 
   const existing = await listDemoProjects()
   if (existing.length > 0 && !force) {

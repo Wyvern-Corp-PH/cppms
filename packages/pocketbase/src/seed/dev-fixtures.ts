@@ -2,6 +2,38 @@ import type { ProjectRecord } from "../types"
 
 export const DEMO_PROJECT_PREFIX = "Demo:"
 
+export const CAGAYAN_LOCATIONS = [
+  "Tuguegarao City",
+  "Abulug",
+  "Alcala",
+  "Allacapan",
+  "Amulung",
+  "Aparri",
+  "Baggao",
+  "Ballesteros",
+  "Buguey",
+  "Calayan",
+  "Camalaniugan",
+  "Claveria",
+  "Enrile",
+  "Gattaran",
+  "Gonzaga",
+  "Iguig",
+  "Lal-lo",
+  "Lasam",
+  "Pamplona",
+  "Peñablanca",
+  "Piat",
+  "Rizal",
+  "Sanchez-Mira",
+  "Santa Ana",
+  "Santa Praxedes",
+  "Santa Teresita",
+  "Santo Niño",
+  "Solana",
+  "Tuao",
+] as const
+
 export type DevSeedProject = {
   project: {
     name: string
@@ -92,7 +124,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Certified seed distribution to farmer cooperatives across the province.",
       category: "Agriculture",
       status: "Ongoing",
-      location: "Provincial-wide",
+      location: "Solana",
       lgu_level: "District",
       contractor: "DA Provincial Office",
       start_date: "2026-02-01",
@@ -147,7 +179,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Provincial scholarship grants for STEM and teacher education tracks.",
       category: "Scholarship",
       status: "Ongoing",
-      location: "Provincial-wide",
+      location: "Tuguegarao City",
       lgu_level: "Municipality",
       contractor: "Provincial Scholarship Board",
       start_date: "2026-01-10",

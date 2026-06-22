@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import {
   LGU_LEVEL,
   PROJECT_CATEGORY,
@@ -14,11 +15,12 @@ import {
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
   fieldErrorsFromZod,
+  locationRecordSchema,
   parseRecordList,
   projectMutateSchema,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
-import type { ProjectRecord } from "@workspace/pocketbase/types"
+import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -91,12 +93,18 @@ function ProjectCard({
   onEdit,
   onDelete,
   onStatusOpen,
+  canUpdate,
+  canDelete,
 }: {
   project: ProjectRecord
   onEdit: () => void
   onDelete: () => void
   onStatusOpen: () => void
+  canUpdate: boolean
+  canDelete: boolean
 }) {
+  const hasActions = canUpdate || canDelete
+
   return (
     <article
       className="rounded-lg border border-border bg-card p-4"
@@ -140,27 +148,38 @@ function ProjectCard({
             </span>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label={`Actions for ${project.name}`}
-            >
-              ⋮
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-            <DropdownMenuItem onClick={onStatusOpen}>
-              Change status
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {hasActions ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Actions for ${project.name}`}
+              >
+                ⋮
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canUpdate ? (
+                <>
+                  <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onStatusOpen}>
+                    Change status
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+              {canDelete ? (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={onDelete}
+                >
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
     </article>
   )
@@ -168,25 +187,31 @@ function ProjectCard({
 
 export function ProjectsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
   const [lguLevel, setLguLevel] = useState("all")
+  const [locationSlug, setLocationSlug] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ProjectRecord | null>(null)
   const [form, setForm] = useState<ProjectFormState>(emptyForm())
   const [moaFile, setMoaFile] = useState<File | null>(null)
-  const [agreementFile, setAgreementFile] = useState<File | null>(null)
+  const [resolutionFile, setResolutionFile] = useState<File | null>(null)
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
+  const actor = getPocketBase().authStore?.record
+  const canCreateProjects = actor ? canAccess(actor, "projects.create") : true
+  const canUpdateProjects = actor ? canAccess(actor, "projects.update") : true
+  const canDeleteProjects = actor ? canAccess(actor, "projects.delete") : true
 
   function clearUploadFiles() {
     setMoaFile(null)
-    setAgreementFile(null)
+    setResolutionFile(null)
     setSupportingFiles([])
   }
 
@@ -195,6 +220,20 @@ export function ProjectsModule() {
     const pb = getPocketBase()
     const rows = await pb.collection("projects").getFullList()
     setProjects(parseRecordList(projectRecordSchema, rows))
+    try {
+      const locationRows = await pb.collection("locations").getFullList()
+      setLocations(
+        parseRecordList(locationRecordSchema, locationRows)
+          .filter((location) => location.active)
+          .sort(
+            (a, b) =>
+              (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+              a.name.localeCompare(b.name)
+          )
+      )
+    } catch {
+      setLocations([])
+    }
     setLoading(false)
   }, [])
 
@@ -220,23 +259,30 @@ export function ProjectsModule() {
           lguLevel === "all"
             ? undefined
             : (lguLevel as ProjectRecord["lgu_level"]),
+        locationSlug: locationSlug === "all" ? undefined : locationSlug,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
-    [projects, query, category, status, lguLevel, dateFrom, dateTo]
+    [projects, query, category, status, lguLevel, locationSlug, dateFrom, dateTo]
   )
 
   function openCreate() {
+    if (!canCreateProjects) {
+      return
+    }
     setEditing(null)
     setForm(emptyForm())
     setMoaFile(null)
-    setAgreementFile(null)
+    setResolutionFile(null)
     setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
   }
 
   function openEdit(project: ProjectRecord) {
+    if (!canUpdateProjects) {
+      return
+    }
     setEditing(project)
     setForm({
       name: project.name,
@@ -255,7 +301,7 @@ export function ProjectsModule() {
         : "",
     })
     setMoaFile(null)
-    setAgreementFile(null)
+    setResolutionFile(null)
     setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
@@ -286,9 +332,13 @@ export function ProjectsModule() {
       return
     }
 
+    if (editing ? !canUpdateProjects : !canCreateProjects) {
+      return
+    }
+
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || agreementFile || supportingFiles.length > 0
+    const hasFiles = moaFile || resolutionFile || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
@@ -298,7 +348,7 @@ export function ProjectsModule() {
         }
       }
       if (moaFile) formData.append("moa_file", moaFile)
-      if (agreementFile) formData.append("agreement_file", agreementFile)
+      if (resolutionFile) formData.append("resolution_file", resolutionFile)
       for (const file of supportingFiles) {
         formData.append("supporting_docs", file)
       }
@@ -322,16 +372,40 @@ export function ProjectsModule() {
     project: ProjectRecord,
     nextStatus: ProjectRecord["status"]
   ) {
+    if (!canUpdateProjects) {
+      return
+    }
     const pb = getPocketBase()
     await pb.collection("projects").update(project.id, { status: nextStatus })
     await loadProjects()
   }
 
   async function handleDelete(project: ProjectRecord) {
+    if (!canDeleteProjects) {
+      return
+    }
     const pb = getPocketBase()
     await pb.collection("projects").delete(project.id)
     await loadProjects()
   }
+
+  const locationChoices = useMemo(() => {
+    const activeNames = new Set(locations.map((location) => location.name))
+    if (form.location && !activeNames.has(form.location)) {
+      return [
+        ...locations,
+        {
+          id: `current-${form.location}`,
+          collectionId: "locations",
+          collectionName: "locations" as const,
+          name: form.location,
+          slug: form.location,
+          active: true,
+        },
+      ]
+    }
+    return locations
+  }, [form.location, locations])
 
   const ongoing = projects.filter(
     (project) => project.status === "Ongoing"
@@ -363,7 +437,7 @@ export function ProjectsModule() {
       />
 
       <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           <Input
             aria-label="Search projects"
             placeholder="Search by name"
@@ -409,6 +483,19 @@ export function ProjectsModule() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={locationSlug} onValueChange={setLocationSlug}>
+            <SelectTrigger aria-label="Filter by city/municipality">
+              <SelectValue placeholder="City/Municipality" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All city/municipality</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.slug}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="space-y-1">
             <Label htmlFor="filter-date-from">From:</Label>
             <Input
@@ -430,26 +517,32 @@ export function ProjectsModule() {
             />
           </div>
         </div>
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            onClick={openCreate}
-            data-testid="create-project"
-          >
-            New project
-          </Button>
-        </div>
+        {canCreateProjects ? (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={openCreate}
+              data-testid="create-project"
+            >
+              New project
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-lg border p-8 text-center">
           <h2 className="font-semibold">No projects yet</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a project to start tracking provincial work.
+            {canCreateProjects
+              ? "Create a project to start tracking provincial work."
+              : "No project records are available for the current filters."}
           </p>
-          <Button className="mt-4" type="button" onClick={openCreate}>
-            Create project
-          </Button>
+          {canCreateProjects ? (
+            <Button className="mt-4" type="button" onClick={openCreate}>
+              Create project
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -460,6 +553,8 @@ export function ProjectsModule() {
               onEdit={() => openEdit(project)}
               onDelete={() => void handleDelete(project)}
               onStatusOpen={() => setStatusTarget(project)}
+              canUpdate={canUpdateProjects}
+              canDelete={canDeleteProjects}
             />
           ))}
         </div>
@@ -585,14 +680,25 @@ export function ProjectsModule() {
               </div>
             ) : null}
             <div className="space-y-1">
-              <Label htmlFor="project-location">Location</Label>
-              <Input
-                id="project-location"
-                value={form.location}
-                onChange={(event) =>
-                  setForm({ ...form, location: event.target.value })
+              <Label>Location</Label>
+              <Select
+                value={form.location || "none"}
+                onValueChange={(value) =>
+                  setForm({ ...form, location: value === "none" ? "" : value })
                 }
-              />
+              >
+                <SelectTrigger aria-label="Location">
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {locationChoices.map((location) => (
+                    <SelectItem key={location.id} value={location.name}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -692,11 +798,11 @@ export function ProjectsModule() {
                 onChange={(files) => setMoaFile(files[0] ?? null)}
               />
               <DocumentUploadField
-                id="agreement-file"
-                label="Province/Barangay Agreement"
-                files={agreementFile ? [agreementFile] : []}
-                existingNames={namesOnRecord(editing?.agreement_file)}
-                onChange={(files) => setAgreementFile(files[0] ?? null)}
+                id="resolution-file"
+                label="Resolution"
+                files={resolutionFile ? [resolutionFile] : []}
+                existingNames={namesOnRecord(editing?.resolution_file)}
+                onChange={(files) => setResolutionFile(files[0] ?? null)}
               />
               <DocumentUploadField
                 id="supporting-file"
