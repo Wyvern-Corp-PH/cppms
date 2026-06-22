@@ -24,6 +24,7 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -194,8 +195,15 @@ export function ProgressModule() {
     })
 
     if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod(parsed.error))
-      setFormError(firstZodError(parsed.error))
+      const nextFieldErrors = fieldErrorsFromZod(parsed.error)
+      const nextFormError = firstZodError(parsed.error)
+
+      setFieldErrors(nextFieldErrors)
+      setFormError(
+        Object.values(nextFieldErrors).includes(nextFormError)
+          ? null
+          : nextFormError
+      )
       return
     }
 
@@ -471,6 +479,9 @@ export function ProgressModule() {
         <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Project detail</DialogTitle>
+            <DialogDescription>
+              Review the selected project's progress, notes, and site photos.
+            </DialogDescription>
           </DialogHeader>
           {selected ? (
             <div className="space-y-3 text-sm">
@@ -559,6 +570,10 @@ export function ProgressModule() {
           >
             <DialogHeader>
               <DialogTitle>Update progress</DialogTitle>
+              <DialogDescription>
+                Add a site update, progress percentage, and required completion
+                documents.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4">
               {formError ? (

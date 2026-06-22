@@ -29,6 +29,7 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -245,7 +246,7 @@ export function BudgetModule() {
         <h2 className="text-sm font-semibold">Project budget breakdown</h2>
         <ul className="space-y-3" data-testid="budget-breakdown">
           {breakdown.map((row) => (
-            <li key={row.projectId} className="rounded-[var(--radius-lg)] border border-border p-4">
+            <li key={row.projectId} className="rounded-lg border border-border p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="font-medium">
                   {row.name}
@@ -312,7 +313,7 @@ export function BudgetModule() {
           >
             + Allocate
           </Button>
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>
@@ -346,7 +347,7 @@ export function BudgetModule() {
           <Button type="button" data-testid="record-expense" onClick={() => { setFieldErrors({}); setExpenseOpen(true) }}>
             + Record Expense
           </Button>
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>
@@ -385,6 +386,9 @@ export function BudgetModule() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Allocate budget</DialogTitle>
+            <DialogDescription>
+              Record an allocation and attach the required budget documents.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <Label>Project</Label>
@@ -450,6 +454,9 @@ export function BudgetModule() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record expense</DialogTitle>
+            <DialogDescription>
+              Log project spending against an existing allocation.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <Select value={projectId} onValueChange={setProjectId}>

@@ -137,6 +137,7 @@ describe("ProgressModule (V81, V84)", () => {
     ]
     store.updates = []
     updateMock.mockRejectedValueOnce(new Error("PATCH blocked"))
+    const warnMock = vi.spyOn(console, "warn").mockImplementation(() => {})
 
     render(<ProgressModule />)
 
@@ -154,6 +155,11 @@ describe("ProgressModule (V81, V84)", () => {
       expect(updateMock).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     })
+    expect(warnMock).toHaveBeenCalledWith(
+      "Progress update saved, but project summary did not update.",
+      expect.any(Error)
+    )
+    warnMock.mockRestore()
   })
 
   it("shows a Zod validation message when saving without a site photo", async () => {

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("next/link", () => ({
@@ -57,8 +57,13 @@ describe("PublicLanding (V42, V54)", () => {
     expect(document.getElementById("recent-projects-heading")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /public accountability/i })).toBeInTheDocument()
 
+    const recentProjects = document.getElementById(
+      "recent-projects-heading"
+    )?.parentElement?.parentElement?.parentElement
+
+    expect(recentProjects).toBeTruthy()
     await waitFor(() => {
-      expect(screen.getByText("Bridge")).toBeInTheDocument()
+      expect(within(recentProjects!).getByText("Bridge")).toBeInTheDocument()
     })
 
     expect(screen.getByTestId("admin-portal-preview")).toBeInTheDocument()

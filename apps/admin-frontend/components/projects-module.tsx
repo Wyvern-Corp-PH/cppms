@@ -24,6 +24,7 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -98,7 +99,7 @@ function ProjectCard({
 }) {
   return (
     <article
-      className="rounded-[var(--radius-lg)] border border-border bg-card p-4"
+      className="rounded-lg border border-border bg-card p-4"
       data-testid={`project-card-${project.id}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -441,7 +442,7 @@ export function ProjectsModule() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[var(--radius-lg)] border p-8 text-center">
+        <div className="rounded-lg border p-8 text-center">
           <h2 className="font-semibold">No projects yet</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Create a project to start tracking provincial work.
@@ -476,6 +477,10 @@ export function ProjectsModule() {
             <DialogTitle>
               {editing ? "Edit project" : "New project"}
             </DialogTitle>
+            <DialogDescription>
+              Enter the project details, funding, dates, and supporting
+              documents.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1">
@@ -727,6 +732,9 @@ export function ProjectsModule() {
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>Change status</DialogTitle>
+            <DialogDescription>
+              Select the next status for this project.
+            </DialogDescription>
           </DialogHeader>
           <ul className="space-y-1">
             {PROJECT_STATUS.map((value) => (

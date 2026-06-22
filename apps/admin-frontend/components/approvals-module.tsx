@@ -31,6 +31,7 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -613,12 +614,12 @@ export function ApprovalsModule() {
                 ? "Approve project completion"
                 : "Reject project completion"}
             </DialogTitle>
+            <DialogDescription>
+              {dialog === "approve"
+                ? "Confirm that deliverables and completion documents are ready for approval."
+                : "Provide a rejection reason so the project team can address it."}
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {dialog === "approve"
-              ? "Confirm that all deliverables, documentation, and requirements have been satisfactorily met."
-              : "Provide a reason so the project team can address the issues."}
-          </p>
           <div className="grid gap-3">
             {completionDocError && selected ? (
               <div
