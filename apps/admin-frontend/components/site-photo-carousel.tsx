@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 
+import { recordFileUrl } from "@workspace/pocketbase/files"
 import type { ProgressUpdateRecord } from "@workspace/pocketbase/types"
 import { Button } from "@workspace/ui/components/button"
 
-import { SitePhoto } from "@/components/site-photo"
+import { sitePhotoNames } from "@/components/site-photo"
 
 type SitePhotoCarouselProps = {
   updates: Pick<ProgressUpdateRecord, "id" | "collectionId" | "site_photo">[]
@@ -13,7 +14,9 @@ type SitePhotoCarouselProps = {
 }
 
 export function SitePhotoCarousel({ updates, alt }: SitePhotoCarouselProps) {
-  const photos = updates.filter((update) => update.site_photo)
+  const photos = updates.flatMap((update) =>
+    sitePhotoNames(update.site_photo).map((filename) => ({ update, filename }))
+  )
   const [index, setIndex] = useState(0)
 
   if (photos.length === 0) {
@@ -24,10 +27,11 @@ export function SitePhotoCarousel({ updates, alt }: SitePhotoCarouselProps) {
 
   return (
     <div data-testid="site-photo-carousel">
-      <SitePhoto
-        update={current}
+      <img
+        src={recordFileUrl(current.update, current.filename) ?? ""}
         alt={`${alt} ${index + 1}`}
-        className="h-32 w-full"
+        className="h-32 w-full rounded-md border border-border object-cover"
+        loading="lazy"
       />
       {photos.length > 1 ? (
         <div className="mt-1 flex items-center gap-2">

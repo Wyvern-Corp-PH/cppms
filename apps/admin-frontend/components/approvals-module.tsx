@@ -47,7 +47,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
-import { SitePhoto } from "@/components/site-photo"
+import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
 import { SitePhotoCarousel } from "@/components/site-photo-carousel"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -310,7 +310,9 @@ export function ApprovalsModule() {
     const total = project.total_budget ?? 0
     const saved = Math.max(0, total - spent)
     const utilPct = total > 0 ? Math.round((spent / total) * 100) : 0
-    const photos = projectUpdateList.filter((u) => u.site_photo)
+    const photos = projectUpdateList.filter(
+      (u) => sitePhotoNames(u.site_photo).length > 0
+    )
     const isReviewed = isReviewedProject(project)
     const isRejected = isRejectedProject(project)
     const completionStatus = completionDocumentStatus(projectUpdateList)

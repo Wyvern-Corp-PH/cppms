@@ -9,6 +9,7 @@ import {
   REQUIRED_COMPLETION_DOCUMENTS,
   type CompletionDocumentField,
   fieldErrorsFromZod,
+  firstZodError,
   parseRecordList,
   progressUpdateFormSchema,
   progressUpdateRecordSchema,
@@ -70,20 +71,30 @@ function lastUpdatedLabel(updates: ProgressUpdateRecord[]): string {
   return formatDisplayDateTime(latest.updated_at ?? latest.created)
 }
 
+function effectiveProgressPct(
+  project: ProjectRecord,
+  updates: ProgressUpdateRecord[]
+): number {
+  return updates[0]?.to_pct ?? project.progress_pct ?? 0
+}
+
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogProjectId, setDialogProjectId] = useState("")
   const [toPct, setToPct] = useState(50)
   const [notes, setNotes] = useState("")
-  const [photo, setPhoto] = useState<File | null>(null)
+  const [photos, setPhotos] = useState<File[]>([])
   const [completionDocs, setCompletionDocs] = useState<CompletionDocumentState>(
     emptyCompletionDocuments()
   )
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -131,13 +142,22 @@ export function ProgressModule() {
   )
 
   function openUpdateModal(project: ProjectRecord) {
+    const projectUpdates = updates.filter(
+      (update) => update.project === project.id
+    )
     setDialogProjectId(project.id)
-    setToPct(project.progress_pct ?? 0)
+    setToPct(effectiveProgressPct(project, projectUpdates))
     setNotes("")
-    setPhoto(null)
+    setPhotos([])
     setCompletionDocs(emptyCompletionDocuments())
     setFieldErrors({})
+    setFormError(null)
     setDialogOpen(true)
+  }
+
+  function openDetails(projectId: string) {
+    setSelectedId(projectId)
+    setDetailOpen(true)
   }
 
   function setCompletionDocument(
@@ -164,47 +184,87 @@ export function ProgressModule() {
   }
 
   async function saveUpdate() {
+    setFormError(null)
     const parsed = progressUpdateFormSchema.safeParse({
       projectId: dialogProjectId,
       toPct,
       notes,
-      sitePhoto: photo,
+      sitePhoto: photos,
       completionDocs,
     })
 
     if (!parsed.success) {
       setFieldErrors(fieldErrorsFromZod(parsed.error))
+      setFormError(firstZodError(parsed.error))
       return
     }
 
     setFieldErrors({})
+    setSaving(true)
     const pb = getPocketBase()
-    const project = projects.find((row) => row.id === parsed.data.projectId)
-    if (!project) return
+    try {
+      const project = projects.find((row) => row.id === parsed.data.projectId)
+      if (!project) {
+        setFormError("Project is required.")
+        return
+      }
+      const projectUpdates = updates.filter(
+        (update) => update.project === project.id
+      )
 
-    const formData = new FormData()
-    formData.append("project", parsed.data.projectId)
-    formData.append("from_pct", String(project.progress_pct ?? 0))
-    formData.append("to_pct", String(parsed.data.toPct))
-    if (parsed.data.notes) formData.append("notes", parsed.data.notes)
-    formData.append("site_photo", parsed.data.sitePhoto)
-    if (parsed.data.toPct >= 100) {
-      appendCompletionDocuments(formData)
+      const formData = new FormData()
+      formData.append("project", parsed.data.projectId)
+      formData.append(
+        "from_pct",
+        String(effectiveProgressPct(project, projectUpdates))
+      )
+      formData.append("to_pct", String(parsed.data.toPct))
+      if (parsed.data.notes) formData.append("notes", parsed.data.notes)
+      for (const file of parsed.data.sitePhoto) {
+        formData.append("site_photo", file)
+      }
+      if (parsed.data.toPct >= 100) {
+        appendCompletionDocuments(formData)
+      }
+
+      await pb.collection("progress_updates").create(formData)
+      try {
+        await pb.collection("projects").update(parsed.data.projectId, {
+          progress_pct: parsed.data.toPct,
+          status: parsed.data.toPct >= 100 ? "Completed" : project.status,
+        })
+      } catch (error) {
+        console.warn(
+          "Progress update saved, but project summary did not update.",
+          error
+        )
+      }
+
+      setDialogOpen(false)
+      setPhotos([])
+      setCompletionDocs(emptyCompletionDocuments())
+      await load()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save progress update."
+      )
+    } finally {
+      setSaving(false)
     }
-
-    await pb.collection("progress_updates").create(formData)
-    await pb.collection("projects").update(parsed.data.projectId, {
-      progress_pct: parsed.data.toPct,
-      status: parsed.data.toPct >= 100 ? "Completed" : project.status,
-    })
-
-    setDialogOpen(false)
-    setPhoto(null)
-    setCompletionDocs(emptyCompletionDocuments())
-    await load()
   }
 
   const dialogProject = projects.find((p) => p.id === dialogProjectId)
+  const dialogProjectUpdates = dialogProject
+    ? updates.filter((update) => update.project === dialogProject.id)
+    : []
+  const dialogProgress = dialogProject
+    ? effectiveProgressPct(dialogProject, dialogProjectUpdates)
+    : 0
+  const selectedProgress = selected
+    ? effectiveProgressPct(selected, selectedUpdates)
+    : 0
 
   if (loading) {
     return (
@@ -254,11 +314,15 @@ export function ProgressModule() {
             const projectUpdates = updates.filter(
               (u) => u.project === project.id
             )
+            const displayProgress = effectiveProgressPct(
+              project,
+              projectUpdates
+            )
             const recent = projectUpdates.slice(0, 3)
             return (
               <li
                 key={project.id}
-                className="rounded-[var(--radius-lg)] border border-border bg-card p-4"
+                className="rounded-lg border border-border bg-card p-4"
                 data-testid={`progress-row-${project.id}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -274,10 +338,10 @@ export function ProgressModule() {
                     </p>
                   </div>
                   <span className="text-sm font-medium">
-                    {project.progress_pct ?? 0}%
+                    {displayProgress}%
                   </span>
                 </div>
-                <Progress className="mt-2" value={project.progress_pct ?? 0} />
+                <Progress className="mt-2" value={displayProgress} />
                 <p className="mt-2 text-xs text-muted-foreground">
                   {formatProjectDateRange(
                     project.start_date,
@@ -302,7 +366,7 @@ export function ProgressModule() {
                         <button
                           type="button"
                           className="text-primary underline-offset-2 hover:underline"
-                          onClick={() => setSelectedId(project.id)}
+                          onClick={() => openDetails(project.id)}
                         >
                           View all {projectUpdates.length} updates
                         </button>
@@ -315,7 +379,7 @@ export function ProgressModule() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setSelectedId(project.id)}
+                    onClick={() => openDetails(project.id)}
                   >
                     View details
                   </Button>
@@ -333,7 +397,7 @@ export function ProgressModule() {
         </ul>
 
         <aside
-          className="rounded-[var(--radius-lg)] border border-border bg-card p-4"
+          className="hidden rounded-lg border border-border bg-card p-4 lg:block"
           data-testid="progress-detail-panel"
         >
           <h2 className="font-semibold">Project detail</h2>
@@ -354,9 +418,9 @@ export function ProgressModule() {
               </p>
               <div>
                 <p className="mb-1">
-                  Overall progress: {selected.progress_pct ?? 0}%
+                  Overall progress: {selectedProgress}%
                 </p>
-                <Progress value={selected.progress_pct ?? 0} />
+                <Progress value={selectedProgress} />
               </div>
               <div>
                 <h3 className="font-medium">Progress update history</h3>
@@ -403,100 +467,185 @@ export function ProgressModule() {
         </aside>
       </div>
 
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Project detail</DialogTitle>
+          </DialogHeader>
+          {selected ? (
+            <div className="space-y-3 text-sm">
+              <p className="font-medium">{selected.name}</p>
+              <p className="text-muted-foreground">
+                {[selected.location, selected.category, selected.lgu_level]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <p>
+                {formatProjectDateRange(
+                  selected.start_date,
+                  selected.target_end_date
+                )}{" "}
+                · {selected.status}
+              </p>
+              <div>
+                <p className="mb-1">Overall progress: {selectedProgress}%</p>
+                <Progress value={selectedProgress} />
+              </div>
+              <div>
+                <h3 className="font-medium">Progress update history</h3>
+                <ul className="mt-2 space-y-2">
+                  {selectedUpdates.map((update) => (
+                    <li
+                      key={update.id}
+                      className="border-b border-border pb-2 last:border-b-0"
+                    >
+                      <p>
+                        {update.from_pct}% → {update.to_pct}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDisplayDateTime(
+                          update.updated_at ?? update.created
+                        )}{" "}
+                        · {update.updated_by ?? "Admin"}
+                      </p>
+                      {update.notes ? (
+                        <p className="text-xs">{update.notes}</p>
+                      ) : null}
+                      <SitePhoto
+                        update={update}
+                        alt={`${selected.name} progress update`}
+                        className="mt-1 h-24 w-full max-w-xs"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => {
+                    setDetailOpen(false)
+                    openUpdateModal(selected)
+                  }}
+                >
+                  Update progress
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
           if (!open) {
-            setPhoto(null)
+            setPhotos([])
             setCompletionDocs(emptyCompletionDocuments())
             setFieldErrors({})
+            setFormError(null)
           }
         }}
       >
         <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Update progress</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <p className="text-sm">
-              {dialogProject?.name} — current {dialogProject?.progress_pct ?? 0}
-              %
-            </p>
-            <div>
-              <Label>Progress: {toPct}%</Label>
-              <Slider
-                value={[toPct]}
-                onValueChange={(value) => setToPct(value[0] ?? 0)}
-                max={100}
-                step={1}
-              />
-              <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                {SLIDER_MARKERS.map((marker) => (
-                  <span key={marker}>{marker}%</span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="update-notes">Update notes</Label>
-              <Textarea
-                id="update-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-            <DocumentUploadField
-              id="site-photo"
-              label="Site photo (required)"
-              accept={IMAGE_UPLOAD_ACCEPT}
-              helperText="JPG, PNG, WebP"
-              dropZoneText="Click to upload or drag an image here"
-              files={photo ? [photo] : []}
-              onChange={(files) => setPhoto(files[0] ?? null)}
-              error={fieldErrors.sitePhoto}
-            />
-            {toPct >= 100 ? (
-              <div className="space-y-2 border-t pt-3">
-                <p className="text-sm font-medium">Completion documents</p>
-                <p className="text-xs text-muted-foreground">
-                  Required before saving a 100% progress update.
+          <form
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveUpdate()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Update progress</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4">
+              {formError ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {formError}
                 </p>
-                {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
-                  const value = completionDocs[doc.field]
-                  const files = Array.isArray(value)
-                    ? value
-                    : value
-                      ? [value]
-                      : []
-                  return (
-                    <DocumentUploadField
-                      key={doc.field}
-                      id={`completion-${doc.field}`}
-                      label={doc.label}
-                      multiple={doc.multiple}
-                      files={files}
-                      onChange={(files) =>
-                        setCompletionDocument(doc.field, files)
-                      }
-                      error={fieldErrors[doc.field]}
-                    />
-                  )
-                })}
+              ) : null}
+              <p className="text-sm">
+                {dialogProject?.name} — current {dialogProgress}%
+              </p>
+              <div>
+                <Label>Progress: {toPct}%</Label>
+                <Slider
+                  value={[toPct]}
+                  onValueChange={(value) => setToPct(value[0] ?? 0)}
+                  max={100}
+                  step={1}
+                />
+                <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                  {SLIDER_MARKERS.map((marker) => (
+                    <span key={marker}>{marker}%</span>
+                  ))}
+                </div>
               </div>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void saveUpdate()}>
-              Save update
-            </Button>
-          </DialogFooter>
+              <div>
+                <Label htmlFor="update-notes">Update notes</Label>
+                <Textarea
+                  id="update-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+              <DocumentUploadField
+                id="site-photo"
+                label="Site photo (required)"
+                accept={IMAGE_UPLOAD_ACCEPT}
+                helperText="JPG, PNG, WebP"
+                dropZoneText="Click to upload or drag an image here"
+                multiple
+                files={photos}
+                onChange={setPhotos}
+                error={fieldErrors.sitePhoto}
+              />
+              {toPct >= 100 ? (
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-sm font-medium">Completion documents</p>
+                  <p className="text-xs text-muted-foreground">
+                    Required before saving a 100% progress update.
+                  </p>
+                  {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
+                    const value = completionDocs[doc.field]
+                    const files = Array.isArray(value)
+                      ? value
+                      : value
+                        ? [value]
+                        : []
+                    return (
+                      <DocumentUploadField
+                        key={doc.field}
+                        id={`completion-${doc.field}`}
+                        label={doc.label}
+                        multiple={doc.multiple}
+                        files={files}
+                        onChange={(files) =>
+                          setCompletionDocument(doc.field, files)
+                        }
+                        error={fieldErrors[doc.field]}
+                      />
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : "Save update"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

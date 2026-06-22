@@ -46,7 +46,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { SitePhoto } from "@/components/site-photo"
+import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
@@ -139,7 +139,8 @@ export function ReportsModule() {
             from: update.from_pct,
             to: update.to_pct,
             change: update.to_pct - update.from_pct,
-            photo: update.site_photo ? "Yes" : "No",
+            photo:
+              sitePhotoNames(update.site_photo).length > 0 ? "Yes" : "No",
             updated_at: formatDisplayDateTime(update.updated_at ?? update.created),
             updated_by: update.updated_by,
           }
@@ -314,7 +315,7 @@ export function ReportsModule() {
         </div>
 
         <TabsContent value="projects">
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>
@@ -366,7 +367,7 @@ export function ReportsModule() {
         </TabsContent>
 
         <TabsContent value="budget">
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>
@@ -412,7 +413,7 @@ export function ReportsModule() {
         </TabsContent>
 
         <TabsContent value="progress">
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>
@@ -445,7 +446,9 @@ export function ReportsModule() {
                           alt={`${project?.name ?? "Project"} progress photo`}
                           className="h-10 w-10"
                         />
-                        {!update.site_photo ? "—" : null}
+                        {sitePhotoNames(update.site_photo).length === 0
+                          ? "—"
+                          : null}
                       </td>
                       <td className="px-4 py-2">{formatDisplayDateTime(update.updated_at ?? update.created)}</td>
                       <td className="px-4 py-2">{update.updated_by ?? "—"}</td>
@@ -458,7 +461,7 @@ export function ReportsModule() {
         </TabsContent>
 
         <TabsContent value="approvals">
-          <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+          <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
                 <tr>

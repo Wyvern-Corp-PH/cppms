@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -83,6 +83,143 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-needs-attention")).toBeInTheDocument()
       expect(screen.getByTestId("progress-updates-today")).toBeInTheDocument()
     })
+  })
+
+  it("uses the latest progress update for the visible project meter", async () => {
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-06-22 00:00:00.000Z",
+        project: "1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: "site.jpg",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-1")
+    expect(within(row).getByText(/^75%$/)).toBeInTheDocument()
+  })
+
+  it("saves a progress update even when the project meter PATCH fails", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+    store.updates = []
+    updateMock.mockRejectedValueOnce(new Error("PATCH blocked"))
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(updateMock).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    })
+  })
+
+  it("shows a Zod validation message when saving without a site photo", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findAllByText(/site photo is required/i)
+    ).not.toHaveLength(0)
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it("saves below-100 progress with a site photo and empty completion document lists", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 5,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    expect(
+      screen.queryByText(/at least one file is required/i)
+    ).not.toBeInTheDocument()
   })
 
   it("blocks saving a 100% progress update until completion documents are uploaded", async () => {

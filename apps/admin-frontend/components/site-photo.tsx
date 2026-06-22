@@ -9,17 +9,39 @@ type SitePhotoProps = {
 }
 
 export function SitePhoto({ update, alt, className }: SitePhotoProps) {
-  const src = recordFileUrl(update, update.site_photo)
-  if (!src) {
+  const photos = sitePhotoNames(update.site_photo)
+  if (photos.length === 0) {
     return null
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={cn("rounded-md border border-border object-cover", className)}
-      loading="lazy"
-    />
+    <div className={cn("grid gap-2", photos.length > 1 && "sm:grid-cols-2")}>
+      {photos.map((filename, index) => {
+        const src = recordFileUrl(update, filename)
+        if (!src) return null
+
+        return (
+          <img
+            key={filename}
+            src={src}
+            alt={photos.length > 1 ? `${alt} ${index + 1}` : alt}
+            className={cn(
+              "rounded-md border border-border object-cover",
+              className
+            )}
+            loading="lazy"
+          />
+        )
+      })}
+    </div>
   )
+}
+
+export function sitePhotoNames(
+  value: ProgressUpdateRecord["site_photo"] | string | undefined
+): string[] {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+  return value ? [value] : []
 }
