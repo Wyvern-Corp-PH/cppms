@@ -8,9 +8,16 @@ import { LoginForm } from "@/components/login-form"
 
 const mockReplace = vi.fn()
 const authStore = {
-  record: null as { id: string; email: string } | null,
+  record: null as {
+    id: string
+    email: string
+    role: string
+    account_status: string
+  } | null,
   onChange: vi.fn(() => () => undefined),
-  clear: vi.fn(),
+  clear: vi.fn(() => {
+    authStore.record = null
+  }),
 }
 
 vi.mock("next/navigation", () => ({
@@ -24,7 +31,12 @@ vi.mock("@/lib/pocketbase", () => ({
     collection: () => ({
       authWithPassword: vi.fn(async (email: string, password: string) => {
         if (email === "admin@cppms.local" && password === "secret") {
-          authStore.record = { id: "1", email }
+          authStore.record = {
+            id: "1",
+            email,
+            role: "Admin",
+            account_status: "Active",
+          }
           return { record: authStore.record }
         }
         throw new Error("invalid")

@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import { canAccess, isActiveUser } from "@workspace/pocketbase/domain/access-control"
 
 import { useAuth } from "@/lib/auth"
 
@@ -15,7 +16,21 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const pathname = usePathname()
 
   useEffect(() => {
-    if (loading || user) {
+    if (loading) {
+      return
+    }
+
+    if (user && !isActiveUser(user)) {
+      router.replace("/login?inactive=1")
+      return
+    }
+
+    if (user && pathname.startsWith("/users") && !canAccess(user, "users.update")) {
+      router.replace("/dashboard?forbidden=users")
+      return
+    }
+
+    if (user) {
       return
     }
 
@@ -33,7 +48,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
     )
   }
 
-  if (!user) {
+  if (
+    !user ||
+    !isActiveUser(user) ||
+    (pathname.startsWith("/users") && !canAccess(user, "users.update"))
+  ) {
     return null
   }
 

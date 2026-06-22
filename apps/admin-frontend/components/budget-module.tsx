@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import {
   computeBudgetSummary,
   computeProjectBudgetBreakdown,
@@ -74,13 +75,20 @@ export function BudgetModule() {
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [expenseDescription, setExpenseDescription] = useState("")
   const [moaFile, setMoaFile] = useState<File | null>(null)
-  const [agreementFile, setAgreementFile] = useState<File | null>(null)
+  const [resolutionFile, setResolutionFile] = useState<File | null>(null)
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const actor = getPocketBase().authStore?.record
+  const canCreateAllocations = actor
+    ? canAccess(actor, "budget_allocations.create")
+    : true
+  const canCreateExpenses = actor
+    ? canAccess(actor, "budget_expenses.create")
+    : true
 
   function clearAllocationUploads() {
     setMoaFile(null)
-    setAgreementFile(null)
+    setResolutionFile(null)
     setSupportingFiles([])
   }
 
@@ -144,6 +152,10 @@ export function BudgetModule() {
     projects.find((project) => project.id === id)?.name ?? id
 
   async function saveAllocation() {
+    if (!canCreateAllocations) {
+      return
+    }
+
     const parsed = budgetAllocationMutateSchema.safeParse({
       project: projectId,
       amount,
@@ -159,7 +171,7 @@ export function BudgetModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || agreementFile || supportingFiles.length > 0
+    const hasFiles = moaFile || resolutionFile || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
@@ -167,7 +179,7 @@ export function BudgetModule() {
         if (value !== undefined) formData.append(key, String(value))
       }
       if (moaFile) formData.append("moa_file", moaFile)
-      if (agreementFile) formData.append("agreement_file", agreementFile)
+      if (resolutionFile) formData.append("resolution_file", resolutionFile)
       for (const file of supportingFiles) {
         formData.append("supporting_docs", file)
       }
@@ -181,6 +193,10 @@ export function BudgetModule() {
   }
 
   async function saveExpense() {
+    if (!canCreateExpenses) {
+      return
+    }
+
     const parsed = budgetExpenseMutateSchema.safeParse({
       project: projectId,
       amount,
@@ -302,17 +318,19 @@ export function BudgetModule() {
         </div>
 
         <TabsContent value="allocations" className="space-y-4">
-          <Button
-            type="button"
-            data-testid="allocate-budget"
-            onClick={() => {
-              setFieldErrors({})
-              clearAllocationUploads()
-              setAllocationOpen(true)
-            }}
-          >
-            + Allocate
-          </Button>
+          {canCreateAllocations ? (
+            <Button
+              type="button"
+              data-testid="allocate-budget"
+              onClick={() => {
+                setFieldErrors({})
+                clearAllocationUploads()
+                setAllocationOpen(true)
+              }}
+            >
+              + Allocate
+            </Button>
+          ) : null}
           <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
@@ -344,9 +362,18 @@ export function BudgetModule() {
         </TabsContent>
 
         <TabsContent value="expenses" className="space-y-4">
-          <Button type="button" data-testid="record-expense" onClick={() => { setFieldErrors({}); setExpenseOpen(true) }}>
-            + Record Expense
-          </Button>
+          {canCreateExpenses ? (
+            <Button
+              type="button"
+              data-testid="record-expense"
+              onClick={() => {
+                setFieldErrors({})
+                setExpenseOpen(true)
+              }}
+            >
+              + Record Expense
+            </Button>
+          ) : null}
           <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-sm">
               <thead className="text-muted-foreground border-b text-xs uppercase">
@@ -430,10 +457,10 @@ export function BudgetModule() {
                 onChange={(files) => setMoaFile(files[0] ?? null)}
               />
               <DocumentUploadField
-                id="allocation-agreement"
-                label="Province/Barangay Agreement"
-                files={agreementFile ? [agreementFile] : []}
-                onChange={(files) => setAgreementFile(files[0] ?? null)}
+                id="allocation-resolution"
+                label="Resolution"
+                files={resolutionFile ? [resolutionFile] : []}
+                onChange={(files) => setResolutionFile(files[0] ?? null)}
               />
               <DocumentUploadField
                 id="allocation-supporting"

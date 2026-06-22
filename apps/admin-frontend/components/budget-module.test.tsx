@@ -121,7 +121,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Memorandum of Agreement")).toBeInTheDocument()
-      expect(screen.getByText("Province/Barangay Agreement")).toBeInTheDocument()
+      expect(screen.getByText("Resolution")).toBeInTheDocument()
+      expect(
+        screen.queryByText("Province/Barangay Agreement")
+      ).not.toBeInTheDocument()
       expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
     })
   })

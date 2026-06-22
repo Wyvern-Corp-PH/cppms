@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react"
 import type { RecordModel } from "@workspace/pocketbase/types"
+import { isActiveUser } from "@workspace/pocketbase/domain/access-control"
 
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -39,6 +40,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       await pb.collection("users").authWithPassword(email, password)
+      if (!isActiveUser(pb.authStore.record)) {
+        pb.authStore.clear()
+        throw new Error("Account is inactive.")
+      }
     },
     [pb]
   )

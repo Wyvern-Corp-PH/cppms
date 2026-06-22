@@ -4,14 +4,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 import { AuthGuard } from "./auth-guard"
 
 const mockReplace = vi.fn()
+let mockPathname = "/dashboard"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
-  usePathname: () => "/dashboard",
+  usePathname: () => mockPathname,
 }))
 
 const authState = {
-  user: null as { id: string } | null,
+  user: null as {
+    id: string
+    role?: string
+    account_status?: string
+  } | null,
   loading: false,
 }
 
@@ -22,6 +27,7 @@ vi.mock("@/lib/auth", () => ({
 describe("AuthGuard (V1)", () => {
   beforeEach(() => {
     mockReplace.mockReset()
+    mockPathname = "/dashboard"
     authState.user = null
     authState.loading = false
   })
@@ -40,7 +46,7 @@ describe("AuthGuard (V1)", () => {
   })
 
   it("renders children when authenticated", () => {
-    authState.user = { id: "1" }
+    authState.user = { id: "1", role: "Admin", account_status: "Active" }
 
     render(
       <AuthGuard>
@@ -50,5 +56,49 @@ describe("AuthGuard (V1)", () => {
 
     expect(screen.getByText("Protected")).toBeInTheDocument()
     expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it("allows legacy sessions missing account_status", () => {
+    authState.user = { id: "1", role: "Admin" }
+
+    render(
+      <AuthGuard>
+        <p>Protected</p>
+      </AuthGuard>
+    )
+
+    expect(screen.getByText("Protected")).toBeInTheDocument()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it("denies inactive sessions", async () => {
+    authState.user = { id: "1", role: "Admin", account_status: "Inactive" }
+
+    render(
+      <AuthGuard>
+        <p>Protected</p>
+      </AuthGuard>
+    )
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/login?inactive=1")
+    })
+    expect(screen.queryByText("Protected")).not.toBeInTheDocument()
+  })
+
+  it("denies Admin access to Super Admin user management", async () => {
+    mockPathname = "/users"
+    authState.user = { id: "1", role: "Admin", account_status: "Active" }
+
+    render(
+      <AuthGuard>
+        <p>User Management</p>
+      </AuthGuard>
+    )
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard?forbidden=users")
+    })
+    expect(screen.queryByText("User Management")).not.toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { computeProjectBudgetBreakdown } from "@workspace/pocketbase/domain/budget-summary"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
@@ -177,6 +178,10 @@ export function ApprovalsModule() {
   const [completionDocError, setCompletionDocError] = useState<string | null>(
     null
   )
+  const actor = getPocketBase().authStore?.record
+  const canCreateApprovalActions = actor
+    ? canAccess(actor, "approval_actions.create")
+    : true
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -252,6 +257,7 @@ export function ApprovalsModule() {
 
   async function submitAction(action: "approve" | "reject") {
     if (!selected) return
+    if (!canCreateApprovalActions) return
 
     const parsed = approvalFormSchema.safeParse({
       action,
@@ -384,7 +390,7 @@ export function ApprovalsModule() {
           >
             View details
           </Button>
-          {!isReviewed ? (
+          {!isReviewed && canCreateApprovalActions ? (
             <>
               <Button
                 type="button"
@@ -566,7 +572,7 @@ export function ApprovalsModule() {
                   </li>
                 ))}
               </ul>
-              {!isReviewedProject(selected) ? (
+              {!isReviewedProject(selected) && canCreateApprovalActions ? (
                 <div className="flex gap-2">
                   <Button
                     type="button"

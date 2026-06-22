@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import { formatProjectDateRange } from "@workspace/pocketbase/domain/project-filters"
 import { buildProgressSummaryCards } from "@workspace/pocketbase/domain/progress-summary"
@@ -96,6 +97,10 @@ export function ProgressModule() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const actor = getPocketBase().authStore?.record
+  const canCreateProgressUpdates = actor
+    ? canAccess(actor, "progress_updates.create")
+    : true
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -143,6 +148,9 @@ export function ProgressModule() {
   )
 
   function openUpdateModal(project: ProjectRecord) {
+    if (!canCreateProgressUpdates) {
+      return
+    }
     const projectUpdates = updates.filter(
       (update) => update.project === project.id
     )
@@ -185,6 +193,10 @@ export function ProgressModule() {
   }
 
   async function saveUpdate() {
+    if (!canCreateProgressUpdates) {
+      return
+    }
+
     setFormError(null)
     const parsed = progressUpdateFormSchema.safeParse({
       projectId: dialogProjectId,
@@ -391,13 +403,15 @@ export function ProgressModule() {
                   >
                     View details
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => openUpdateModal(project)}
-                  >
-                    Update progress
-                  </Button>
+                  {canCreateProgressUpdates ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => openUpdateModal(project)}
+                    >
+                      Update progress
+                    </Button>
+                  ) : null}
                 </div>
               </li>
             )
@@ -459,13 +473,15 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => openUpdateModal(selected)}
-              >
-                Update progress
-              </Button>
+              {canCreateProgressUpdates ? (
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => openUpdateModal(selected)}
+                >
+                  Update progress
+                </Button>
+              ) : null}
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
@@ -480,7 +496,7 @@ export function ProgressModule() {
           <DialogHeader>
             <DialogTitle>Project detail</DialogTitle>
             <DialogDescription>
-              Review the selected project's progress, notes, and site photos.
+              Review the selected project&apos;s progress, notes, and site photos.
             </DialogDescription>
           </DialogHeader>
           {selected ? (
@@ -531,18 +547,20 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={() => {
-                    setDetailOpen(false)
-                    openUpdateModal(selected)
-                  }}
-                >
-                  Update progress
-                </Button>
-              </DialogFooter>
+              {canCreateProgressUpdates ? (
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => {
+                      setDetailOpen(false)
+                      openUpdateModal(selected)
+                    }}
+                  >
+                    Update progress
+                  </Button>
+                </DialogFooter>
+              ) : null}
             </div>
           ) : null}
         </DialogContent>

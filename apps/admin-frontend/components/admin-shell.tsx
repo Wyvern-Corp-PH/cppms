@@ -29,7 +29,7 @@ import {
   SidebarTrigger,
 } from "@workspace/ui/components/sidebar"
 
-import { adminNavItems, getAdminNavLabel } from "@/lib/admin-nav"
+import { getAdminNavLabel, getVisibleAdminNavItems } from "@/lib/admin-nav"
 
 type AdminShellProps = {
   children: React.ReactNode
@@ -38,8 +38,9 @@ type AdminShellProps = {
 export function AdminShell({ children }: AdminShellProps) {
   const pathname = usePathname()
   const pageTitle = getAdminNavLabel(pathname)
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const router = useRouter()
+  const visibleNavItems = getVisibleAdminNavItems(user)
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -61,7 +62,7 @@ export function AdminShell({ children }: AdminShellProps) {
             <SidebarGroupLabel>Modules</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNavItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const isActive =
                     pathname === item.href ||
                     pathname.startsWith(`${item.href}/`)
@@ -104,6 +105,11 @@ export function AdminShell({ children }: AdminShellProps) {
           />
           <h1 className="min-w-0 truncate text-sm font-semibold">{pageTitle}</h1>
           <div className="ml-auto flex items-center gap-2">
+            {user?.role ? (
+              <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
+                {String(user.role)}
+              </span>
+            ) : null}
             <ThemeToggle />
             <Button
               type="button"
@@ -118,7 +124,12 @@ export function AdminShell({ children }: AdminShellProps) {
             </Button>
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">{children}</div>
+        <div
+          className="flex flex-1 flex-col gap-4 p-4 pt-4 md:p-6 md:pt-6"
+          data-testid="admin-content"
+        >
+          {children}
+        </div>
       </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
