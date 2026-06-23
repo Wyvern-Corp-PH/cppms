@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   projects: [
@@ -20,6 +20,7 @@ const store = {
   ] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   actions: [] as Array<Record<string, unknown>>,
+  locations: [] as Array<Record<string, unknown>>,
 }
 
 const updateMock = vi.fn(
@@ -37,6 +38,7 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
         if (name === "approval_actions") return store.actions
+        if (name === "locations") return store.locations
         return []
       }),
       create: vi.fn(async (payload: Record<string, unknown>) => {
@@ -51,6 +53,29 @@ vi.mock("@/lib/pocketbase", () => ({
 import { ApprovalsModule } from "./approvals-module"
 
 describe("ApprovalsModule (J5, V5)", () => {
+  beforeAll(() => {
+    Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => false),
+    })
+    Object.defineProperty(window.HTMLElement.prototype, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    Object.defineProperty(
+      window.HTMLElement.prototype,
+      "releasePointerCapture",
+      {
+        configurable: true,
+        value: vi.fn(),
+      }
+    )
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+  })
+
   beforeEach(() => {
     process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://localhost:8090"
     store.actions = []
@@ -75,19 +100,73 @@ describe("ApprovalsModule (J5, V5)", () => {
       },
     ]
     updateMock.mockClear()
-    store.projects[0] = {
-      id: "1",
-      collectionId: "p",
-      collectionName: "projects",
-      created: "",
-      updated: "",
-      name: "Completed Bridge",
-      category: "Infrastructure",
-      status: "Completed",
-      budget_year: 2026,
-      progress_pct: 100,
-      approval_status: "pending",
-    }
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Completed Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+    store.locations = [
+      {
+        id: "loc1",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        active: true,
+      },
+      {
+        id: "loc2",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam",
+        slug: "lasam",
+        level: "Municipality",
+        municipality_name: "Lasam",
+        active: true,
+      },
+      {
+        id: "loc3",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        barangay_name: "Centro 01 (Bagumbayan)",
+        active: true,
+      },
+      {
+        id: "loc4",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam / Centro",
+        slug: "lasam/centro",
+        level: "Barangay",
+        municipality_name: "Lasam",
+        barangay_name: "Centro",
+        active: true,
+      },
+    ]
   })
 
   it("approves a completed project and updates status to Approved", async () => {
@@ -153,6 +232,58 @@ describe("ApprovalsModule (J5, V5)", () => {
     expect(
       within(detail).queryByRole("button", { name: /^reject$/i })
     ).not.toBeInTheDocument()
+  })
+
+  it("filters approval cards by municipality and scoped barangay", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Completed",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByLabelText(/filter by municipality/i))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await user.click(screen.getByLabelText(/filter by barangay/i))
+
+    expect(await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Centro" })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("option", { name: "Centro 01 (Bagumbayan)" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    })
   })
 
   it("does not list rejected completed projects in the completion queue", async () => {

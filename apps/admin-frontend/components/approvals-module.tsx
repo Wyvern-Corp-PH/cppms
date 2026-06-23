@@ -16,6 +16,7 @@ import {
   REQUIRED_COMPLETION_DOCUMENTS,
   approvalFormSchema,
   fieldErrorsFromZod,
+  locationRecordSchema,
   parseRecordList,
   progressUpdateRecordSchema,
   projectRecordSchema,
@@ -25,6 +26,7 @@ import {
 import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
+  LocationRecord,
   ProgressUpdateRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
@@ -50,6 +52,11 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
+import {
+  LocationFilterControls,
+  projectMatchesLocationFilters,
+  type LocationFilterValue,
+} from "@/components/location-filter-controls"
 import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
 import { SitePhotoCarousel } from "@/components/site-photo-carousel"
 import { SummaryCardRow } from "@/components/summary-card-row"
@@ -170,8 +177,13 @@ export function ApprovalsModule() {
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<ProjectRecord | null>(null)
+  const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
+    municipality: "",
+    barangay: "",
+  })
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null)
   const [authorityName, setAuthorityName] = useState("")
   const [reason, setReason] = useState("")
@@ -187,12 +199,13 @@ export function ApprovalsModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, updateRows, allocationRows, expenseRows] =
+    const [projectRows, updateRows, allocationRows, expenseRows, locationRows] =
       await Promise.all([
         pb.collection("projects").getFullList(),
         pb.collection("progress_updates").getFullList(),
         pb.collection("budget_allocations").getFullList(),
         pb.collection("budget_expenses").getFullList(),
+        pb.collection("locations").getFullList().catch(() => []),
       ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
@@ -200,6 +213,7 @@ export function ApprovalsModule() {
       parseRecordList(budgetAllocationRecordSchema, allocationRows)
     )
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
+    setLocations(parseRecordList(locationRecordSchema, locationRows))
     setLoading(false)
   }, [])
 
@@ -214,17 +228,25 @@ export function ApprovalsModule() {
     }
   )
 
+  const filteredProjects = useMemo(
+    () =>
+      projects.filter((project) =>
+        projectMatchesLocationFilters(project, locationFilters)
+      ),
+    [locationFilters, projects]
+  )
+
   const queue = useMemo(
     () =>
-      projects.filter(
+      filteredProjects.filter(
         (project) => isApprovalEligible(project) && !isReviewedProject(project)
       ),
-    [projects]
+    [filteredProjects]
   )
-  const approved = projects.filter(
+  const approved = filteredProjects.filter(
     (project) => project.approval_status === "approved"
   )
-  const rejected = projects.filter(
+  const rejected = filteredProjects.filter(
     (project) => project.approval_status === "rejected"
   )
 
@@ -478,6 +500,14 @@ export function ApprovalsModule() {
         ]}
       />
 
+      <div className="flex flex-wrap gap-2">
+        <LocationFilterControls
+          locations={locations}
+          value={locationFilters}
+          onChange={setLocationFilters}
+        />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Tabs defaultValue="queue">
           <div className="-mx-1 overflow-x-auto pb-1">
@@ -622,7 +652,7 @@ export function ApprovalsModule() {
           setCompletionDocError(null)
         }}
       >
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {dialog === "approve"

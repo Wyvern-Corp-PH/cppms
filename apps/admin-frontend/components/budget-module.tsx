@@ -22,12 +22,14 @@ import {
   budgetExpenseMutateSchema,
   budgetExpenseRecordSchema,
   fieldErrorsFromZod,
+  locationRecordSchema,
   parseRecordList,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
+  LocationRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
 import { EXPENSE_CATEGORY } from "@workspace/pocketbase/schema"
@@ -54,6 +56,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/componen
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { DocumentUploadField } from "@/components/document-upload-field"
+import {
+  LocationFilterControls,
+  projectMatchesLocationFilters,
+  type LocationFilterValue,
+} from "@/components/location-filter-controls"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -65,10 +72,15 @@ export function BudgetModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [tabProjectFilter, setTabProjectFilter] = useState("all")
   const [tabYearFilter, setTabYearFilter] = useState(String(new Date().getFullYear()))
+  const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
+    municipality: "",
+    barangay: "",
+  })
   const [allocationOpen, setAllocationOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [projectId, setProjectId] = useState("")
@@ -101,15 +113,17 @@ export function BudgetModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows, userRows] = await Promise.all([
+    const [projectRows, allocationRows, expenseRows, locationRows, userRows] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
+      pb.collection("locations").getFullList().catch(() => []),
       pb.collection("users").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
+    setLocations(parseRecordList(locationRecordSchema, locationRows))
     setUsers(userRows as UserDisplayRecord[])
     setLoading(false)
   }, [])
@@ -125,8 +139,36 @@ export function BudgetModule() {
     }
   )
 
-  const summary = computeBudgetSummary(projects, allocations, expenses)
-  const breakdown = computeProjectBudgetBreakdown(projects, allocations, expenses)
+  const locationFilteredProjects = useMemo(
+    () =>
+      projects.filter((project) =>
+        projectMatchesLocationFilters(project, locationFilters)
+      ),
+    [locationFilters, projects]
+  )
+  const locationFilteredProjectIds = useMemo(
+    () => new Set(locationFilteredProjects.map((project) => project.id)),
+    [locationFilteredProjects]
+  )
+  const locationFilteredAllocations = useMemo(
+    () =>
+      allocations.filter((row) => locationFilteredProjectIds.has(row.project)),
+    [allocations, locationFilteredProjectIds]
+  )
+  const locationFilteredExpenses = useMemo(
+    () => expenses.filter((row) => locationFilteredProjectIds.has(row.project)),
+    [expenses, locationFilteredProjectIds]
+  )
+  const summary = computeBudgetSummary(
+    locationFilteredProjects,
+    locationFilteredAllocations,
+    locationFilteredExpenses
+  )
+  const breakdown = computeProjectBudgetBreakdown(
+    locationFilteredProjects,
+    locationFilteredAllocations,
+    locationFilteredExpenses
+  )
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, actor ? [actor] : []),
     [actor, users]
@@ -142,22 +184,22 @@ export function BudgetModule() {
 
   const filteredAllocations = useMemo(
     () =>
-      allocations.filter((row) => {
+      locationFilteredAllocations.filter((row) => {
         if (tabProjectFilter !== "all" && row.project !== tabProjectFilter) return false
         if (tabYearFilter !== "all" && String(row.year) !== tabYearFilter) return false
         return true
       }),
-    [allocations, tabProjectFilter, tabYearFilter]
+    [locationFilteredAllocations, tabProjectFilter, tabYearFilter]
   )
 
   const filteredExpenses = useMemo(
     () =>
-      expenses.filter((row) => {
+      locationFilteredExpenses.filter((row) => {
         if (tabProjectFilter !== "all" && row.project !== tabProjectFilter) return false
         if (tabYearFilter !== "all" && !row.date.startsWith(tabYearFilter)) return false
         return true
       }),
-    [expenses, tabProjectFilter, tabYearFilter]
+    [locationFilteredExpenses, tabProjectFilter, tabYearFilter]
   )
 
   const projectName = (id: string) =>
@@ -326,6 +368,11 @@ export function BudgetModule() {
                 ))}
               </SelectContent>
             </Select>
+            <LocationFilterControls
+              locations={locations}
+              value={locationFilters}
+              onChange={setLocationFilters}
+            />
           </div>
         </div>
 
@@ -424,7 +471,7 @@ export function BudgetModule() {
           if (!open) clearAllocationUploads()
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Allocate budget</DialogTitle>
             <DialogDescription>
@@ -492,7 +539,7 @@ export function BudgetModule() {
       </Dialog>
 
       <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Record expense</DialogTitle>
             <DialogDescription>

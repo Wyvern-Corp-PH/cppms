@@ -19,12 +19,14 @@ import {
   type CompletionDocumentField,
   fieldErrorsFromZod,
   firstZodError,
+  locationRecordSchema,
   parseRecordList,
   progressUpdateFormSchema,
   progressUpdateRecordSchema,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
+  LocationRecord,
   ProgressUpdateRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
@@ -47,6 +49,11 @@ import {
   DocumentUploadField,
   IMAGE_UPLOAD_ACCEPT,
 } from "@/components/document-upload-field"
+import {
+  LocationFilterControls,
+  projectMatchesLocationFilters,
+  type LocationFilterValue,
+} from "@/components/location-filter-controls"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SitePhoto } from "@/components/site-photo"
 import { SummaryCardRow } from "@/components/summary-card-row"
@@ -91,8 +98,13 @@ function effectiveProgressPct(
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
+    municipality: "",
+    barangay: "",
+  })
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -115,9 +127,10 @@ export function ProgressModule() {
     setLoading(true)
     try {
       const pb = getPocketBase()
-      const [projectRows, updateRows, userRows] = await Promise.all([
+      const [projectRows, updateRows, locationRows, userRows] = await Promise.all([
         pb.collection("projects").getFullList(),
         pb.collection("progress_updates").getFullList(),
+        pb.collection("locations").getFullList().catch(() => []),
         pb.collection("users").getFullList().catch(() => []),
       ])
       const parsedUpdates = parseRecordList(
@@ -130,6 +143,7 @@ export function ProgressModule() {
         return bKey.localeCompare(aKey)
       })
       setProjects(parseRecordList(projectRecordSchema, projectRows))
+      setLocations(parseRecordList(locationRecordSchema, locationRows))
       setUpdates(parsedUpdates)
       setUsers(userRows as UserDisplayRecord[])
     } finally {
@@ -148,7 +162,22 @@ export function ProgressModule() {
     }
   )
 
-  const summary = buildProgressSummaryCards(projects, updates)
+  const filteredProjects = useMemo(
+    () =>
+      projects.filter((project) =>
+        projectMatchesLocationFilters(project, locationFilters)
+      ),
+    [locationFilters, projects]
+  )
+  const filteredProjectIds = useMemo(
+    () => new Set(filteredProjects.map((project) => project.id)),
+    [filteredProjects]
+  )
+  const filteredUpdates = useMemo(
+    () => updates.filter((update) => filteredProjectIds.has(update.project)),
+    [filteredProjectIds, updates]
+  )
+  const summary = buildProgressSummaryCards(filteredProjects, filteredUpdates)
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, actor ? [actor] : []),
     [actor, users]
@@ -343,9 +372,17 @@ export function ProgressModule() {
         ]}
       />
 
+      <div className="flex flex-wrap gap-2">
+        <LocationFilterControls
+          locations={locations}
+          value={locationFilters}
+          onChange={setLocationFilters}
+        />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <ul className="space-y-3">
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             const projectUpdates = updates.filter(
               (u) => u.project === project.id
             )
@@ -511,7 +548,7 @@ export function ProgressModule() {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Project detail</DialogTitle>
             <DialogDescription>
@@ -601,7 +638,7 @@ export function ProgressModule() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <form
             className="contents"
             onSubmit={(event) => {

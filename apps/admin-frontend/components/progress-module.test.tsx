@@ -1,10 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
+  locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   authRecord: {
     id: "current-user",
@@ -27,6 +28,7 @@ vi.mock("@/lib/pocketbase", () => ({
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
+        if (name === "locations") return store.locations
         if (name === "users") return store.users
         return []
       }),
@@ -39,9 +41,84 @@ vi.mock("@/lib/pocketbase", () => ({
 import { ProgressModule } from "./progress-module"
 
 describe("ProgressModule (V81, V84)", () => {
+  beforeAll(() => {
+    Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => false),
+    })
+    Object.defineProperty(window.HTMLElement.prototype, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    Object.defineProperty(
+      window.HTMLElement.prototype,
+      "releasePointerCapture",
+      {
+        configurable: true,
+        value: vi.fn(),
+      }
+    )
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+  })
+
   beforeEach(() => {
     store.projects = []
     store.updates = []
+    store.locations = [
+      {
+        id: "loc1",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        active: true,
+      },
+      {
+        id: "loc2",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam",
+        slug: "lasam",
+        level: "Municipality",
+        municipality_name: "Lasam",
+        active: true,
+      },
+      {
+        id: "loc3",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        barangay_name: "Centro 01 (Bagumbayan)",
+        active: true,
+      },
+      {
+        id: "loc4",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam / Centro",
+        slug: "lasam/centro",
+        level: "Barangay",
+        municipality_name: "Lasam",
+        barangay_name: "Centro",
+        active: true,
+      },
+    ]
     store.users = []
     store.authRecord = {
       id: "current-user",
@@ -102,6 +179,56 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-on-track")).toBeInTheDocument()
       expect(screen.getByTestId("progress-needs-attention")).toBeInTheDocument()
       expect(screen.getByTestId("progress-updates-today")).toBeInTheDocument()
+    })
+  })
+
+  it("filters progress rows by municipality and scoped barangay", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByLabelText(/filter by municipality/i))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await user.click(screen.getByLabelText(/filter by barangay/i))
+
+    expect(await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Centro" })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("option", { name: "Centro 01 (Bagumbayan)" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
     })
   })
 

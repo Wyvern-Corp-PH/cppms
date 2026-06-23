@@ -5,7 +5,8 @@ import { filterProjects, type ProjectFilters } from "./project-filters"
 export type ReportFilters = {
   status?: ProjectRecord["status"] | "all"
   category?: ProjectRecord["category"] | "all"
-  lgu_level?: ProjectRecord["lgu_level"] | "all"
+  municipality?: string | "all"
+  barangay?: string | "all"
   dateFrom?: string
   dateTo?: string
 }
@@ -15,9 +16,13 @@ export function toProjectFilters(filters: ReportFilters): ProjectFilters {
     status: filters.status && filters.status !== "all" ? filters.status : undefined,
     category:
       filters.category && filters.category !== "all" ? filters.category : undefined,
-    lgu_level:
-      filters.lgu_level && filters.lgu_level !== "all"
-        ? filters.lgu_level
+    municipality:
+      filters.municipality && filters.municipality !== "all"
+        ? filters.municipality
+        : undefined,
+    barangay:
+      filters.barangay && filters.barangay !== "all"
+        ? filters.barangay
         : undefined,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,

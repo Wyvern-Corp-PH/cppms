@@ -25,11 +25,12 @@ import {
   filterReportProjects,
   type ReportFilters,
 } from "@workspace/pocketbase/domain/reports-filters"
-import { LGU_LEVEL, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
   activityLogRecordSchema,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
+  locationRecordSchema,
   parseRecordList,
   progressUpdateRecordSchema,
   projectRecordSchema,
@@ -38,6 +39,7 @@ import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
   ActivityLogRecord,
+  LocationRecord,
   ProgressUpdateRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
@@ -56,6 +58,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/componen
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
+import {
+  LocationFilterControls,
+  type LocationFilterValue,
+} from "@/components/location-filter-controls"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { useAuth } from "@/lib/auth"
@@ -66,7 +72,8 @@ type ReportTab = "projects" | "budget" | "progress" | "approvals"
 const EMPTY_FILTERS: ReportFilters = {
   status: "all",
   category: "all",
-  lgu_level: "all",
+  municipality: "all",
+  barangay: "all",
 }
 
 export function ReportsModule() {
@@ -75,6 +82,7 @@ export function ReportsModule() {
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [activityLogs, setActivityLogs] = useState<ActivityLogRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
   const [activeTab, setActiveTab] = useState<ReportTab>("projects")
@@ -85,11 +93,20 @@ export function ReportsModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows, updateRows, logRows, userRows] = await Promise.all([
+    const [
+      projectRows,
+      allocationRows,
+      expenseRows,
+      updateRows,
+      locationRows,
+      logRows,
+      userRows,
+    ] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
       pb.collection("progress_updates").getFullList(),
+      pb.collection("locations").getFullList().catch(() => []),
       canViewActivityLogs
         ? pb.collection("activity_logs").getFullList()
         : Promise.resolve([]),
@@ -99,6 +116,7 @@ export function ReportsModule() {
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
+    setLocations(parseRecordList(locationRecordSchema, locationRows))
     setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
     setUsers(userRows as UserDisplayRecord[])
     setLoading(false)
@@ -121,21 +139,53 @@ export function ReportsModule() {
     () => filterReportProjects(projects, filters),
     [projects, filters]
   )
+  const filteredProjectIds = useMemo(
+    () => new Set(filteredProjects.map((project) => project.id)),
+    [filteredProjects]
+  )
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, user ? [user] : []),
     [user, users]
   )
 
-  const summary = computeBudgetSummary(filteredProjects, allocations, expenses)
-  const breakdown = computeProjectBudgetBreakdown(filteredProjects, allocations, expenses)
+  const filteredAllocations = useMemo(
+    () => allocations.filter((row) => filteredProjectIds.has(row.project)),
+    [allocations, filteredProjectIds]
+  )
+  const filteredExpenses = useMemo(
+    () => expenses.filter((row) => filteredProjectIds.has(row.project)),
+    [expenses, filteredProjectIds]
+  )
+  const summary = computeBudgetSummary(
+    filteredProjects,
+    filteredAllocations,
+    filteredExpenses
+  )
+  const breakdown = computeProjectBudgetBreakdown(
+    filteredProjects,
+    filteredAllocations,
+    filteredExpenses
+  )
   const filteredUpdates = useMemo(
     () =>
-      updates.filter((update) =>
-        filteredProjects.some((project) => project.id === update.project)
-      ),
-    [updates, filteredProjects]
+      updates.filter((update) => filteredProjectIds.has(update.project)),
+    [updates, filteredProjectIds]
   )
   const approvalsCount = countApprovedProjects(filteredProjects)
+
+  const locationFilterValue: LocationFilterValue = {
+    municipality:
+      filters.municipality === "all" ? "" : (filters.municipality ?? ""),
+    barangay: filters.barangay === "all" ? "" : (filters.barangay ?? ""),
+  }
+
+  function setLocationFilterValue(value: LocationFilterValue) {
+    setFilters((prev) => ({
+      ...prev,
+      municipality: value.municipality || "all",
+      barangay: value.barangay || "all",
+    }))
+  }
 
   function exportWorkbook(mode: "all" | "current") {
     const book = XLSX.utils.book_new()
@@ -211,7 +261,7 @@ export function ReportsModule() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Select
           value={filters.status ?? "all"}
           onValueChange={(value) =>
@@ -254,27 +304,11 @@ export function ReportsModule() {
             ))}
           </SelectContent>
         </Select>
-        <Select
-          value={filters.lgu_level ?? "all"}
-          onValueChange={(value) =>
-            setFilters((prev) => ({
-              ...prev,
-              lgu_level: value as ReportFilters["lgu_level"],
-            }))
-          }
-        >
-          <SelectTrigger aria-label="Filter by LGU">
-            <SelectValue placeholder="LGU" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All LGU</SelectItem>
-            {LGU_LEVEL.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <LocationFilterControls
+          locations={locations}
+          value={locationFilterValue}
+          onChange={setLocationFilterValue}
+        />
         <div className="space-y-1">
           <Label htmlFor="reports-filter-date-from">From:</Label>
           <Input
