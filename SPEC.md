@@ -194,7 +194,7 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 **collections** (PocketBase)
 
 ```
-projects → id, name, description, category, status, location, lgu_level, contractor,
+projects → id, name, description, category, status, municipality, barangay, location, lgu_level, contractor,
   start_date, target_end_date, budget_year, total_budget,
   moa_file, resolution_file, supporting_docs[],
   progress_pct, number_of_students?, approval_status?, approved_at?, approved_by?, rejection_reason?
@@ -241,24 +241,24 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 **Projects** (`/projects`) — admin (V72–V74,V50)
 
-- List: project cards — name, location, description, category, date range (start→target_end), budget_year, total_budget (₱), progress bar, status badge.
-- Filters: status, category, location, date range — visible **From:** / **To:** labels (V101); search bar by name.
+- List: project cards — name, municipality/barangay, location, description, category, date range (start→target_end), budget_year, total_budget (₱), progress bar, status badge.
+- Filters: status, category, municipality, barangay, date range — visible **From:** / **To:** labels (V101); search bar by name; free-form `location` ⊥ filter.
 - Actions: New project; per-card Edit + Delete; ⋮ Change status via portal popover (V50); ⊥ inline row expand v1.
-- Create/Edit modal fields: name, description (textarea), category, status, municipality, barangay, contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
+- Create/Edit modal fields: name, description (textarea), category, status, municipality, barangay, location (free text), contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
 
 **Budget** (`/budget`) — admin (V9,V10,V75–V80)
 
 - Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Spent (₱ + progress bar), Remaining (₱).
 - Breakdown list: per project — name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
 - Transactions tabs: Allocations | Expenses; filter dropdowns — project, year.
-- Allocations tab: cols project, amount (green/+), year, description, date, allocated_by; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
+- Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
 - Expenses tab: cols project, amount (red/−), category, date, receipt_number; `+ Record Expense` → modal (project, amount, receipt_number, category, expense date, description).
 
 **Progress** (`/progress`) — admin (V6,V7,V8,V81–V84)
 
 - Summary: 4 cards — Active Projects, On Track (≥50%), Needs Attention (<25%), Updates Today.
 - List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress (admin).
-- Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by; Update Progress CTA bottom (admin).
+- Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by display name; Update Progress CTA bottom (admin).
 - Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 single-file upload w/ remove+replace; notes textarea; if target progress = 100%, completion docs V110 required before Save; Save + Cancel.
 
 **Approvals** (`/approvals`) — admin only (V3,V4,V5,V13,V85–V87)
@@ -294,7 +294,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 - **Public shell**: logo left; header right — theme toggle + Admin CTA (links admin login); ⊥ pill nav / module links (V100); landing full-bleed bands; footer Sections → `/projects`.
 - **Public landing** (`/`): centered hero + eyebrow badge + Admin CTA + admin portal preview frame (sidebar + projects list silhouette, live names when loaded) + subtle lavender radial; carousel recent N dup auto-scroll pause hover; enriched cards; accountability; ⊥ explore divide-y list (V31).
-- **Public /projects**: read-only projects list (V72,V73,V123); location filter; ⊥ Edit/Delete/New (V2,J3,J8).
+- **Public /projects**: read-only projects list (V72,V73,V123); municipality + barangay filters; free-form `location` ⊥ filter; ⊥ Edit/Delete/New (V2,J3,J8).
 - **Public module pages**: skeleton loading (V24); dashed empty + hint (V25); dark/light tokens (V60,V61); PB realtime + Live pill (V62–V67).
 
 ## §V
@@ -370,8 +370,8 @@ V68: PB optional select/relation fields return `""` when unset — record schema
 V69: Docker dev ⊥ isolate `.next` in named volumes — bind-mount app source + host `.next` (gitignored); stale turbopack manifest → route 404 until cache cleared.
 V70: `bun run seed:dev` inserts `Demo:`-prefixed projects + budget/progress rows; fixtures validate via `projectMutateSchema`; idempotent unless `--force`; seeds app `users` login from `POCKETBASE_ADMIN_*`.
 V71: PB list/view API may omit `created`/`updated` on records — `baseRecordSchema` treats both optional; `parseRecordList` must not drop rows solely for missing timestamps (V33).
-V72: Project list cards show name, location, description, category, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
-V73: Project list filters: status, category, location, date range (from/to); search bar matches name (case-insensitive substring).
+V72: Project list cards show name, municipality/barangay context, free-form location when present, description, category, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
+V73: Project list filters: status, category, municipality, barangay, date range (from/to); search bar matches name (case-insensitive substring); free-form `projects.location` ⊥ filter.
 V74: Admin project card actions: Edit + Delete; public ⊥ create/edit/delete affordances (V2,J3).
 V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), spent (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
 V76: Budget breakdown row: project name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
@@ -421,7 +421,7 @@ V119: Admin policy grants project/budget/progress/approval/report data actions o
 V120: Role change/status/delete/reset password actions require Super Admin + audit row; delete defaults soft deactivate, hard delete requires explicit confirm.
 V121: UI shows current user role badge and hides unavailable actions; server/PB rules still enforce (⊥ UI-only auth).
 V122: Admin nav/header uses non-obscuring layout: content offset/sticky safe at 100% zoom; Projects text/actions not covered.
-V123: Public `/projects` location filter options load active PB `locations`; each has name+slug; selected slug matches normalized `projects.location`; combines w/ status/category/lgu/date/search filters.
+V123: Public `/projects` filter options load active PB `locations`; municipality dropdown lists active municipality names; barangay dropdown lists active barangays for selected municipality; filters match `projects.municipality` + `projects.barangay`; combines w/ status/category/date/search filters; free-form `projects.location` ⊥ filter.
 V124: PB audit hook emits wide event per completed budget allocation/expense create/update/delete with actor_user, actor_role, resource, action, outcome.
 V125: PB audit hook observes approval approve/reject mutations and writes `activity_logs` row with actor_user, actor_role, action, project, authority_name, outcome, reason? for reject.
 V126: Reports audit view/export shows who created/updated projects, budgets, progress, approvals tables to Super Admin only.
@@ -433,13 +433,21 @@ V131: Public `/projects` project list renders from `projects` even if `locations
 V132: User role/status migration backfills existing auth users; login denies only explicit `account_status="Inactive"`; missing legacy `account_status` ⊥ block login before backfill.
 V133: ∀ PocketBase-related code/spec changes → follow `packages/pocketbase/AGENTS.md`; fetch current @PocketBase docs before touching migrations, hooks, rules, SDK auth, realtime, or collection APIs.
 V134: Applied PocketBase migrations are immutable history; fixes to already-recorded migration behavior ship as later `pb_migrations/*` repair files, not edits-only to old filenames.
-V135: Admin frontend project surfaces include location end-to-end: `/projects` cards show location; filters include active PB locations; create/edit modal selects location; budget/progress/approval/report project references display location when space allows.
+V135: Admin frontend project surfaces include municipality/barangay + free-form location end-to-end: `/projects` cards show both when present; filters use municipality/barangay only; create/edit modal has municipality/barangay comboboxes plus `location` text input; budget/progress/approval/report project references display location context when space allows.
 V136: Dev seed demo project `location` values ∈ canonical PB `locations`; `seed:dev` repairs existing `Demo:` rows with non-canonical locations on rerun.
 V137: PocketBase JS hook entrypoints use `pb_hooks/*.pb.js`; serialized handlers ⊥ close over outer variables, use `globalThis.__hooks`/`require()` inside handler bodies per @PocketBase docs.
 V138: Local verification runs from lockfile-restored workspace deps: if `turbo test` cannot resolve package-local dev tools (`vitest`, `eslint`, `tsc`), run `bun install --frozen-lockfile` before treating it as app failure.
 V139: Cagayan `locations` seed source = SQL municipality→barangay hierarchy: exactly 29 municipalities + 820 barangays; PB rows include hierarchy fields and unique slugs (`municipality-slug` or `municipality-slug/barangay-slug`).
-V140: Admin project create/edit location UI = separate `Municipality` + `Barangay` popover comboboxes w/ search inputs; barangay choices derive from selected municipality; save composes existing `projects.location`; project dialog/cards/filter ⊥ expose `lgu_level`.
+V140: Admin project create/edit location UI = separate `Municipality` + `Barangay` popover comboboxes w/ search inputs plus `Location` text input; barangay choices derive from selected municipality; save writes `projects.municipality`, `projects.barangay`, `projects.location`; project dialog/cards/filter ⊥ expose `lgu_level`.
 V141: Admin chrome/top navbar has dialog-open blur state: when modal locks body scroll, `[data-admin-chrome]` blurs/dims behind overlay.
+V142: Dialog overlay/content z-index > sticky admin chrome: dialog uses `--z-modal-backdrop`/`--z-modal`, never raw `z-50`; navbar cannot overlap modal close/title area.
+V143: Admin project location comboboxes tolerate partial/legacy PB location rows: optional `locations.level=""` parses; municipality choices may derive from barangay rows; selected municipality always unlocks matching barangay options.
+V144: Dev seed includes role simulation users: active Admin, active User, inactive User; seed upserts by email, sets role/status/password, and password is env-overridable via `SEED_SAMPLE_USER_PASSWORD`.
+V145: Dev seed demo activity runs through sample users: sample Admin auth creates demo project interactions; allocation/progress/approval rows are attributed to sample Admin when relation fields exist.
+V146: Portal dropdown overlays (`Select`, `Popover`, `DropdownMenu`, `Combobox`) use shared `--z-overlay` token > `--z-modal`; raw `z-50` ⊥ in those primitives so dialog-contained selects/popovers render above dialog content.
+V147: Admin project dialog municipality/barangay command lists are scrollable: list max-height respects popover available height, uses `overflow-y-auto` + `overscroll-contain`.
+V148: Public `/projects` mirrors admin project location surface: no `lgu_level` filter/card display; filters are 2 dropdowns (`Municipality`, `Barangay`) from active location hierarchy; cards show municipality/barangay + free-form location + category.
+V149: Admin UI relation fields rendered to humans (`allocated_by`, `updated_by`, `approved_by`, audit actor/target where shown) resolve user id → user `name` then `email`; fallback id/placeholder only when user row unavailable.
 
 ## §T
 
@@ -500,6 +508,13 @@ V141: Admin chrome/top navbar has dialog-open blur state: when modal locks body 
 | T53 | x | SQL-backed Cagayan municipality/barangay location tree + PB hierarchy migration + location filter copy | V123,V135,V136,V139 |
 | T54 | x | admin project dialog searchable municipality+barangay popover/comboboxes; remove LGU from Projects UI | V135,V139,V140 |
 | T55 | x | admin navbar blur marker/style while dialogs are open | V122,V141 |
+| T56 | x | dialog z-index tokens above sticky admin navbar | V122,V141,V142 |
+| T57 | x | harden barangay rendering against empty optional `level` and barangay-only location rows | V139,V140,V143 |
+| T58 | x | add sample users to `seed:dev` for Admin/User/inactive role simulation | V70,V115–V121,V144 |
+| T59 | x | seed sample Admin-driven demo allocations/progress/approvals for interaction simulation | V70,V124–V128,V145 |
+| T60 | x | replace raw portal dropdown `z-50` with shared overlay token above dialogs | V140,V142,V146 |
+| T61 | x | make admin municipality/barangay command lists scroll inside dialog popovers | V140,V147 |
+| T62 | x | sync public Projects location UI/filter with admin: barangays yes, LGU no | V123,V135,V140,V148 |
 
 ## §B
 
@@ -531,3 +546,8 @@ V141: Admin chrome/top navbar has dialog-open blur state: when modal locks body 
 | B24 | 2026-06-23 | dev seed demo projects used `Provincial-wide`, not canonical `locations`, so admin/public city filters could not match them | replace with canonical Cagayan locations; `seed:dev` repairs existing `Demo:` rows on rerun | V136 |
 | B25 | 2026-06-23 | PB audit hook lived in `audit.js` and serialized handlers closed over `hooksDir`; PocketBase only loads `*.pb.js`, then handler runtime threw `ReferenceError` | add `audit.pb.js` entrypoint; require audit module inside handlers via `globalThis.__hooks`; verify app-admin mutation writes actor-aware audit row | V137,V124–V128 |
 | B26 | 2026-06-23 | `bun run test` failed before tests because workspace package dev deps were not linked (`packages/pocketbase/node_modules/vitest/vitest.mjs` missing) | run `bun install --frozen-lockfile`; rerun `bun run test` → all package tests pass | V138 |
+| B27 | 2026-06-23 | Dialog primitives used `z-50` while admin navbar used `--z-sticky=100`, so navbar overlapped modal close/title area | switch dialog overlay/content to `--z-modal-backdrop`/`--z-modal`; add UI source regression | V142 |
+| B28 | 2026-06-23 | barangay rows could be loaded but not render because municipality choices only used explicit municipality rows; PB empty optional `level` could also drop legacy location rows during zod parse | coerce `locations.level=""` to undefined; derive municipality choices from barangay rows and cover with RTL/schema regressions | V143 |
+| B29 | 2026-06-23 | Select/popover portals still used raw `z-50`, lower than dialog `--z-modal=210`, so dialog-contained dropdowns could render behind modal content | add `--z-overlay`; move Select/Popover/DropdownMenu/Combobox portal content to `z-(--z-overlay)`; source regression bans raw `z-50` there | V146 |
+| B30 | 2026-06-23 | municipality/barangay popover list used generic command list height only; long lists could exceed usable dialog viewport and feel unscrollable | add viewport-aware max height + overscroll containment to location command lists; RTL regression asserts scroll classes | V147 |
+| B31 | 2026-06-23 | relation display mapped IDs only after strict full `userRecordSchema`; denied/partial `/users` rows left `allocated_by`/`updated_by` raw ids | display map accepts minimal `{id,name,email}` rows + current auth user; regressions cover empty + partial users list | V149 |
