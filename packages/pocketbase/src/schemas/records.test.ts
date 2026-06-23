@@ -232,6 +232,23 @@ describe("collection record schemas (V33, V36)", () => {
         collectionName: "locations",
         name: "Tuguegarao City",
         slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
+        active: true,
+      }).success
+    ).toBe(true)
+
+    expect(
+      locationRecordSchema.safeParse({
+        ...base,
+        collectionName: "locations",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
+        barangay_name: "Centro 01 (Bagumbayan)",
         active: true,
       }).success
     ).toBe(true)

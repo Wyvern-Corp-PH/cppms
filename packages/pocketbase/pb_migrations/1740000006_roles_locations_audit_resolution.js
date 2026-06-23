@@ -108,6 +108,15 @@ migrate(
           fields: [
             { type: "text", name: "name", required: true },
             { type: "text", name: "slug", required: true },
+            {
+              type: "select",
+              name: "level",
+              maxSelect: 1,
+              values: ["Municipality", "Barangay"],
+            },
+            { type: "text", name: "municipality_name" },
+            { type: "text", name: "municipality_slug" },
+            { type: "text", name: "barangay_name" },
             { type: "bool", name: "active", required: true },
             { type: "number", name: "sort_order", min: 0, onlyInt: true },
             { type: "relation", name: "created_by", collectionId: usersId, maxSelect: 1 },

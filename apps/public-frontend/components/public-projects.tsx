@@ -151,11 +151,11 @@ export function PublicProjects() {
           </SelectContent>
         </Select>
         <Select value={locationSlug} onValueChange={setLocationSlug}>
-          <SelectTrigger aria-label="Filter by city/municipality">
-            <SelectValue placeholder="City/Municipality" />
+          <SelectTrigger aria-label="Filter by location">
+            <SelectValue placeholder="Location" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All city/municipality</SelectItem>
+            <SelectItem value="all">All locations</SelectItem>
             {locations.map((location) => (
               <SelectItem key={location.id} value={location.slug}>
                 {location.name}

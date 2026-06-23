@@ -61,7 +61,7 @@ describe("filterProjects (V73)", () => {
     ).toHaveLength(1)
   })
 
-  it("filters by normalized city/municipality slug", () => {
+  it("filters by normalized location slug", () => {
     expect(normalizeLocationSlug("Tuguegarao City")).toBe("tuguegarao-city")
     expect(
       filterProjects(sampleProjects, { locationSlug: "tuguegarao" })
@@ -69,6 +69,19 @@ describe("filterProjects (V73)", () => {
     expect(
       filterProjects(sampleProjects, { locationSlug: "lasam" })
     ).toHaveLength(0)
+  })
+
+  it("filters by normalized barangay hierarchy slug", () => {
+    const barangayProject = {
+      ...sampleProjects[0]!,
+      location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+    }
+
+    expect(
+      filterProjects([barangayProject], {
+        locationSlug: "tuguegarao-city/centro-01-bagumbayan",
+      })
+    ).toHaveLength(1)
   })
 })
 

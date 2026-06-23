@@ -7,6 +7,7 @@ import { normalizeLocationSlug } from "../domain/project-filters"
 import { projectMutateSchema } from "../schemas/forms"
 import {
   CAGAYAN_LOCATIONS,
+  CAGAYAN_LOCATION_TREE,
   DEMO_PROJECT_PREFIX,
   DEV_SEED_FIXTURES,
 } from "./dev-fixtures"
@@ -39,6 +40,31 @@ describe("dev seed fixtures (V70)", () => {
     expect(new Set(CAGAYAN_LOCATIONS.map(normalizeLocationSlug)).size).toBe(
       CAGAYAN_LOCATIONS.length
     )
+  })
+
+  it("matches the SQL municipality to barangay source of truth", () => {
+    const barangayCount = CAGAYAN_LOCATION_TREE.reduce(
+      (total, municipality) => total + municipality.barangays.length,
+      0
+    )
+
+    expect(CAGAYAN_LOCATION_TREE).toHaveLength(29)
+    expect(barangayCount).toBe(820)
+    expect(
+      CAGAYAN_LOCATION_TREE.find(
+        (municipality) => municipality.name === "Tuguegarao City"
+      )?.barangays
+    ).toContain("Centro 01 (Bagumbayan)")
+    expect(
+      CAGAYAN_LOCATION_TREE.find(
+        (municipality) => municipality.name === "Solana"
+      )?.barangays
+    ).toContain("Andarayan North")
+    expect(
+      CAGAYAN_LOCATION_TREE.every(
+        (municipality) => municipality.barangays.length > 0
+      )
+    ).toBe(true)
   })
 
   it("uses only canonical locations in seeded demo projects", () => {

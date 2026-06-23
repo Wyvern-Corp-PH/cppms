@@ -9,6 +9,7 @@ import { normalizeLocationSlug } from "../src/domain/project-filters.ts"
 import { REQUIRED_COMPLETION_DOCUMENTS } from "../src/schemas/forms.ts"
 import {
   CAGAYAN_LOCATIONS,
+  CAGAYAN_LOCATION_TREE,
   DEMO_PROJECT_PREFIX,
   DEV_SEED_FIXTURES,
 } from "../src/seed/dev-fixtures.ts"
@@ -39,7 +40,14 @@ if (!adminEmail || !adminPassword) {
 
 const pb = new PocketBase(pbUrl)
 pb.autoCancellation(false)
-const canonicalLocations = new Set<string>(CAGAYAN_LOCATIONS)
+const canonicalLocations = new Set<string>([
+  ...CAGAYAN_LOCATIONS,
+  ...CAGAYAN_LOCATION_TREE.flatMap((municipality) =>
+    municipality.barangays.map((barangay) =>
+      formatBarangayLocationName(municipality.name, barangay)
+    )
+  ),
+])
 
 function sitePhotoFile() {
   const bytes = readFileSync(join(__dirname, "fixtures", "site-photo.png"))
@@ -54,6 +62,32 @@ function fixtureDocumentFile(name: string) {
 function appendCompletionDocuments(formData: FormData) {
   for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
     formData.append(doc.field, fixtureDocumentFile(`${doc.field}.png`))
+  }
+}
+
+function formatBarangayLocationName(municipality: string, barangay: string) {
+  return `${municipality} / ${barangay}`
+}
+
+async function upsertLocation(payload: {
+  name: string
+  slug: string
+  level: "Municipality" | "Barangay"
+  municipality_name: string
+  municipality_slug: string
+  barangay_name: string
+  active: boolean
+  sort_order: number
+}) {
+  const existing = await pb
+    .collection("locations")
+    .getFirstListItem(`slug="${payload.slug}"`)
+    .catch(() => null)
+
+  if (existing) {
+    await pb.collection("locations").update(existing.id, payload)
+  } else {
+    await pb.collection("locations").create(payload)
   }
 }
 
@@ -90,24 +124,36 @@ async function ensureAppUser() {
 }
 
 async function seedLocations() {
-  for (const [index, name] of CAGAYAN_LOCATIONS.entries()) {
-    const slug = normalizeLocationSlug(name)
-    const existing = await pb
-      .collection("locations")
-      .getFirstListItem(`slug="${slug}"`)
-      .catch(() => null)
+  let sortOrder = 1
 
-    const payload = {
-      name,
-      slug,
+  for (const municipality of CAGAYAN_LOCATION_TREE) {
+    const municipalitySlug = normalizeLocationSlug(municipality.name)
+
+    await upsertLocation({
+      name: municipality.name,
+      slug: municipalitySlug,
+      level: "Municipality",
+      municipality_name: municipality.name,
+      municipality_slug: municipalitySlug,
+      barangay_name: "",
       active: true,
-      sort_order: index + 1,
-    }
+      sort_order: sortOrder,
+    })
+    sortOrder += 1
 
-    if (existing) {
-      await pb.collection("locations").update(existing.id, payload)
-    } else {
-      await pb.collection("locations").create(payload)
+    for (const barangay of municipality.barangays) {
+      const barangaySlug = normalizeLocationSlug(barangay)
+      await upsertLocation({
+        name: formatBarangayLocationName(municipality.name, barangay),
+        slug: `${municipalitySlug}/${barangaySlug}`,
+        level: "Barangay",
+        municipality_name: municipality.name,
+        municipality_slug: municipalitySlug,
+        barangay_name: barangay,
+        active: true,
+        sort_order: sortOrder,
+      })
+      sortOrder += 1
     }
   }
 }

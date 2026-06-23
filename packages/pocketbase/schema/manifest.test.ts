@@ -57,6 +57,11 @@ const adminPasswordRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000009_sync_configured_admin_password.js"
 )
+const locationHierarchyMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000010_location_hierarchy.js"
+)
 
 describe("schema manifest (SPEC §I)", () => {
   it("defines auth, module, location, and audit collections", () => {
@@ -102,6 +107,21 @@ describe("schema manifest (SPEC §I)", () => {
         "audit_documents",
         "verification_documents",
         "liquidation_documents",
+      ])
+    )
+  })
+
+  it("declares hierarchical location fields from SQL source", () => {
+    const locations = COLLECTION_MANIFEST.find(
+      (collection) => collection.name === "locations"
+    )
+
+    expect(locations?.fields).toEqual(
+      expect.arrayContaining([
+        "level",
+        "municipality_name",
+        "municipality_slug",
+        "barangay_name",
       ])
     )
   })
@@ -232,6 +252,16 @@ describe("collection access rules (V14, T8)", () => {
     expect(repairMigrationSource).toContain("POCKETBASE_ADMIN_PASSWORD")
     expect(repairMigrationSource).toContain("setPassword")
     expect(seedScriptSource).toContain("passwordConfirm: adminPassword")
+  })
+
+  it("adds hierarchy fields for existing location collections", () => {
+    const migrationSource = readFileSync(locationHierarchyMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("ensureLocationHierarchyFields")
+    expect(migrationSource).toContain("municipality_slug")
+    expect(migrationSource).toContain("barangay_name")
+    expect(seedScriptSource).toContain("CAGAYAN_LOCATION_TREE")
+    expect(seedScriptSource).toContain("barangay_name")
   })
 })
 

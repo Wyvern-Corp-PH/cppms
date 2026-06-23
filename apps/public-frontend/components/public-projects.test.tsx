@@ -111,7 +111,7 @@ describe("PublicProjects (V2, J3)", () => {
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument()
   })
 
-  it("filters projects by city/municipality location from PocketBase locations", async () => {
+  it("filters projects by location from PocketBase locations", async () => {
     const user = userEvent.setup()
     render(<PublicProjects />)
 
@@ -120,7 +120,7 @@ describe("PublicProjects (V2, J3)", () => {
       expect(screen.getByText("Water System")).toBeInTheDocument()
     })
 
-    await user.click(screen.getByLabelText(/filter by city\/municipality/i))
+    await user.click(screen.getByLabelText(/filter by location/i))
     await user.click(await screen.findByRole("option", { name: "Lasam" }))
 
     await waitFor(() => {

@@ -132,7 +132,18 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
   },
   {
     name: "locations",
-    fields: ["name", "slug", "active", "sort_order", "created_by", "updated_by"],
+    fields: [
+      "name",
+      "slug",
+      "level",
+      "municipality_name",
+      "municipality_slug",
+      "barangay_name",
+      "active",
+      "sort_order",
+      "created_by",
+      "updated_by",
+    ],
     relations: ["created_by", "updated_by"],
   },
   {

@@ -1,38 +1,10 @@
 import type { ProjectRecord } from "../types"
+export {
+  CAGAYAN_LOCATIONS,
+  CAGAYAN_LOCATION_TREE,
+} from "./cagayan-locations"
 
 export const DEMO_PROJECT_PREFIX = "Demo:"
-
-export const CAGAYAN_LOCATIONS = [
-  "Tuguegarao City",
-  "Abulug",
-  "Alcala",
-  "Allacapan",
-  "Amulung",
-  "Aparri",
-  "Baggao",
-  "Ballesteros",
-  "Buguey",
-  "Calayan",
-  "Camalaniugan",
-  "Claveria",
-  "Enrile",
-  "Gattaran",
-  "Gonzaga",
-  "Iguig",
-  "Lal-lo",
-  "Lasam",
-  "Pamplona",
-  "Peñablanca",
-  "Piat",
-  "Rizal",
-  "Sanchez-Mira",
-  "Santa Ana",
-  "Santa Praxedes",
-  "Santa Teresita",
-  "Santo Niño",
-  "Solana",
-  "Tuao",
-] as const
 
 export type DevSeedProject = {
   project: {
