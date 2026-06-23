@@ -233,6 +233,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 | J8 | public `/projects` location filter combines w/ status/category | public |
 | J9 | Projects module content stays visible at 100% zoom under nav/header | admin |
 | J10 | mutate/approve/report actions append structured `activity_logs` row | admin |
+| J11 | admin Budget/Progress/Approvals/Reports municipality+barangay filters combine w/ module filters | admin |
 
 **UI surfaces** (per module — detail in §V)
 
@@ -246,34 +247,36 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 - Actions: New project; per-card Edit + Delete; ⋮ Change status via portal popover (V50); ⊥ inline row expand v1.
 - Create/Edit modal fields: name, description (textarea), category, status, municipality, barangay, location (free text), contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
 
-**Budget** (`/budget`) — admin (V9,V10,V75–V80)
+**Budget** (`/budget`) — admin (V9,V10,V75–V80,V150,V152)
 
 - Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Spent (₱ + progress bar), Remaining (₱).
 - Breakdown list: per project — name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
-- Transactions tabs: Allocations | Expenses; filter dropdowns — project, year.
+- Transactions tabs: Allocations | Expenses; filter dropdowns — project, year, municipality, barangay; barangay options scoped by municipality; free-form `location` ⊥ filter.
 - Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
 - Expenses tab: cols project, amount (red/−), category, date, receipt_number; `+ Record Expense` → modal (project, amount, receipt_number, category, expense date, description).
 
-**Progress** (`/progress`) — admin (V6,V7,V8,V81–V84)
+**Progress** (`/progress`) — admin (V6,V7,V8,V81–V84,V150)
 
 - Summary: 4 cards — Active Projects, On Track (≥50%), Needs Attention (<25%), Updates Today.
+- Filters: status, category, municipality, barangay; barangay options scoped by municipality; free-form `location` + `lgu_level` ⊥ filter.
 - List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress (admin).
 - Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by display name; Update Progress CTA bottom (admin).
 - Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 single-file upload w/ remove+replace; notes textarea; if target progress = 100%, completion docs V110 required before Save; Save + Cancel.
 
-**Approvals** (`/approvals`) — admin only (V3,V4,V5,V13,V85–V87)
+**Approvals** (`/approvals`) — admin only (V3,V4,V5,V13,V85–V87,V150)
 
 - Summary: 4 cards — Pending Approval, Approved, Rejected, Total Budget Managed (₱).
+- Filters: status/tab, category, municipality, barangay; barangay options scoped by municipality; free-form `location` + `lgu_level` ⊥ filter.
 - Tabs: Completion Approval | Approved | Rejected.
 - Queue card: name, location, status badge, category, lgu_level, total_budget, progress bar + %, budget utilization bar (spent/saved), progress update count, latest site photo(s) carousel; View Details, Approve (green), Reject (red).
 - Detail panel (side): V93 — full project + budget summary + progress history + completion docs; warning/block V13; Approve + Reject CTAs bottom.
 - Approve modal: confirmation copy; approving authority name (required); Cancel + Confirm Approval.
 - Reject modal: explanation copy; reviewing authority name; reason (required textarea); Cancel + Confirm Rejection.
 
-**Reports** (`/reports`) — admin only (V11,V12,V88–V91)
+**Reports** (`/reports`) — admin only (V11,V12,V88–V91,V150)
 
 - Header: title Reports; subtitle "Generate and export reports as Excel files"; `Export All Sheets` + `Export Current Tab` (V12).
-- Global filters (all tabs): status (incl. All Status), category (incl. All Categories), lgu_level (incl. All LGU), date range from/to (V94).
+- Global filters (all tabs): status (incl. All Status), category (incl. All Categories), municipality (All Municipality), barangay (All Barangay), date range from/to (V94,V150); free-form `location` + `lgu_level` ⊥ filter.
 - Summary cards (clickable tab selectors): Projects count, Budget total (₱), Progress update count, Approvals count (V95).
 - Tabs + preview tables w/ record-count badge:
   - **Projects**: name, category, status, deadline_status (V11), lgu_level, location, total_budget, progress.
@@ -375,7 +378,7 @@ V73: Project list filters: status, category, municipality, barangay, date range 
 V74: Admin project card actions: Edit + Delete; public ⊥ create/edit/delete affordances (V2,J3).
 V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), spent (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
 V76: Budget breakdown row: project name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
-V77: Budget Allocations & Expenses tabs — filterable by project dropdown + year dropdown.
+V77: Budget Allocations & Expenses tabs — filterable by project dropdown, year dropdown, municipality dropdown, barangay dropdown.
 V78: Allocations table cols: project, amount (green positive V10), year, description, date, allocated_by.
 V79: Expenses table cols: project, amount (red negative V10), category, date, receipt_number.
 V80: Allocate modal: project, amount, year (default current), description, 3 doc uploads (MOA, Resolution, supporting); Record Expense modal: project, amount, receipt_number, category, expense date, description.
@@ -387,7 +390,7 @@ V85: Approvals summary = 4 cards: pending approval count, approved count, reject
 V86: Approvals tabs: Completion Approval | Approved | Rejected.
 V87: Approval queue card: budget utilization bar (spent + saved), progress update count, site photo carousel (V96) when photos on file.
 V88: Reports header subtitle "Generate and export reports as Excel files"; admin Export All Sheets + Export Current Tab; public ⊥ export (V12).
-V89: Reports global filters — status, category, lgu_level, date range from/to w/ All sentinel options (V94) — apply ∀ tab previews.
+V89: Reports global filters — status, category, municipality, barangay, date range from/to w/ All sentinel options (V94,V150) — apply ∀ tab previews.
 V90: Reports summary cards clickable → activate matching tab (Projects, Budget, Progress, Approvals counts per V95).
 V91: Reports tab table cols: Projects (V11 deadline_status), Budget (+ total row), Progress (per-update row w/ from/to/change/photo thumbnail V96), Approvals (pending → "Pending" in approved_at/approved_by).
 V92: Wireframe ASCII = layout shell only; module UI surfaces + V72–V91 override abbreviated wireframe cols/rows; dashboard heatmap ⊥ replace reports tab-selector model (V90).
@@ -445,9 +448,13 @@ V143: Admin project location comboboxes tolerate partial/legacy PB location rows
 V144: Dev seed includes role simulation users: active Admin, active User, inactive User; seed upserts by email, sets role/status/password, and password is env-overridable via `SEED_SAMPLE_USER_PASSWORD`.
 V145: Dev seed demo activity runs through sample users: sample Admin auth creates demo project interactions; allocation/progress/approval rows are attributed to sample Admin when relation fields exist.
 V146: Portal dropdown overlays (`Select`, `Popover`, `DropdownMenu`, `Combobox`) use shared `--z-overlay` token > `--z-modal`; raw `z-50` ⊥ in those primitives so dialog-contained selects/popovers render above dialog content.
-V147: Admin project dialog municipality/barangay command lists are scrollable: list max-height respects popover available height, uses `overflow-y-auto` + `overscroll-contain`.
+V147: Admin New/Edit Project municipality/barangay command lists are scrollable: list max-height respects popover/dialog available height at common zoom levels, uses `overflow-y-auto` + `overscroll-contain`; long Cagayan barangay lists never trap page/modal scroll.
 V148: Public `/projects` mirrors admin project location surface: no `lgu_level` filter/card display; filters are 2 dropdowns (`Municipality`, `Barangay`) from active location hierarchy; cards show municipality/barangay + free-form location + category.
 V149: Admin UI relation fields rendered to humans (`allocated_by`, `updated_by`, `approved_by`, audit actor/target where shown) resolve user id → user `name` then `email`; fallback id/placeholder only when user row unavailable.
+V150: Admin Budget/Progress/Approvals/Reports filters use project municipality+barangay hierarchy, not generic `location`/`lgu_level`: dropdowns load active PB `locations`; barangay disabled/All until municipality selected; selected barangay resets when municipality changes; filters combine w/ module status/category/project/year/date/search filters and apply to all visible summaries/tables/cards/exports.
+V151: Admin Budget/Progress/Approvals/Reports location filter UI uses visible labels `Municipality` + `Barangay`; copy must not say generic `Locations` for these controls.
+V152: Allocate Budget dialog is viewport/zoom responsive: content uses fluid width + `max-height: calc(100dvh - safe margin)` + internal `overflow-y-auto`; fields/docs/actions reflow on narrow/zoomed viewports; submit/cancel remain reachable without browser-level horizontal scroll.
+V153: Admin ∀ `DialogContent` uses viewport-safe width + max-height + internal `overflow-y-auto`; actions remain reachable at browser zoom / narrow viewports; page-level horizontal scroll ⊥. Small dialogs may keep narrower `sm:max-w-*` but still use mobile `w-[calc(100vw-2rem)]`.
 
 ## §T
 
@@ -515,6 +522,8 @@ V149: Admin UI relation fields rendered to humans (`allocated_by`, `updated_by`,
 | T60 | x | replace raw portal dropdown `z-50` with shared overlay token above dialogs | V140,V142,V146 |
 | T61 | x | make admin municipality/barangay command lists scroll inside dialog popovers | V140,V147 |
 | T62 | x | sync public Projects location UI/filter with admin: barangays yes, LGU no | V123,V135,V140,V148 |
+| T63 | x | admin module location filters + responsive allocate dialog regressions; TDD red first via Vitest+RTL journey/component tests | V16,V19,V77,V89,V147,V150–V152,J11,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,reports-module.test.tsx |
+| T64 | x | make every admin dialog viewport-safe responsive+scrollable; add source/RTL regressions | V16,V19,V98,V153,projects-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx |
 
 ## §B
 
@@ -551,3 +560,7 @@ V149: Admin UI relation fields rendered to humans (`allocated_by`, `updated_by`,
 | B29 | 2026-06-23 | Select/popover portals still used raw `z-50`, lower than dialog `--z-modal=210`, so dialog-contained dropdowns could render behind modal content | add `--z-overlay`; move Select/Popover/DropdownMenu/Combobox portal content to `z-(--z-overlay)`; source regression bans raw `z-50` there | V146 |
 | B30 | 2026-06-23 | municipality/barangay popover list used generic command list height only; long lists could exceed usable dialog viewport and feel unscrollable | add viewport-aware max height + overscroll containment to location command lists; RTL regression asserts scroll classes | V147 |
 | B31 | 2026-06-23 | relation display mapped IDs only after strict full `userRecordSchema`; denied/partial `/users` rows left `allocated_by`/`updated_by` raw ids | display map accepts minimal `{id,name,email}` rows + current auth user; regressions cover empty + partial users list | V149 |
+| B32 | 2026-06-24 | Budget/Progress/Approvals/Reports still expose generic location/LGU filtering instead of municipality+barangay hierarchy | add shared admin location filters backed by active PB `locations`; combine with each module filter/export path | V150,V151 |
+| B33 | 2026-06-24 | New/Edit Project municipality/barangay dropdown lists remain hard to scroll for long Cagayan lists in dialog context | strengthen dialog popover max-height/overflow behavior and cover with RTL/source regression | V147 |
+| B34 | 2026-06-24 | Allocate Budget dialog layout stays static under browser zoom/viewport changes; fields/actions can fail to reflow | make dialog fluid, max-height bounded, internally scrollable, and assert responsive classes/behavior | V152 |
+| B35 | 2026-06-24 | Admin dialogs used mixed `DialogContent` sizing; some lacked viewport width/max-height/internal scroll | normalize all admin dialog content to viewport-safe responsive+scrollable classes; add regressions | V153 |
