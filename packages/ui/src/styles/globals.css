@@ -143,6 +143,14 @@
     @apply bg-background text-foreground;
   }
 
+  body[data-scroll-locked] [data-admin-chrome="true"] {
+    filter: blur(4px);
+    opacity: 0.72;
+    transition:
+      filter 150ms ease,
+      opacity 150ms ease;
+  }
+
   h1,
   h2,
   h3 {

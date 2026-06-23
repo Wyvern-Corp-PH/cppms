@@ -158,6 +158,7 @@ describe("AdminShell", () => {
     const content = screen.getByTestId("admin-content")
     expect(screen.getByTestId("sidebar-trigger")).toBeInTheDocument()
     expect(topBar).toBeInTheDocument()
+    expect(topBar).toHaveAttribute("data-admin-chrome", "true")
     expect(content.className).toContain("pt-4")
     expect(screen.getByText("Page content")).toBeInTheDocument()
   })

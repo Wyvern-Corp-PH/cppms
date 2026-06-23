@@ -96,7 +96,8 @@ export function AdminShell({ children }: AdminShellProps) {
       <SidebarInset>
         <header
           data-testid="admin-top-bar"
-          className="bg-background sticky top-0 z-[var(--z-sticky)] flex h-14 shrink-0 items-center gap-2 border-b px-4"
+          data-admin-chrome="true"
+          className="bg-background sticky top-0 z-(--z-sticky) flex h-14 shrink-0 items-center gap-2 border-b px-4"
         >
           <SidebarTrigger data-testid="sidebar-trigger" />
           <SidebarSeparator
