@@ -84,6 +84,9 @@ describe("ProjectsModule (J4)", () => {
         updated: "",
         name: "Tuguegarao City",
         slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
         active: true,
         sort_order: 1,
       },
@@ -95,6 +98,9 @@ describe("ProjectsModule (J4)", () => {
         updated: "",
         name: "Lasam",
         slug: "lasam",
+        level: "Municipality",
+        municipality_name: "Lasam",
+        municipality_slug: "lasam",
         active: true,
         sort_order: 2,
       },
@@ -106,8 +112,41 @@ describe("ProjectsModule (J4)", () => {
         updated: "",
         name: "Inactive Town",
         slug: "inactive-town",
+        level: "Municipality",
+        municipality_name: "Inactive Town",
+        municipality_slug: "inactive-town",
         active: false,
         sort_order: 3,
+      },
+      {
+        id: "loc4",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
+        barangay_name: "Centro 01 (Bagumbayan)",
+        active: true,
+        sort_order: 4,
+      },
+      {
+        id: "loc5",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam / Centro",
+        slug: "lasam/centro",
+        level: "Barangay",
+        municipality_name: "Lasam",
+        municipality_slug: "lasam",
+        barangay_name: "Centro",
+        active: true,
+        sort_order: 5,
       },
     ]
     store.authRecord = {
@@ -165,7 +204,7 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
-  it("filters admin projects by active city/municipality locations", async () => {
+  it("filters admin projects by active locations", async () => {
     const user = userEvent.setup()
     store.projects.push(
       {
@@ -198,7 +237,7 @@ describe("ProjectsModule (J4)", () => {
 
     render(<ProjectsModule />)
 
-    await user.click(await screen.findByLabelText(/filter by city\/municipality/i))
+    await user.click(await screen.findByLabelText(/filter by location/i))
     await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
 
     await waitFor(() => {
@@ -208,7 +247,7 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
-  it("uses active locations as the create/edit project location choices", async () => {
+  it("uses active municipality and barangay choices in the project dialog", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
 
@@ -216,11 +255,14 @@ describe("ProjectsModule (J4)", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("combobox", { name: /^location$/i })
+        screen.getByRole("combobox", { name: /^municipality$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole("combobox", { name: /^barangay$/i })
       ).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("combobox", { name: /^location$/i }))
+    await user.click(screen.getByRole("combobox", { name: /^municipality$/i }))
     expect(
       await screen.findByRole("option", { name: "Tuguegarao City" })
     ).toBeInTheDocument()
@@ -228,6 +270,55 @@ describe("ProjectsModule (J4)", () => {
     expect(
       screen.queryByRole("option", { name: "Inactive Town" })
     ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("option", { name: "Tuguegarao City" }))
+    await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+    expect(
+      await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Centro" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("searches project dialog municipalities and barangays before selecting", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.click(
+      await screen.findByRole("combobox", { name: /^municipality$/i })
+    )
+
+    const search = await screen.findByPlaceholderText(/search municipalities/i)
+    await user.type(search, "Las")
+
+    expect(
+      screen.queryByRole("option", { name: "Tuguegarao City" })
+    ).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "Lasam" }))
+
+    expect(
+      screen.getByRole("combobox", { name: /^municipality$/i })
+    ).toHaveTextContent("Lasam")
+    await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+    await user.type(await screen.findByPlaceholderText(/search barangays/i), "Cen")
+    await user.click(await screen.findByRole("option", { name: "Centro" }))
+    expect(
+      screen.getByRole("combobox", { name: /^barangay$/i })
+    ).toHaveTextContent("Centro")
+  })
+
+  it("omits LGU level controls from projects UI", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/filter by lgu level/i)).not.toBeInTheDocument()
+    })
+
+    await user.click(await screen.findByTestId("create-project"))
+    expect(screen.queryByText(/^LGU level$/i)).not.toBeInTheDocument()
   })
 
   it("persists a created project to the list", async () => {

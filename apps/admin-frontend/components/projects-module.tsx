@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
-import {
-  LGU_LEVEL,
-  PROJECT_CATEGORY,
-  PROJECT_STATUS,
-} from "@workspace/pocketbase/schema"
+import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
   filterProjects,
   formatProjectDateRange,
@@ -24,6 +20,14 @@ import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@workspace/ui/components/command"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,6 +43,11 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
 import { Progress } from "@workspace/ui/components/progress"
 import {
   Select,
@@ -59,8 +68,8 @@ type ProjectFormState = {
   description: string
   category: ProjectRecord["category"]
   status: ProjectRecord["status"]
-  location: string
-  lgu_level: ProjectRecord["lgu_level"] | ""
+  municipality: string
+  barangay: string
   contractor: string
   start_date: string
   target_end_date: string
@@ -74,8 +83,8 @@ const emptyForm = (): ProjectFormState => ({
   description: "",
   category: "Infrastructure",
   status: "Planning",
-  location: "",
-  lgu_level: "",
+  municipality: "",
+  barangay: "",
   contractor: "",
   start_date: "",
   target_end_date: "",
@@ -86,6 +95,117 @@ const emptyForm = (): ProjectFormState => ({
 
 function namesOnRecord(...values: (string | undefined)[]): string[] {
   return values.filter((value): value is string => Boolean(value?.trim()))
+}
+
+function composeProjectLocation(form: Pick<ProjectFormState, "municipality" | "barangay">) {
+  if (!form.municipality) {
+    return ""
+  }
+  return form.barangay ? `${form.municipality} / ${form.barangay}` : form.municipality
+}
+
+function splitProjectLocation(location: string | undefined) {
+  const [municipality = "", ...barangayParts] = (location ?? "").split(" / ")
+  return {
+    municipality,
+    barangay: barangayParts.join(" / "),
+  }
+}
+
+function uniqueByName<T extends { name: string }>(locations: T[]) {
+  const seen = new Set<string>()
+  return locations.filter((location) => {
+    if (seen.has(location.name)) {
+      return false
+    }
+    seen.add(location.name)
+    return true
+  })
+}
+
+function LocationCombobox({
+  label,
+  placeholder,
+  searchPlaceholder,
+  emptyMessage,
+  value,
+  choices,
+  open,
+  onOpenChange,
+  onSelect,
+  disabled = false,
+}: {
+  label: string
+  placeholder: string
+  searchPlaceholder: string
+  emptyMessage: string
+  value: string
+  choices: Array<{ id: string; name: string }>
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSelect: (value: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-label={label}
+          aria-expanded={open}
+          disabled={disabled}
+          className="w-full justify-between"
+        >
+          <span
+            className={value ? "truncate" : "truncate text-muted-foreground"}
+          >
+            {value || placeholder}
+          </span>
+          <span aria-hidden="true" className="text-muted-foreground">
+            ▾
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-(--radix-popover-trigger-width) p-0"
+      >
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="none"
+                data-checked={!value}
+                onSelect={() => {
+                  onSelect("")
+                  onOpenChange(false)
+                }}
+              >
+                —
+              </CommandItem>
+              {choices.map((choice) => (
+                <CommandItem
+                  key={choice.id}
+                  value={choice.name}
+                  data-checked={value === choice.name}
+                  onSelect={() => {
+                    onSelect(choice.name)
+                    onOpenChange(false)
+                  }}
+                >
+                  {choice.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function ProjectCard({
@@ -117,7 +237,7 @@ function ProjectCard({
             <Badge variant="secondary">{project.status}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {[project.location, project.category, project.lgu_level]
+            {[project.location, project.category]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -192,11 +312,12 @@ export function ProjectsModule() {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
-  const [lguLevel, setLguLevel] = useState("all")
   const [locationSlug, setLocationSlug] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [municipalityPickerOpen, setMunicipalityPickerOpen] = useState(false)
+  const [barangayPickerOpen, setBarangayPickerOpen] = useState(false)
   const [editing, setEditing] = useState<ProjectRecord | null>(null)
   const [form, setForm] = useState<ProjectFormState>(emptyForm())
   const [moaFile, setMoaFile] = useState<File | null>(null)
@@ -255,15 +376,11 @@ export function ProjectsModule() {
             : (category as ProjectRecord["category"]),
         status:
           status === "all" ? undefined : (status as ProjectRecord["status"]),
-        lgu_level:
-          lguLevel === "all"
-            ? undefined
-            : (lguLevel as ProjectRecord["lgu_level"]),
         locationSlug: locationSlug === "all" ? undefined : locationSlug,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
-    [projects, query, category, status, lguLevel, locationSlug, dateFrom, dateTo]
+    [projects, query, category, status, locationSlug, dateFrom, dateTo]
   )
 
   function openCreate() {
@@ -283,14 +400,15 @@ export function ProjectsModule() {
     if (!canUpdateProjects) {
       return
     }
+    const locationParts = splitProjectLocation(project.location)
     setEditing(project)
     setForm({
       name: project.name,
       description: project.description ?? "",
       category: project.category,
       status: project.status,
-      location: project.location ?? "",
-      lgu_level: project.lgu_level ?? "",
+      municipality: locationParts.municipality,
+      barangay: locationParts.barangay,
       contractor: project.contractor ?? "",
       start_date: project.start_date ?? "",
       target_end_date: project.target_end_date ?? "",
@@ -313,8 +431,7 @@ export function ProjectsModule() {
       description: form.description,
       category: form.category,
       status: form.status,
-      location: form.location,
-      lgu_level: form.lgu_level || undefined,
+      location: composeProjectLocation(form),
       contractor: form.contractor,
       start_date: form.start_date || undefined,
       target_end_date: form.target_end_date || undefined,
@@ -389,23 +506,56 @@ export function ProjectsModule() {
     await loadProjects()
   }
 
-  const locationChoices = useMemo(() => {
-    const activeNames = new Set(locations.map((location) => location.name))
-    if (form.location && !activeNames.has(form.location)) {
-      return [
-        ...locations,
-        {
-          id: `current-${form.location}`,
-          collectionId: "locations",
-          collectionName: "locations" as const,
-          name: form.location,
-          slug: form.location,
-          active: true,
-        },
-      ]
+  const municipalityChoices = useMemo(() => {
+    const municipalities = locations
+      .filter((location) => location.level !== "Barangay")
+      .map((location) => ({
+        id: location.id,
+        name: location.municipality_name || location.name,
+      }))
+
+    if (
+      form.municipality &&
+      !municipalities.some((choice) => choice.name === form.municipality)
+    ) {
+      municipalities.push({
+        id: `current-municipality-${form.municipality}`,
+        name: form.municipality,
+      })
     }
-    return locations
-  }, [form.location, locations])
+
+    return uniqueByName(municipalities)
+  }, [form.municipality, locations])
+
+  const barangayChoices = useMemo(() => {
+    if (!form.municipality) {
+      return []
+    }
+
+    const barangays = locations
+      .filter(
+        (location) =>
+          location.level === "Barangay" &&
+          location.municipality_name === form.municipality
+      )
+      .map((location) => ({
+        id: location.id,
+        name: location.barangay_name || splitProjectLocation(location.name).barangay,
+      }))
+      .filter((location) => location.name)
+
+    if (
+      form.barangay &&
+      !barangays.some((choice) => choice.name === form.barangay)
+    ) {
+      barangays.push({
+        id: `current-barangay-${form.barangay}`,
+        name: form.barangay,
+      })
+    }
+
+    return uniqueByName(barangays)
+  }, [form.barangay, form.municipality, locations])
 
   const ongoing = projects.filter(
     (project) => project.status === "Ongoing"
@@ -437,7 +587,7 @@ export function ProjectsModule() {
       />
 
       <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Input
             aria-label="Search projects"
             placeholder="Search by name"
@@ -470,25 +620,12 @@ export function ProjectsModule() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={lguLevel} onValueChange={setLguLevel}>
-            <SelectTrigger aria-label="Filter by LGU level">
-              <SelectValue placeholder="LGU" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All LGU</SelectItem>
-              {LGU_LEVEL.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={locationSlug} onValueChange={setLocationSlug}>
-            <SelectTrigger aria-label="Filter by city/municipality">
-              <SelectValue placeholder="City/Municipality" />
+            <SelectTrigger aria-label="Filter by location">
+              <SelectValue placeholder="Location" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All city/municipality</SelectItem>
+              <SelectItem value="all">All locations</SelectItem>
               {locations.map((location) => (
                 <SelectItem key={location.id} value={location.slug}>
                   {location.name}
@@ -564,7 +701,11 @@ export function ProjectsModule() {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
-          if (!open) clearUploadFiles()
+          if (!open) {
+            clearUploadFiles()
+            setMunicipalityPickerOpen(false)
+            setBarangayPickerOpen(false)
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -679,65 +820,62 @@ export function ProjectsModule() {
                 ) : null}
               </div>
             ) : null}
-            <div className="space-y-1">
-              <Label>Location</Label>
-              <Select
-                value={form.location || "none"}
-                onValueChange={(value) =>
-                  setForm({ ...form, location: value === "none" ? "" : value })
-                }
-              >
-                <SelectTrigger aria-label="Location">
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
-                  {locationChoices.map((location) => (
-                    <SelectItem key={location.id} value={location.name}>
-                      {location.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>LGU level</Label>
-                <Select
-                  value={form.lgu_level || "none"}
-                  onValueChange={(value) =>
+                <Label>Municipality</Label>
+                <LocationCombobox
+                  label="Municipality"
+                  placeholder="Select municipality"
+                  searchPlaceholder="Search municipalities..."
+                  emptyMessage="No municipalities found."
+                  value={form.municipality}
+                  choices={municipalityChoices}
+                  open={municipalityPickerOpen}
+                  onOpenChange={setMunicipalityPickerOpen}
+                  onSelect={(value) =>
                     setForm({
                       ...form,
-                      lgu_level:
-                        value === "none"
-                          ? ""
-                          : (value as ProjectRecord["lgu_level"]),
+                      municipality: value,
+                      barangay:
+                        value === form.municipality ? form.barangay : "",
                     })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select LGU" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {LGU_LEVEL.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="project-contractor">Contractor</Label>
-                <Input
-                  id="project-contractor"
-                  value={form.contractor}
-                  onChange={(event) =>
-                    setForm({ ...form, contractor: event.target.value })
                   }
                 />
               </div>
+              <div className="space-y-1">
+                <Label>Barangay</Label>
+                <LocationCombobox
+                  label="Barangay"
+                  placeholder="Select barangay"
+                  searchPlaceholder="Search barangays..."
+                  emptyMessage={
+                    form.municipality
+                      ? "No barangays found."
+                      : "Select municipality first."
+                  }
+                  value={form.barangay}
+                  choices={barangayChoices}
+                  open={barangayPickerOpen}
+                  onOpenChange={setBarangayPickerOpen}
+                  onSelect={(value) =>
+                    setForm({
+                      ...form,
+                      barangay: value,
+                    })
+                  }
+                  disabled={!form.municipality}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-contractor">Contractor</Label>
+              <Input
+                id="project-contractor"
+                value={form.contractor}
+                onChange={(event) =>
+                  setForm({ ...form, contractor: event.target.value })
+                }
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
