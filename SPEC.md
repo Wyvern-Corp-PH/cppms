@@ -90,11 +90,11 @@ Cagayan PPMS — public read-only project monitoring + authenticated admin for t
 | account_status | Active, Inactive |
 | audit_action | create, update, delete, deactivate, approve, reject, reset_password |
 
-**Cagayan city/municipality options**
+**Cagayan location options**
 
 Tuguegarao City; Abulug; Alcala; Allacapan; Amulung; Aparri; Baggao; Ballesteros; Buguey; Calayan; Camalaniugan; Claveria; Enrile; Gattaran; Gonzaga; Iguig; Lal-lo; Lasam; Pamplona; Peñablanca; Piat; Rizal; Sanchez-Mira; Santa Ana; Santa Praxedes; Santa Teresita; Santo Niño; Solana; Tuao.
 
-Canonical list stored in PB `locations` collection; Super Admin can add/edit/deactivate entries. Public filter uses active `locations` by name+slug.
+Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 820 barangays from `cagayan_municipalities_barangays.sql`. PB `locations` stores active municipality rows plus `Municipality / Barangay` rows by name+hierarchy slug.
 
 **Access**
 
@@ -140,7 +140,7 @@ Canonical list stored in PB `locations` collection; Super Admin can add/edit/dea
 | zod | `packages/pocketbase/src/schemas/` — record + form schemas |
 | zod deps | `zod@4` in `@workspace/pocketbase`; apps import schemas only |
 | `format-display-date.ts` | `formatDisplayDate` + `formatDisplayDateTime` — en-US `MMM D, YYYY` (V97) |
-| seed | `packages/pocketbase/scripts/seed-dev.ts`, `src/seed/dev-fixtures.ts`; `bun run seed:dev` |
+| seed | `packages/pocketbase/scripts/seed-dev.ts`, `src/seed/dev-fixtures.ts`, `src/seed/cagayan-locations.ts`; `bun run seed:dev` |
 
 **admin routes** (`apps/admin-frontend`)
 
@@ -210,7 +210,8 @@ progress_updates → project, from_pct, to_pct, notes, site_photo, updated_by, u
 
 approval_actions → project, action(approve|reject), authority_name, reason?, created_at
 
-locations → name, slug, active, sort_order?, created_by?, updated_by?
+locations → name, slug, level(Municipality|Barangay), municipality_name?,
+  municipality_slug?, barangay_name?, active, sort_order?, created_by?, updated_by?
 
 activity_logs → actor_user, actor_role, action, resource, resource_id?, policy_key?,
   target_user?, before?, after?, outcome, error?, duration_ms, request_id, env, created_at
@@ -229,7 +230,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 | J5 | admin approve completed project → status Approved | admin |
 | J6 | Super Admin `/users` create/edit/deactivate/delete/reset password | admin |
 | J7 | Admin direct `/users` → deny/redirect; nav link hidden | admin |
-| J8 | public `/projects` city/municipality filter combines w/ status/category | public |
+| J8 | public `/projects` location filter combines w/ status/category | public |
 | J9 | Projects module content stays visible at 100% zoom under nav/header | admin |
 | J10 | mutate/approve/report actions append structured `activity_logs` row | admin |
 
@@ -240,10 +241,10 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 **Projects** (`/projects`) — admin (V72–V74,V50)
 
-- List: project cards — name, location, description, category, lgu_level, date range (start→target_end), budget_year, total_budget (₱), progress bar, status badge.
-- Filters: status, category, lgu_level, city/municipality location, date range — visible **From:** / **To:** labels (V101); search bar by name.
+- List: project cards — name, location, description, category, date range (start→target_end), budget_year, total_budget (₱), progress bar, status badge.
+- Filters: status, category, location, date range — visible **From:** / **To:** labels (V101); search bar by name.
 - Actions: New project; per-card Edit + Delete; ⋮ Change status via portal popover (V50); ⊥ inline row expand v1.
-- Create/Edit modal fields: name, description (textarea), category, status, location, lgu_level, contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
+- Create/Edit modal fields: name, description (textarea), category, status, municipality, barangay, contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
 
 **Budget** (`/budget`) — admin (V9,V10,V75–V80)
 
@@ -293,7 +294,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 - **Public shell**: logo left; header right — theme toggle + Admin CTA (links admin login); ⊥ pill nav / module links (V100); landing full-bleed bands; footer Sections → `/projects`.
 - **Public landing** (`/`): centered hero + eyebrow badge + Admin CTA + admin portal preview frame (sidebar + projects list silhouette, live names when loaded) + subtle lavender radial; carousel recent N dup auto-scroll pause hover; enriched cards; accountability; ⊥ explore divide-y list (V31).
-- **Public /projects**: read-only projects list (V72,V73,V123); city/municipality filter; ⊥ Edit/Delete/New (V2,J3,J8).
+- **Public /projects**: read-only projects list (V72,V73,V123); location filter; ⊥ Edit/Delete/New (V2,J3,J8).
 - **Public module pages**: skeleton loading (V24); dashed empty + hint (V25); dark/light tokens (V60,V61); PB realtime + Live pill (V62–V67).
 
 ## §V
@@ -369,8 +370,8 @@ V68: PB optional select/relation fields return `""` when unset — record schema
 V69: Docker dev ⊥ isolate `.next` in named volumes — bind-mount app source + host `.next` (gitignored); stale turbopack manifest → route 404 until cache cleared.
 V70: `bun run seed:dev` inserts `Demo:`-prefixed projects + budget/progress rows; fixtures validate via `projectMutateSchema`; idempotent unless `--force`; seeds app `users` login from `POCKETBASE_ADMIN_*`.
 V71: PB list/view API may omit `created`/`updated` on records — `baseRecordSchema` treats both optional; `parseRecordList` must not drop rows solely for missing timestamps (V33).
-V72: Project list cards show name, location, description, category, lgu_level, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
-V73: Project list filters: status, category, lgu_level, city/municipality location, date range (from/to); search bar matches name (case-insensitive substring).
+V72: Project list cards show name, location, description, category, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
+V73: Project list filters: status, category, location, date range (from/to); search bar matches name (case-insensitive substring).
 V74: Admin project card actions: Edit + Delete; public ⊥ create/edit/delete affordances (V2,J3).
 V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), spent (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
 V76: Budget breakdown row: project name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
@@ -420,7 +421,7 @@ V119: Admin policy grants project/budget/progress/approval/report data actions o
 V120: Role change/status/delete/reset password actions require Super Admin + audit row; delete defaults soft deactivate, hard delete requires explicit confirm.
 V121: UI shows current user role badge and hides unavailable actions; server/PB rules still enforce (⊥ UI-only auth).
 V122: Admin nav/header uses non-obscuring layout: content offset/sticky safe at 100% zoom; Projects text/actions not covered.
-V123: Public `/projects` city/municipality filter options load active PB `locations`; each has name+slug; selected slug matches normalized `projects.location`; combines w/ status/category/lgu/date/search filters.
+V123: Public `/projects` location filter options load active PB `locations`; each has name+slug; selected slug matches normalized `projects.location`; combines w/ status/category/lgu/date/search filters.
 V124: PB audit hook emits wide event per completed budget allocation/expense create/update/delete with actor_user, actor_role, resource, action, outcome.
 V125: PB audit hook observes approval approve/reject mutations and writes `activity_logs` row with actor_user, actor_role, action, project, authority_name, outcome, reason? for reject.
 V126: Reports audit view/export shows who created/updated projects, budgets, progress, approvals tables to Super Admin only.
@@ -432,10 +433,13 @@ V131: Public `/projects` project list renders from `projects` even if `locations
 V132: User role/status migration backfills existing auth users; login denies only explicit `account_status="Inactive"`; missing legacy `account_status` ⊥ block login before backfill.
 V133: ∀ PocketBase-related code/spec changes → follow `packages/pocketbase/AGENTS.md`; fetch current @PocketBase docs before touching migrations, hooks, rules, SDK auth, realtime, or collection APIs.
 V134: Applied PocketBase migrations are immutable history; fixes to already-recorded migration behavior ship as later `pb_migrations/*` repair files, not edits-only to old filenames.
-V135: Admin frontend project surfaces include location end-to-end: `/projects` cards show location; filters include city/municipality; create/edit modal selects location; budget/progress/approval/report project references display location when space allows.
+V135: Admin frontend project surfaces include location end-to-end: `/projects` cards show location; filters include active PB locations; create/edit modal selects location; budget/progress/approval/report project references display location when space allows.
 V136: Dev seed demo project `location` values ∈ canonical PB `locations`; `seed:dev` repairs existing `Demo:` rows with non-canonical locations on rerun.
 V137: PocketBase JS hook entrypoints use `pb_hooks/*.pb.js`; serialized handlers ⊥ close over outer variables, use `globalThis.__hooks`/`require()` inside handler bodies per @PocketBase docs.
 V138: Local verification runs from lockfile-restored workspace deps: if `turbo test` cannot resolve package-local dev tools (`vitest`, `eslint`, `tsc`), run `bun install --frozen-lockfile` before treating it as app failure.
+V139: Cagayan `locations` seed source = SQL municipality→barangay hierarchy: exactly 29 municipalities + 820 barangays; PB rows include hierarchy fields and unique slugs (`municipality-slug` or `municipality-slug/barangay-slug`).
+V140: Admin project create/edit location UI = separate `Municipality` + `Barangay` popover comboboxes w/ search inputs; barangay choices derive from selected municipality; save composes existing `projects.location`; project dialog/cards/filter ⊥ expose `lgu_level`.
+V141: Admin chrome/top navbar has dialog-open blur state: when modal locks body scroll, `[data-admin-chrome]` blurs/dims behind overlay.
 
 ## §T
 
@@ -485,7 +489,7 @@ V138: Local verification runs from lockfile-restored workspace deps: if `turbo t
 | T42 | x | approvals read-only reviewed tabs + rejection reason display | V86,V93,V109 |
 | T43 | x | 100% completion docs gate + Scholarship student count | V13,V16,V34,V35,V84,V93,V110,V111,V112,V113,V114 |
 | T44 | x | Super Admin promotion + RBAC/PBAC role-policy map + `/users` management panel | V16,V115–V121,J6,J7 |
-| T45 | x | PB `locations` collection + public city/municipality filter by name+slug | V16,V55,V73,V123,J8 |
+| T45 | x | PB `locations` collection + public location filter by name+slug | V16,V55,V73,V123,J8 |
 | T46 | x | admin nav/header obscuring fix at 100% zoom, especially Projects | V16,V98,V122,J9 |
 | T47 | x | PB hook-owned Super Admin-only activity_logs audit trail + wide-event structure | V16,V124–V128,V130,J10 |
 | T48 | x | rename "Province/Barangay Agreement" to "Resolution" incl `resolution_file` migration | V16,V80,V102,V103,V129 |
@@ -493,6 +497,9 @@ V138: Local verification runs from lockfile-restored workspace deps: if `turbo t
 | T50 | x | bugfix public projects location fallback + legacy admin login role/status backfill | V16,V123,V131,V132,J1,J3,J8 |
 | T51 | x | admin project location UI: cards, filters, create/edit modal, and cross-module project references | V135,V72,V73,V74,V75–V91 |
 | T52 | x | seed canonical demo locations + PB audit hook docs-compliant `*.pb.js` entrypoint/runtime actor capture | V133,V136,V137,V124–V128,V130 |
+| T53 | x | SQL-backed Cagayan municipality/barangay location tree + PB hierarchy migration + location filter copy | V123,V135,V136,V139 |
+| T54 | x | admin project dialog searchable municipality+barangay popover/comboboxes; remove LGU from Projects UI | V135,V139,V140 |
+| T55 | x | admin navbar blur marker/style while dialogs are open | V122,V141 |
 
 ## §B
 
