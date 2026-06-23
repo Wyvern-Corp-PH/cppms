@@ -113,6 +113,8 @@ migrate(
             "Rejected",
           ],
         },
+        { type: "text", name: "municipality" },
+        { type: "text", name: "barangay" },
         { type: "text", name: "location" },
         {
           type: "select",

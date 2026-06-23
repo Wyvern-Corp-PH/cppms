@@ -9,6 +9,7 @@ import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-displ
 import {
   formatProjectDateRange,
   isApprovalEligible,
+  projectLocationDisplayParts,
 } from "@workspace/pocketbase/domain/project-filters"
 import { recordFileUrl } from "@workspace/pocketbase/files"
 import {
@@ -333,7 +334,11 @@ export function ApprovalsModule() {
           <div>
             <h2 className="font-semibold">{project.name}</h2>
             <p className="text-sm text-muted-foreground">
-              {[project.location, project.category, project.lgu_level]
+              {[
+                ...projectLocationDisplayParts(project),
+                project.category,
+                project.lgu_level,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -514,7 +519,11 @@ export function ApprovalsModule() {
             <div className="mt-3 space-y-3 text-sm">
               <p className="font-medium">{selected.name}</p>
               <p className="text-muted-foreground">
-                {[selected.location, selected.category, selected.lgu_level]
+                {[
+                  ...projectLocationDisplayParts(selected),
+                  selected.category,
+                  selected.lgu_level,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>

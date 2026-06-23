@@ -10,6 +10,7 @@ import {
   CAGAYAN_LOCATION_TREE,
   DEMO_PROJECT_PREFIX,
   DEV_SEED_FIXTURES,
+  DEV_SEED_USERS,
 } from "./dev-fixtures"
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
@@ -84,5 +85,36 @@ describe("dev seed fixtures (V70)", () => {
     expect(seedScriptSource).toContain("REQUIRED_COMPLETION_DOCUMENTS")
     expect(seedScriptSource).toContain("appendCompletionDocuments")
     expect(seedScriptSource).toContain("fixture.progress.to_pct >= 100")
+  })
+
+  it("defines and upserts sample users for role simulation", () => {
+    expect(DEV_SEED_USERS).toHaveLength(3)
+    expect(DEV_SEED_USERS.map((user) => user.role)).toEqual([
+      "Admin",
+      "User",
+      "User",
+    ])
+    expect(DEV_SEED_USERS.some((user) => user.account_status === "Inactive")).toBe(
+      true
+    )
+    expect(new Set(DEV_SEED_USERS.map((user) => user.email)).size).toBe(
+      DEV_SEED_USERS.length
+    )
+    for (const user of DEV_SEED_USERS) {
+      expect(user).not.toHaveProperty("password")
+    }
+    expect(seedScriptSource).toContain("DEV_SEED_USERS")
+    expect(seedScriptSource).toContain("seedSampleUsers")
+    expect(seedScriptSource).toContain("getFirstListItem(`email=")
+    expect(seedScriptSource).toContain("passwordConfirm")
+    expect(seedScriptSource).toContain("Sample users:")
+  })
+
+  it("simulates demo interactions as sample users", () => {
+    expect(seedScriptSource).toContain("authWithPassword(SAMPLE_ADMIN_EMAIL")
+    expect(seedScriptSource).toContain("sampleUsersByEmail")
+    expect(seedScriptSource).toContain("allocated_by: sampleAdmin?.id")
+    expect(seedScriptSource).toContain('formData.append("updated_by"')
+    expect(seedScriptSource).toContain('collection("approval_actions").create')
   })
 })

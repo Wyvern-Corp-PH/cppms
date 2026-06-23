@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   filterProjects,
+  projectLocationDisplayParts,
   formatProjectDateRange,
 } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
-import { LGU_LEVEL, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
   locationRecordSchema,
   parseRecordList,
@@ -30,6 +31,40 @@ import { PageHeaderBand } from "@/components/page-header-band"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
+function splitProjectLocation(location: string | undefined) {
+  const [municipality = "", ...barangayParts] = (location ?? "").split(" / ")
+  return {
+    municipality,
+    barangay: barangayParts.join(" / "),
+  }
+}
+
+function getLocationHierarchy(location: LocationRecord) {
+  const split = splitProjectLocation(location.name)
+  const isBarangay =
+    location.level === "Barangay" ||
+    Boolean(location.barangay_name) ||
+    location.slug.includes("/") ||
+    Boolean(split.barangay)
+
+  return {
+    isBarangay,
+    municipality: location.municipality_name || split.municipality,
+    barangay: location.barangay_name || split.barangay,
+  }
+}
+
+function uniqueByName<T extends { name: string }>(locations: T[]) {
+  const seen = new Set<string>()
+  return locations.filter((location) => {
+    if (seen.has(location.name)) {
+      return false
+    }
+    seen.add(location.name)
+    return true
+  })
+}
+
 export function PublicProjects() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
@@ -37,8 +72,8 @@ export function PublicProjects() {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
-  const [lguLevel, setLguLevel] = useState("all")
-  const [locationSlug, setLocationSlug] = useState("all")
+  const [municipality, setMunicipality] = useState("all")
+  const [barangay, setBarangay] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
 
@@ -78,14 +113,49 @@ export function PublicProjects() {
         category:
           category === "all" ? undefined : (category as ProjectRecord["category"]),
         status: status === "all" ? undefined : (status as ProjectRecord["status"]),
-        lgu_level:
-          lguLevel === "all" ? undefined : (lguLevel as ProjectRecord["lgu_level"]),
-        locationSlug: locationSlug === "all" ? undefined : locationSlug,
+        municipality: municipality === "all" ? undefined : municipality,
+        barangay: barangay === "all" ? undefined : barangay,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
-    [projects, query, category, status, lguLevel, locationSlug, dateFrom, dateTo]
+    [projects, query, category, status, municipality, barangay, dateFrom, dateTo]
   )
+
+  const municipalityChoices = useMemo(
+    () =>
+      uniqueByName(
+        locations
+          .map((location) => {
+            const hierarchy = getLocationHierarchy(location)
+            return {
+              id: hierarchy.isBarangay ? `municipality-${location.id}` : location.id,
+              name: hierarchy.municipality,
+            }
+          })
+          .filter((location) => location.name)
+      ),
+    [locations]
+  )
+
+  const barangayChoices = useMemo(() => {
+    if (municipality === "all") {
+      return []
+    }
+
+    return uniqueByName(
+      locations
+        .map((location) => ({
+          id: location.id,
+          ...getLocationHierarchy(location),
+        }))
+        .filter(
+          (location) =>
+            location.isBarangay && location.municipality === municipality
+        )
+        .map((location) => ({ id: location.id, name: location.barangay }))
+        .filter((location) => location.name)
+    )
+  }, [locations, municipality])
 
   if (loading) {
     return (
@@ -137,27 +207,37 @@ export function PublicProjects() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={lguLevel} onValueChange={setLguLevel}>
-          <SelectTrigger aria-label="Filter by LGU level">
-            <SelectValue placeholder="LGU" />
+        <Select
+          value={municipality}
+          onValueChange={(value) => {
+            setMunicipality(value)
+            setBarangay("all")
+          }}
+        >
+          <SelectTrigger aria-label="Filter by municipality">
+            <SelectValue placeholder="Municipality" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All LGU</SelectItem>
-            {LGU_LEVEL.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
+            <SelectItem value="all">All municipalities</SelectItem>
+            {municipalityChoices.map((location) => (
+              <SelectItem key={location.id} value={location.name}>
+                {location.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={locationSlug} onValueChange={setLocationSlug}>
-          <SelectTrigger aria-label="Filter by location">
-            <SelectValue placeholder="Location" />
+        <Select
+          value={barangay}
+          onValueChange={setBarangay}
+          disabled={municipality === "all"}
+        >
+          <SelectTrigger aria-label="Filter by barangay">
+            <SelectValue placeholder="Barangay" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All locations</SelectItem>
-            {locations.map((location) => (
-              <SelectItem key={location.id} value={location.slug}>
+            <SelectItem value="all">All barangays</SelectItem>
+            {barangayChoices.map((location) => (
+              <SelectItem key={location.id} value={location.name}>
                 {location.name}
               </SelectItem>
             ))}
@@ -198,7 +278,9 @@ export function PublicProjects() {
                 <Badge variant="secondary">{project.status}</Badge>
               </div>
               <p className="text-muted-foreground text-sm">
-                {[project.location, project.category, project.lgu_level].filter(Boolean).join(" · ")}
+                {[...projectLocationDisplayParts(project), project.category]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
               {project.description ? (
                 <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">{project.description}</p>

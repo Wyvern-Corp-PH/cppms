@@ -40,10 +40,16 @@ describe("collection record schemas (V33, V36)", () => {
       category: "Infrastructure",
       status: "Planning",
       budget_year: 2026,
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "Bridge approach, east bank",
       resolution_file: "resolution.pdf",
     })
     expect(result.success).toBe(true)
     if (result.success) {
+      expect(result.data.municipality).toBe("Tuguegarao City")
+      expect(result.data.barangay).toBe("Centro 01 (Bagumbayan)")
+      expect(result.data.location).toBe("Bridge approach, east bank")
       expect(result.data.resolution_file).toBe("resolution.pdf")
     }
   })
@@ -88,6 +94,8 @@ describe("collection record schemas (V33, V36)", () => {
       description: "adaw",
       category: "Infrastructure",
       status: "Planning",
+      municipality: "",
+      barangay: "",
       location: "",
       lgu_level: "",
       contractor: "",
@@ -252,6 +260,19 @@ describe("collection record schemas (V33, V36)", () => {
         active: true,
       }).success
     ).toBe(true)
+
+    const legacyLocation = locationRecordSchema.safeParse({
+      ...base,
+      collectionName: "locations",
+      name: "Tuguegarao City",
+      slug: "tuguegarao-city",
+      level: "",
+      active: true,
+    })
+    expect(legacyLocation.success).toBe(true)
+    if (legacyLocation.success) {
+      expect(legacyLocation.data.level).toBeUndefined()
+    }
 
     expect(
       activityLogRecordSchema.safeParse({

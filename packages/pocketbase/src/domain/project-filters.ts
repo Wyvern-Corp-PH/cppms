@@ -5,7 +5,8 @@ export type ProjectFilters = {
   category?: ProjectRecord["category"]
   status?: ProjectRecord["status"]
   lgu_level?: ProjectRecord["lgu_level"]
-  locationSlug?: string
+  municipality?: string
+  barangay?: string
   dateFrom?: string
   dateTo?: string
 }
@@ -50,7 +51,8 @@ export function filterProjects(
   filters: ProjectFilters
 ): ProjectRecord[] {
   const query = filters.query?.trim().toLowerCase()
-  const locationSlug = normalizeLocationSlug(filters.locationSlug)
+  const municipality = normalizeLocationSlug(filters.municipality)
+  const barangay = normalizeLocationSlug(filters.barangay)
 
   return projects.filter((project) => {
     if (filters.category && project.category !== filters.category) {
@@ -65,7 +67,14 @@ export function filterProjects(
       return false
     }
 
-    if (locationSlug && normalizeLocationSlug(project.location) !== locationSlug) {
+    if (
+      municipality &&
+      normalizeLocationSlug(project.municipality) !== municipality
+    ) {
+      return false
+    }
+
+    if (barangay && normalizeLocationSlug(project.barangay) !== barangay) {
       return false
     }
 
@@ -77,7 +86,14 @@ export function filterProjects(
       return true
     }
 
-    const haystack = [project.name, project.description, project.location, project.contractor]
+    const haystack = [
+      project.name,
+      project.description,
+      project.municipality,
+      project.barangay,
+      project.location,
+      project.contractor,
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
@@ -94,6 +110,30 @@ export function normalizeLocationSlug(value: string | undefined): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
+}
+
+export function formatProjectLocationContext(
+  project: Pick<ProjectRecord, "municipality" | "barangay" | "location">
+): string | undefined {
+  if (project.municipality) {
+    return project.barangay
+      ? `${project.municipality} / ${project.barangay}`
+      : project.municipality
+  }
+  return project.location
+}
+
+export function projectLocationDisplayParts(
+  project: Pick<ProjectRecord, "municipality" | "barangay" | "location">
+): string[] {
+  const context = formatProjectLocationContext(project)
+  const location =
+    project.location &&
+    normalizeLocationSlug(project.location) !== normalizeLocationSlug(context)
+      ? project.location
+      : undefined
+
+  return [context, location].filter((value): value is string => Boolean(value))
 }
 
 export function isApprovalEligible(

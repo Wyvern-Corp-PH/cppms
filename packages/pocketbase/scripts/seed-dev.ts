@@ -12,6 +12,8 @@ import {
   CAGAYAN_LOCATION_TREE,
   DEMO_PROJECT_PREFIX,
   DEV_SEED_FIXTURES,
+  DEV_SEED_USERS,
+  SAMPLE_ADMIN_EMAIL,
 } from "../src/seed/dev-fixtures.ts"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -32,6 +34,9 @@ function resolveSeedUrl(): string {
 const pbUrl = resolveSeedUrl()
 const adminEmail = process.env.POCKETBASE_ADMIN_EMAIL
 const adminPassword = process.env.POCKETBASE_ADMIN_PASSWORD
+const defaultSampleUserPassword = "CagayanDemo123!"
+const sampleUserPassword =
+  process.env.SEED_SAMPLE_USER_PASSWORD ?? defaultSampleUserPassword
 
 if (!adminEmail || !adminPassword) {
   console.error("Set POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD.")
@@ -123,6 +128,61 @@ async function ensureAppUser() {
   }
 }
 
+async function upsertSampleUser(user: (typeof DEV_SEED_USERS)[number]) {
+  const existing = await pb
+    .collection("users")
+    .getFirstListItem(`email="${user.email}"`)
+    .catch(() => null)
+
+  const payload = {
+    email: user.email,
+    password: sampleUserPassword,
+    passwordConfirm: sampleUserPassword,
+    name: user.name,
+    role: user.role,
+    account_status: user.account_status,
+  }
+
+  if (existing) {
+    await pb.collection("users").update(existing.id, payload)
+    return "updated"
+  }
+
+  await pb.collection("users").create(payload)
+  return "created"
+}
+
+async function seedSampleUsers() {
+  const results: string[] = []
+  const sampleUsersByEmail = new Map<
+    string,
+    { id: string; email: string; name?: string; role?: string }
+  >()
+
+  for (const user of DEV_SEED_USERS) {
+    const result = await upsertSampleUser(user)
+    const record = await pb
+      .collection("users")
+      .getFirstListItem(`email="${user.email}"`)
+    sampleUsersByEmail.set(user.email, {
+      id: record.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    })
+    results.push(`${user.email} (${user.role}, ${result})`)
+  }
+
+  console.log(`Sample users: ${results.join(", ")}`)
+  console.log(
+    process.env.SEED_SAMPLE_USER_PASSWORD
+      ? "Sample user password: configured via SEED_SAMPLE_USER_PASSWORD"
+      : `Sample user password: ${defaultSampleUserPassword}`
+  )
+
+  return sampleUsersByEmail
+}
+
 async function seedLocations() {
   let sortOrder = 1
 
@@ -179,11 +239,19 @@ async function repairDemoProjectLocations() {
     }
 
     const currentLocation = String(demo.location ?? "")
-    if (canonicalLocations.has(currentLocation)) {
+    const currentMunicipality = String(demo.municipality ?? "")
+    const currentBarangay = String(demo.barangay ?? "")
+    if (
+      canonicalLocations.has(currentLocation) &&
+      currentMunicipality === fixture.municipality &&
+      currentBarangay === (fixture.barangay ?? "")
+    ) {
       continue
     }
 
     await pb.collection("projects").update(demo.id, {
+      municipality: fixture.municipality,
+      barangay: fixture.barangay ?? "",
       location: fixture.location,
       lgu_level: fixture.lgu_level,
     })
@@ -203,8 +271,14 @@ async function clearDemoProjects() {
   return demos.length
 }
 
-async function seedDemoProjects() {
+async function seedDemoProjects(
+  sampleUsersByEmail: Map<
+    string,
+    { id: string; email: string; name?: string; role?: string }
+  >
+) {
   const today = new Date().toISOString().slice(0, 10)
+  const sampleAdmin = sampleUsersByEmail.get(SAMPLE_ADMIN_EMAIL)
 
   for (const fixture of DEV_SEED_FIXTURES) {
     const project = await pb.collection("projects").create(fixture.project)
@@ -215,6 +289,7 @@ async function seedDemoProjects() {
       year: fixture.project.budget_year,
       description: fixture.allocation.description,
       date: today,
+      allocated_by: sampleAdmin?.id,
     })
 
     for (const expense of fixture.expenses) {
@@ -233,6 +308,9 @@ async function seedDemoProjects() {
       formData.append("from_pct", String(fixture.progress.from_pct))
       formData.append("to_pct", String(fixture.progress.to_pct))
       formData.append("notes", fixture.progress.notes)
+      if (sampleAdmin?.id) {
+        formData.append("updated_by", sampleAdmin.id)
+      }
       formData.append("site_photo", sitePhotoFile())
       if (fixture.progress.to_pct >= 100) {
         appendCompletionDocuments(formData)
@@ -248,6 +326,16 @@ async function seedDemoProjects() {
       }
     }
 
+    if (fixture.project.approval_status === "approved") {
+      await pb.collection("approval_actions").create({
+        project: project.id,
+        action: "approve",
+        authority_name: sampleAdmin?.name ?? "Sample Admin",
+        reason: "Seeded approval simulation.",
+        created_at: today,
+      })
+    }
+
     console.log(`  + ${fixture.project.name}`)
   }
 }
@@ -256,6 +344,7 @@ async function main() {
   console.log(`Seeding ${pbUrl} …`)
   await pb.collection("_superusers").authWithPassword(adminEmail, adminPassword)
   await ensureAppUser()
+  const sampleUsersByEmail = await seedSampleUsers()
   await seedLocations()
   await repairDemoProjectLocations()
 
@@ -272,7 +361,8 @@ async function main() {
     console.log(`Removed ${removed} existing demo project(s).`)
   }
 
-  await seedDemoProjects()
+  await pb.collection("users").authWithPassword(SAMPLE_ADMIN_EMAIL, sampleUserPassword)
+  await seedDemoProjects(sampleUsersByEmail)
   console.log(`Done. Seeded ${DEV_SEED_FIXTURES.length} demo projects.`)
   console.log(`Admin login: ${adminEmail}`)
 }

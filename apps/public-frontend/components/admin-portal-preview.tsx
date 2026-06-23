@@ -1,5 +1,8 @@
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
-import { formatProjectDateRange } from "@workspace/pocketbase/domain/project-filters"
+import {
+  formatProjectDateRange,
+  projectLocationDisplayParts,
+} from "@workspace/pocketbase/domain/project-filters"
 import type { ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Progress } from "@workspace/ui/components/progress"
@@ -15,7 +18,7 @@ export function AdminPortalPreview({ projects = [] }: AdminPortalPreviewProps) {
 
   return (
     <div
-      className="w-full rounded-[var(--radius-lg)] border border-border bg-card p-2 text-left shadow-none"
+      className="w-full rounded-(--radius-lg) border border-border bg-card p-2 text-left shadow-none"
       data-testid="admin-portal-preview"
     >
       <div className="flex gap-2">
@@ -61,7 +64,13 @@ export function AdminPortalPreview({ projects = [] }: AdminPortalPreviewProps) {
                     </Badge>
                   </div>
                   <p className="text-muted-foreground mt-0.5 truncate">
-                    {[project.location, project.category, project.lgu_level].filter(Boolean).join(" · ")}
+                    {[
+                      ...projectLocationDisplayParts(project),
+                      project.category,
+                      project.lgu_level,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                   <p className="text-muted-foreground mt-0.5">
                     {formatProjectDateRange(project.start_date, project.target_end_date)} ·{" "}

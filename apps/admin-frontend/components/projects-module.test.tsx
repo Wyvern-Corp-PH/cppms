@@ -204,7 +204,7 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
-  it("filters admin projects by active locations", async () => {
+  it("filters admin projects by active municipalities", async () => {
     const user = userEvent.setup()
     store.projects.push(
       {
@@ -217,7 +217,8 @@ describe("ProjectsModule (J4)", () => {
         category: "Infrastructure",
         status: "Planning",
         budget_year: 2026,
-        location: "Tuguegarao City",
+        municipality: "Tuguegarao City",
+        location: "East bank approach",
         progress_pct: 0,
       },
       {
@@ -230,14 +231,16 @@ describe("ProjectsModule (J4)", () => {
         category: "Education",
         status: "Planning",
         budget_year: 2026,
-        location: "Lasam",
+        municipality: "Lasam",
+        location: "Municipal hall grounds",
         progress_pct: 0,
       }
     )
 
     render(<ProjectsModule />)
 
-    await user.click(await screen.findByLabelText(/filter by location/i))
+    expect(screen.queryByLabelText(/filter by location/i)).not.toBeInTheDocument()
+    await user.click(await screen.findByLabelText(/filter by municipality/i))
     await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
 
     await waitFor(() => {
@@ -279,6 +282,80 @@ describe("ProjectsModule (J4)", () => {
     expect(
       screen.queryByRole("option", { name: "Centro" })
     ).not.toBeInTheDocument()
+  })
+
+  it("saves municipality, barangay, and location as separate project fields", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.type(screen.getByLabelText(/project name/i), "City Bridge")
+    await user.click(screen.getByRole("combobox", { name: /^municipality$/i }))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+    await user.click(
+      await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
+    )
+    await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+          location: "East bank approach",
+        })
+      )
+    })
+  })
+
+  it("keeps long municipality and barangay lists scrollable in the dialog", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.click(
+      await screen.findByRole("combobox", { name: /^municipality$/i })
+    )
+
+    const list = document.querySelector('[data-slot="command-list"]')
+    expect(list).toHaveClass("overscroll-contain")
+    expect(list?.className).toContain("max-h-[min(")
+    expect(list).toHaveClass("overflow-y-auto")
+  })
+
+  it("derives municipality choices from hierarchy-only barangay rows", async () => {
+    const user = userEvent.setup()
+    store.locations = [
+      {
+        id: "loc4",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "",
+        active: true,
+        sort_order: 4,
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.click(
+      await screen.findByRole("combobox", { name: /^municipality$/i })
+    )
+    await user.click(
+      await screen.findByRole("option", { name: "Tuguegarao City" })
+    )
+    await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+
+    expect(
+      await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
+    ).toBeInTheDocument()
   })
 
   it("searches project dialog municipalities and barangays before selecting", async () => {

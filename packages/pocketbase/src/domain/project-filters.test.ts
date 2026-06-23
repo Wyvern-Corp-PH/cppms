@@ -20,7 +20,9 @@ const sampleProjects: ProjectRecord[] = [
     category: "Infrastructure",
     status: "Ongoing",
     budget_year: 2026,
-    location: "Tuguegarao",
+    municipality: "Tuguegarao City",
+    barangay: "Centro 01 (Bagumbayan)",
+    location: "Bridge approach, east bank",
     lgu_level: "Municipality",
     start_date: "2026-01-01",
     target_end_date: "2026-12-31",
@@ -35,6 +37,7 @@ const sampleProjects: ProjectRecord[] = [
     category: "Education",
     status: "Completed",
     budget_year: 2026,
+    municipality: "Lasam",
     lgu_level: "Barangay",
     start_date: "2025-06-01",
     target_end_date: "2025-12-01",
@@ -61,25 +64,34 @@ describe("filterProjects (V73)", () => {
     ).toHaveLength(1)
   })
 
-  it("filters by normalized location slug", () => {
+  it("filters by normalized municipality and barangay names", () => {
     expect(normalizeLocationSlug("Tuguegarao City")).toBe("tuguegarao-city")
     expect(
-      filterProjects(sampleProjects, { locationSlug: "tuguegarao" })
+      filterProjects(sampleProjects, { municipality: "tuguegarao-city" })
     ).toHaveLength(1)
     expect(
-      filterProjects(sampleProjects, { locationSlug: "lasam" })
+      filterProjects(sampleProjects, {
+        municipality: "tuguegarao-city",
+        barangay: "centro-01-bagumbayan",
+      })
+    ).toHaveLength(1)
+    expect(
+      filterProjects(sampleProjects, { municipality: "amulung" })
     ).toHaveLength(0)
   })
 
-  it("filters by normalized barangay hierarchy slug", () => {
+  it("does not use the free-form project location as a filter dimension", () => {
     const barangayProject = {
       ...sampleProjects[0]!,
-      location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "Bridge approach, east bank",
     }
 
     expect(
       filterProjects([barangayProject], {
-        locationSlug: "tuguegarao-city/centro-01-bagumbayan",
+        municipality: "tuguegarao-city",
+        barangay: "centro-01-bagumbayan",
       })
     ).toHaveLength(1)
   })

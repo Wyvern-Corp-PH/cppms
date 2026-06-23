@@ -5,6 +5,37 @@ export {
 } from "./cagayan-locations"
 
 export const DEMO_PROJECT_PREFIX = "Demo:"
+export const SAMPLE_ADMIN_EMAIL = "sample.admin@cppms.test"
+export const SAMPLE_USER_EMAIL = "sample.user@cppms.test"
+export const SAMPLE_INACTIVE_USER_EMAIL = "sample.inactive@cppms.test"
+
+export type DevSeedUser = {
+  email: string
+  name: string
+  role: "Super Admin" | "Admin" | "User"
+  account_status: "Active" | "Inactive"
+}
+
+export const DEV_SEED_USERS: DevSeedUser[] = [
+  {
+    email: SAMPLE_ADMIN_EMAIL,
+    name: "Sample Admin",
+    role: "Admin",
+    account_status: "Active",
+  },
+  {
+    email: SAMPLE_USER_EMAIL,
+    name: "Sample User",
+    role: "User",
+    account_status: "Active",
+  },
+  {
+    email: SAMPLE_INACTIVE_USER_EMAIL,
+    name: "Sample Inactive User",
+    role: "User",
+    account_status: "Inactive",
+  },
+]
 
 export type DevSeedProject = {
   project: {
@@ -12,6 +43,8 @@ export type DevSeedProject = {
     description: string
     category: ProjectRecord["category"]
     status: ProjectRecord["status"]
+    municipality: string
+    barangay?: string
     location: string
     lgu_level: ProjectRecord["lgu_level"]
     contractor: string
@@ -40,6 +73,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Structural repairs and deck resurfacing on the primary provincial crossing.",
       category: "Infrastructure",
       status: "Ongoing",
+      municipality: "Tuguegarao City",
       location: "Tuguegarao City",
       lgu_level: "Municipality",
       contractor: "Cagayan Builders Consortium",
@@ -67,6 +101,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "New outpatient wing and equipment bay for Cagayan Provincial Hospital.",
       category: "Health",
       status: "Procurement",
+      municipality: "Tuguegarao City",
       location: "Tuguegarao City",
       lgu_level: "Municipality",
       contractor: "North Luzon Medical Works",
@@ -96,6 +131,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Certified seed distribution to farmer cooperatives across the province.",
       category: "Agriculture",
       status: "Ongoing",
+      municipality: "Solana",
       location: "Solana",
       lgu_level: "District",
       contractor: "DA Provincial Office",
@@ -126,6 +162,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       description: "Training facility for barangay SK livelihood programs.",
       category: "Social Services",
       status: "Planning",
+      municipality: "Peñablanca",
       location: "Peñablanca",
       lgu_level: "Barangay",
       contractor: "Pending award",
@@ -151,6 +188,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Provincial scholarship grants for STEM and teacher education tracks.",
       category: "Scholarship",
       status: "Ongoing",
+      municipality: "Tuguegarao City",
       location: "Tuguegarao City",
       lgu_level: "Municipality",
       contractor: "Provincial Scholarship Board",
@@ -178,6 +216,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Flood mitigation channels for low-lying barangays near Cagayan River.",
       category: "Infrastructure",
       status: "Ongoing",
+      municipality: "Enrile",
       location: "Enrile",
       lgu_level: "Barangay",
       contractor: "Riverworks JV",
@@ -208,6 +247,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Facility upgrade and cold-chain storage for Barangay Centro RHU.",
       category: "Health",
       status: "Completed",
+      municipality: "Amulung",
       location: "Amulung",
       lgu_level: "Barangay",
       contractor: "Valley Health Contractors",
@@ -235,6 +275,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         "Concrete paving for farm-to-market roads in western municipalities.",
       category: "Infrastructure",
       status: "Approved",
+      municipality: "Piat",
       location: "Piat",
       lgu_level: "Municipality",
       contractor: "Highland Roads Inc.",

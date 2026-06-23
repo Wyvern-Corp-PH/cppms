@@ -3,6 +3,7 @@ import type {
   BudgetExpenseRecord,
   ProjectRecord,
 } from "../types"
+import { projectLocationDisplayParts } from "./project-filters"
 
 export type BudgetSummary = {
   totalBudget: number
@@ -46,7 +47,10 @@ export function computeBudgetSummary(
 }
 
 export function computeProjectBudgetBreakdown(
-  projects: readonly Pick<ProjectRecord, "id" | "name" | "location" | "total_budget">[],
+  projects: readonly Pick<
+    ProjectRecord,
+    "id" | "name" | "municipality" | "barangay" | "location" | "total_budget"
+  >[],
   allocations: readonly Pick<BudgetAllocationRecord, "project" | "amount">[],
   expenses: readonly Pick<BudgetExpenseRecord, "project" | "amount">[]
 ): ProjectBudgetBreakdownRow[] {
@@ -65,7 +69,7 @@ export function computeProjectBudgetBreakdown(
     return {
       projectId: project.id,
       name: project.name,
-      location: project.location,
+      location: projectLocationDisplayParts(project).join(" · ") || undefined,
       totalBudget,
       allocated,
       spent,

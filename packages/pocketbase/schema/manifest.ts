@@ -59,6 +59,8 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "description",
       "category",
       "status",
+      "municipality",
+      "barangay",
       "location",
       "lgu_level",
       "contractor",

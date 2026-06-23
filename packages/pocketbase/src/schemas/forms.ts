@@ -93,6 +93,8 @@ export const projectMutateSchema = z
     description: z.string().optional(),
     category: projectCategorySchema,
     status: projectStatusSchema,
+    municipality: z.string().optional(),
+    barangay: z.string().optional(),
     location: z.string().optional(),
     lgu_level: lguLevelSchema.optional(),
     contractor: z.string().optional(),

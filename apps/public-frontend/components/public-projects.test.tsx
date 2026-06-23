@@ -15,7 +15,9 @@ const store = {
       category: "Infrastructure",
       status: "Ongoing",
       budget_year: 2026,
-      location: "Tuguegarao City",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "East bank approach",
     },
     {
       id: "2",
@@ -27,9 +29,10 @@ const store = {
       category: "Infrastructure",
       status: "Ongoing",
       budget_year: 2026,
-      location: "Lasam",
+      municipality: "Lasam",
+      location: "Municipal hall grounds",
     },
-  ],
+  ] as Array<Record<string, unknown>>,
   locations: [
     {
       id: "l1",
@@ -51,7 +54,7 @@ const store = {
       slug: "lasam",
       active: true,
     },
-  ],
+  ] as Array<Record<string, unknown>>,
 }
 
 vi.mock("@/lib/pocketbase", () => ({
@@ -96,6 +99,76 @@ describe("PublicProjects (V2, J3)", () => {
 
   beforeEach(() => {
     store.failLocations = false
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "East bank approach",
+        lgu_level: "Barangay",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Water System",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        municipality: "Lasam",
+        location: "Municipal hall grounds",
+        lgu_level: "Municipality",
+      },
+    ]
+    store.locations = [
+      {
+        id: "l1",
+        collectionId: "l",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        active: true,
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+      },
+      {
+        id: "l2",
+        collectionId: "l",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        active: true,
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        barangay_name: "Centro 01 (Bagumbayan)",
+      },
+      {
+        id: "l3",
+        collectionId: "l",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Lasam",
+        slug: "lasam",
+        active: true,
+        level: "Municipality",
+        municipality_name: "Lasam",
+      },
+    ]
   })
 
   it("allows browse and filter without create/edit/delete affordances", async () => {
@@ -111,7 +184,7 @@ describe("PublicProjects (V2, J3)", () => {
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument()
   })
 
-  it("filters projects by location from PocketBase locations", async () => {
+  it("filters projects by municipality and barangay from PocketBase locations", async () => {
     const user = userEvent.setup()
     render(<PublicProjects />)
 
@@ -120,13 +193,41 @@ describe("PublicProjects (V2, J3)", () => {
       expect(screen.getByText("Water System")).toBeInTheDocument()
     })
 
-    await user.click(screen.getByLabelText(/filter by location/i))
-    await user.click(await screen.findByRole("option", { name: "Lasam" }))
+    expect(screen.queryByLabelText(/filter by location/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/filter by municipality/i))
+    await user.click(
+      await screen.findByRole("option", {
+        name: "Tuguegarao City",
+      })
+    )
+    await user.click(screen.getByLabelText(/filter by barangay/i))
+    await user.click(
+      await screen.findByRole("option", {
+        name: "Centro 01 (Bagumbayan)",
+      })
+    )
 
     await waitFor(() => {
-      expect(screen.queryByText("Bridge")).not.toBeInTheDocument()
-      expect(screen.getByText("Water System")).toBeInTheDocument()
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Water System")).not.toBeInTheDocument()
     })
+  })
+
+  it("matches admin location display by omitting LGU level", async () => {
+    render(<PublicProjects />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    expect(screen.queryByLabelText(/filter by lgu level/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /Tuguegarao City \/ Centro 01 \(Bagumbayan\) · East bank approach · Infrastructure/
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Barangay/)).not.toBeInTheDocument()
   })
 
   it("still renders projects when the locations collection is unavailable", async () => {

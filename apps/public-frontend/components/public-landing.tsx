@@ -5,6 +5,7 @@ import useEmblaCarousel from "embla-carousel-react"
 import Link from "next/link"
 
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
+import { projectLocationDisplayParts } from "@workspace/pocketbase/domain/project-filters"
 import { parseRecordList, projectRecordSchema } from "@workspace/pocketbase/schemas"
 import type { ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
@@ -43,14 +44,18 @@ function SegmentedProgress({ value }: { value: number }) {
 }
 
 function ProjectCarouselCard({ project }: { project: ProjectRecord }) {
+  const locationParts = projectLocationDisplayParts(project)
+
   return (
-    <article className="min-w-[280px] rounded-[var(--radius-lg)] border border-border bg-card p-4">
+    <article className="min-w-[280px] rounded-(--radius-lg) border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-medium leading-snug">{project.name}</h3>
         <Badge variant="secondary">{project.status}</Badge>
       </div>
       <p className="text-muted-foreground mt-1 text-sm">
-        {project.location ?? "Location not set"} · {project.category}
+        {[locationParts.join(" · ") || "Location not set", project.category].join(
+          " · "
+        )}
       </p>
       <div className="mt-3">
         <SegmentedProgress value={project.progress_pct ?? 0} />
@@ -186,12 +191,12 @@ export function PublicLanding() {
               {[0, 1, 2].map((key) => (
                 <div
                   key={key}
-                  className="bg-muted h-36 min-w-[280px] animate-pulse rounded-[var(--radius-lg)]"
+                  className="bg-muted h-36 min-w-[280px] animate-pulse rounded-(--radius-lg)"
                 />
               ))}
             </div>
           ) : projects.length === 0 ? (
-            <div className="rounded-[var(--radius-lg)] border border-dashed p-8 text-center">
+            <div className="rounded-(--radius-lg) border border-dashed p-8 text-center">
               <p className="font-medium">No projects published yet</p>
               <p className="text-muted-foreground mt-1 text-sm">
                 Records will appear here once provincial staff add them.
@@ -216,7 +221,7 @@ export function PublicLanding() {
         className="px-4 pb-12"
       >
         <div className="mx-auto max-w-6xl">
-          <div className="rounded-[var(--radius-lg)] border border-border bg-card px-6 py-8 md:px-8">
+          <div className="rounded-(--radius-lg) border border-border bg-card px-6 py-8 md:px-8">
             <h2 id="accountability-heading" className="text-lg font-semibold">
               Public accountability
             </h2>

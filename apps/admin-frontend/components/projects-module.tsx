@@ -6,6 +6,7 @@ import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
   filterProjects,
+  projectLocationDisplayParts,
   formatProjectDateRange,
 } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
@@ -70,6 +71,7 @@ type ProjectFormState = {
   status: ProjectRecord["status"]
   municipality: string
   barangay: string
+  location: string
   contractor: string
   start_date: string
   target_end_date: string
@@ -85,6 +87,7 @@ const emptyForm = (): ProjectFormState => ({
   status: "Planning",
   municipality: "",
   barangay: "",
+  location: "",
   contractor: "",
   start_date: "",
   target_end_date: "",
@@ -97,18 +100,26 @@ function namesOnRecord(...values: (string | undefined)[]): string[] {
   return values.filter((value): value is string => Boolean(value?.trim()))
 }
 
-function composeProjectLocation(form: Pick<ProjectFormState, "municipality" | "barangay">) {
-  if (!form.municipality) {
-    return ""
-  }
-  return form.barangay ? `${form.municipality} / ${form.barangay}` : form.municipality
-}
-
 function splitProjectLocation(location: string | undefined) {
   const [municipality = "", ...barangayParts] = (location ?? "").split(" / ")
   return {
     municipality,
     barangay: barangayParts.join(" / "),
+  }
+}
+
+function getLocationHierarchy(location: LocationRecord) {
+  const split = splitProjectLocation(location.name)
+  const isBarangay =
+    location.level === "Barangay" ||
+    Boolean(location.barangay_name) ||
+    location.slug.includes("/") ||
+    Boolean(split.barangay)
+
+  return {
+    isBarangay,
+    municipality: location.municipality_name || split.municipality,
+    barangay: location.barangay_name || split.barangay,
   }
 }
 
@@ -174,7 +185,7 @@ function LocationCombobox({
       >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList className="max-h-[min(16rem,var(--radix-popover-content-available-height))] overscroll-contain">
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
               <CommandItem
@@ -237,7 +248,7 @@ function ProjectCard({
             <Badge variant="secondary">{project.status}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {[project.location, project.category]
+            {[...projectLocationDisplayParts(project), project.category]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -312,7 +323,8 @@ export function ProjectsModule() {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
-  const [locationSlug, setLocationSlug] = useState("all")
+  const [municipalityFilter, setMunicipalityFilter] = useState("all")
+  const [barangayFilter, setBarangayFilter] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -376,11 +388,22 @@ export function ProjectsModule() {
             : (category as ProjectRecord["category"]),
         status:
           status === "all" ? undefined : (status as ProjectRecord["status"]),
-        locationSlug: locationSlug === "all" ? undefined : locationSlug,
+        municipality:
+          municipalityFilter === "all" ? undefined : municipalityFilter,
+        barangay: barangayFilter === "all" ? undefined : barangayFilter,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       }),
-    [projects, query, category, status, locationSlug, dateFrom, dateTo]
+    [
+      projects,
+      query,
+      category,
+      status,
+      municipalityFilter,
+      barangayFilter,
+      dateFrom,
+      dateTo,
+    ]
   )
 
   function openCreate() {
@@ -407,8 +430,9 @@ export function ProjectsModule() {
       description: project.description ?? "",
       category: project.category,
       status: project.status,
-      municipality: locationParts.municipality,
-      barangay: locationParts.barangay,
+      municipality: project.municipality ?? locationParts.municipality,
+      barangay: project.barangay ?? locationParts.barangay,
+      location: project.location ?? "",
       contractor: project.contractor ?? "",
       start_date: project.start_date ?? "",
       target_end_date: project.target_end_date ?? "",
@@ -431,7 +455,9 @@ export function ProjectsModule() {
       description: form.description,
       category: form.category,
       status: form.status,
-      location: composeProjectLocation(form),
+      municipality: form.municipality || undefined,
+      barangay: form.barangay || undefined,
+      location: form.location,
       contractor: form.contractor,
       start_date: form.start_date || undefined,
       target_end_date: form.target_end_date || undefined,
@@ -508,11 +534,21 @@ export function ProjectsModule() {
 
   const municipalityChoices = useMemo(() => {
     const municipalities = locations
-      .filter((location) => location.level !== "Barangay")
-      .map((location) => ({
-        id: location.id,
-        name: location.municipality_name || location.name,
-      }))
+      .map((location) => {
+        const hierarchy = getLocationHierarchy(location)
+        if (hierarchy.isBarangay) {
+          return {
+            id: `municipality-${location.id}`,
+            name: hierarchy.municipality,
+          }
+        }
+
+        return {
+          id: location.id,
+          name: location.municipality_name || location.name,
+        }
+      })
+      .filter((location) => location.name)
 
     if (
       form.municipality &&
@@ -533,15 +569,15 @@ export function ProjectsModule() {
     }
 
     const barangays = locations
-      .filter(
-        (location) =>
-          location.level === "Barangay" &&
-          location.municipality_name === form.municipality
-      )
       .map((location) => ({
         id: location.id,
-        name: location.barangay_name || splitProjectLocation(location.name).barangay,
+        ...getLocationHierarchy(location),
       }))
+      .filter(
+        (location) =>
+          location.isBarangay && location.municipality === form.municipality
+      )
+      .map((location) => ({ id: location.id, name: location.barangay }))
       .filter((location) => location.name)
 
     if (
@@ -556,6 +592,26 @@ export function ProjectsModule() {
 
     return uniqueByName(barangays)
   }, [form.barangay, form.municipality, locations])
+
+  const filterBarangayChoices = useMemo(() => {
+    if (municipalityFilter === "all") {
+      return []
+    }
+
+    return uniqueByName(
+      locations
+        .map((location) => ({
+          id: location.id,
+          ...getLocationHierarchy(location),
+        }))
+        .filter(
+          (location) =>
+            location.isBarangay && location.municipality === municipalityFilter
+        )
+        .map((location) => ({ id: location.id, name: location.barangay }))
+        .filter((location) => location.name)
+    )
+  }, [locations, municipalityFilter])
 
   const ongoing = projects.filter(
     (project) => project.status === "Ongoing"
@@ -620,14 +676,37 @@ export function ProjectsModule() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={locationSlug} onValueChange={setLocationSlug}>
-            <SelectTrigger aria-label="Filter by location">
-              <SelectValue placeholder="Location" />
+          <Select
+            value={municipalityFilter}
+            onValueChange={(value) => {
+              setMunicipalityFilter(value)
+              setBarangayFilter("all")
+            }}
+          >
+            <SelectTrigger aria-label="Filter by municipality">
+              <SelectValue placeholder="Municipality" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All locations</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location.id} value={location.slug}>
+              <SelectItem value="all">All municipalities</SelectItem>
+              {municipalityChoices.map((location) => (
+                <SelectItem key={location.id} value={location.name}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={barangayFilter}
+            onValueChange={setBarangayFilter}
+            disabled={municipalityFilter === "all"}
+          >
+            <SelectTrigger aria-label="Filter by barangay">
+              <SelectValue placeholder="Barangay" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All barangays</SelectItem>
+              {filterBarangayChoices.map((location) => (
+                <SelectItem key={location.id} value={location.name}>
                   {location.name}
                 </SelectItem>
               ))}
@@ -866,6 +945,16 @@ export function ProjectsModule() {
                   disabled={!form.municipality}
                 />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-location">Location</Label>
+              <Input
+                id="project-location"
+                value={form.location}
+                onChange={(event) =>
+                  setForm({ ...form, location: event.target.value })
+                }
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="project-contractor">Contractor</Label>

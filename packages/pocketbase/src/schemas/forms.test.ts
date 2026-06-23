@@ -51,6 +51,27 @@ describe("projectMutateSchema (V34)", () => {
       )
     }
   })
+
+  it("accepts municipality, barangay, and free-form location as separate project fields", () => {
+    const result = projectMutateSchema.safeParse({
+      name: "Bridge repair",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "East bank approach",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "East bank approach",
+      })
+    }
+  })
 })
 
 describe("approvalFormSchema (V5, V35)", () => {
