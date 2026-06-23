@@ -787,7 +787,7 @@ export function ProjectsModule() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit project" : "New project"}
@@ -1062,7 +1062,7 @@ export function ProjectsModule() {
           if (!open) setStatusTarget(null)
         }}
       >
-        <DialogContent className="max-w-xs">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-xs">
           <DialogHeader>
             <DialogTitle>Change status</DialogTitle>
             <DialogDescription>

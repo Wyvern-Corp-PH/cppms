@@ -315,6 +315,13 @@ describe("ProjectsModule (J4)", () => {
     render(<ProjectsModule />)
 
     await user.click(await screen.findByTestId("create-project"))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
+    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
+    expect(dialog).toHaveClass("overflow-y-auto")
+    expect(dialog).toHaveClass("sm:max-w-lg")
+
     await user.click(
       await screen.findByRole("combobox", { name: /^municipality$/i })
     )
@@ -323,6 +330,35 @@ describe("ProjectsModule (J4)", () => {
     expect(list).toHaveClass("overscroll-contain")
     expect(list?.className).toContain("max-h-[min(")
     expect(list).toHaveClass("overflow-y-auto")
+  })
+
+  it("keeps status change dialog responsive at zoomed viewports", async () => {
+    const user = userEvent.setup()
+    store.projects.push({
+      id: "1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Bridge",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      progress_pct: 0,
+    })
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /change status/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
+    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
+    expect(dialog).toHaveClass("overflow-y-auto")
+    expect(dialog).toHaveClass("sm:max-w-xs")
   })
 
   it("derives municipality choices from hierarchy-only barangay rows", async () => {

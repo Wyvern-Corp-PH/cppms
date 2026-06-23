@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   users: [
@@ -43,6 +43,29 @@ vi.mock("@/lib/pocketbase", () => ({
 import { UserManagementModule } from "./user-management-module"
 
 describe("UserManagementModule (J6)", () => {
+  beforeAll(() => {
+    Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
+      configurable: true,
+      value: vi.fn(() => false),
+    })
+    Object.defineProperty(window.HTMLElement.prototype, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    Object.defineProperty(
+      window.HTMLElement.prototype,
+      "releasePointerCapture",
+      {
+        configurable: true,
+        value: vi.fn(),
+      }
+    )
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+  })
+
   beforeEach(() => {
     updateMock.mockClear()
     deleteMock.mockClear()
@@ -85,5 +108,18 @@ describe("UserManagementModule (J6)", () => {
       screen.getByRole("button", { name: /reset password for admin user/i })
     )
     expect(requestPasswordResetMock).toHaveBeenCalledWith("admin@example.test")
+  })
+
+  it("keeps create account dialog responsive at zoomed viewports", async () => {
+    const user = userEvent.setup()
+    render(<UserManagementModule />)
+
+    await user.click(await screen.findByRole("button", { name: /create account/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
+    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
+    expect(dialog).toHaveClass("overflow-y-auto")
+    expect(dialog).toHaveClass("sm:max-w-lg")
   })
 })
