@@ -5,6 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
+  users: [] as Array<Record<string, unknown>>,
+  authRecord: {
+    id: "current-user",
+    email: "current@example.test",
+    name: "Current Admin",
+    role: "Admin",
+    account_status: "Active",
+  } as Record<string, unknown> | null,
 }
 
 const createMock = vi.fn()
@@ -12,10 +20,14 @@ const updateMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
+    authStore: {
+      record: store.authRecord,
+    },
     collection: (name: string) => ({
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
+        if (name === "users") return store.users
         return []
       }),
       create: createMock,
@@ -30,6 +42,14 @@ describe("ProgressModule (V81, V84)", () => {
   beforeEach(() => {
     store.projects = []
     store.updates = []
+    store.users = []
+    store.authRecord = {
+      id: "current-user",
+      email: "current@example.test",
+      name: "Current Admin",
+      role: "Admin",
+      account_status: "Active",
+    }
     createMock.mockReset().mockResolvedValue({})
     updateMock.mockReset().mockResolvedValue({})
   })
@@ -117,6 +137,98 @@ describe("ProgressModule (V81, V84)", () => {
 
     const row = await screen.findByTestId("progress-row-1")
     expect(within(row).getByText(/^75%$/)).toBeInTheDocument()
+  })
+
+  it("renders progress updater user ids as user names", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-22 00:00:00.000Z",
+        project: "1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+        updated_by: "user1",
+      },
+    ]
+    store.users = [
+      {
+        id: "user1",
+        collectionId: "users",
+        collectionName: "users",
+        email: "ana@example.test",
+        name: "Ana Santos",
+        role: "Admin",
+        account_status: "Active",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /view details/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ana Santos/)).not.toHaveLength(0)
+      expect(screen.queryByText(/user1/)).not.toBeInTheDocument()
+    })
+  })
+
+  it("renders the current auth user name when user list is unavailable", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-22 00:00:00.000Z",
+        project: "1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+        updated_by: "current-user",
+      },
+    ]
+    store.users = []
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /view details/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Current Admin/)).not.toHaveLength(0)
+      expect(screen.queryByText(/current-user/)).not.toBeInTheDocument()
+    })
   })
 
   it("saves a progress update even when the project meter PATCH fails", async () => {

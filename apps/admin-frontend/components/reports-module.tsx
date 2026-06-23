@@ -5,6 +5,12 @@ import * as XLSX from "xlsx"
 
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDate, formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
+import { projectLocationDisplayParts } from "@workspace/pocketbase/domain/project-filters"
+import {
+  buildUserDisplayMap,
+  displayUserRef,
+  type UserDisplayRecord,
+} from "@workspace/pocketbase/domain/user-display"
 import {
   computeBudgetSummary,
   computeProjectBudgetBreakdown,
@@ -69,6 +75,7 @@ export function ReportsModule() {
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [activityLogs, setActivityLogs] = useState<ActivityLogRecord[]>([])
+  const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
   const [activeTab, setActiveTab] = useState<ReportTab>("projects")
   const [loading, setLoading] = useState(true)
@@ -78,7 +85,7 @@ export function ReportsModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows, updateRows, logRows] = await Promise.all([
+    const [projectRows, allocationRows, expenseRows, updateRows, logRows, userRows] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
@@ -86,12 +93,14 @@ export function ReportsModule() {
       canViewActivityLogs
         ? pb.collection("activity_logs").getFullList()
         : Promise.resolve([]),
+      pb.collection("users").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
     setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
+    setUsers(userRows as UserDisplayRecord[])
     setLoading(false)
   }, [canViewActivityLogs])
 
@@ -111,6 +120,10 @@ export function ReportsModule() {
   const filteredProjects = useMemo(
     () => filterReportProjects(projects, filters),
     [projects, filters]
+  )
+  const userDisplay = useMemo(
+    () => buildUserDisplayMap(users, user ? [user] : []),
+    [user, users]
   )
 
   const summary = computeBudgetSummary(filteredProjects, allocations, expenses)
@@ -138,7 +151,7 @@ export function ReportsModule() {
           status: project.status,
           deadline: resolveDeadlineStatus(project.target_end_date, project.progress_pct ?? 0),
           lgu: project.lgu_level,
-          location: project.location,
+          location: projectLocationDisplayParts(project).join(" · "),
           budget: project.total_budget,
           progress: project.progress_pct,
         }))
@@ -155,7 +168,7 @@ export function ReportsModule() {
             photo:
               sitePhotoNames(update.site_photo).length > 0 ? "Yes" : "No",
             updated_at: formatDisplayDateTime(update.updated_at ?? update.created),
-            updated_by: update.updated_by,
+            updated_by: displayUserRef(update.updated_by, userDisplay),
           }
         })
       } else {
@@ -166,7 +179,7 @@ export function ReportsModule() {
           approved_at: project.approved_at
             ? formatDisplayDate(project.approved_at)
             : "Pending",
-          approved_by: project.approved_by ?? "Pending",
+          approved_by: displayUserRef(project.approved_by, userDisplay, "Pending"),
         }))
       }
       XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), tab)
@@ -368,7 +381,9 @@ export function ReportsModule() {
                         </Badge>
                       </td>
                       <td className="px-4 py-2">{project.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">{project.location ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {projectLocationDisplayParts(project).join(" · ") || "—"}
+                      </td>
                       <td className="px-4 py-2">{formatPhp(project.total_budget ?? 0)}</td>
                       <td className="px-4 py-2">{project.progress_pct ?? 0}%</td>
                     </tr>
@@ -403,7 +418,11 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{row.name}</td>
                       <td className="px-4 py-2">{project?.category}</td>
                       <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">{project?.location ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {project
+                          ? projectLocationDisplayParts(project).join(" · ") || "—"
+                          : "—"}
+                      </td>
                       <td className="px-4 py-2">{formatPhp(row.totalBudget)}</td>
                       <td className="px-4 py-2">{formatPhp(row.allocated)}</td>
                       <td className="px-4 py-2">{formatPhp(row.spent)}</td>
@@ -453,7 +472,11 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{project?.name}</td>
                       <td className="px-4 py-2">{project?.category}</td>
                       <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">{project?.location ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {project
+                          ? projectLocationDisplayParts(project).join(" · ") || "—"
+                          : "—"}
+                      </td>
                       <td className="px-4 py-2">{update.from_pct}%</td>
                       <td className="px-4 py-2">{update.to_pct}%</td>
                       <td className="px-4 py-2">{change >= 0 ? `+${change}` : change}%</td>
@@ -468,7 +491,9 @@ export function ReportsModule() {
                           : null}
                       </td>
                       <td className="px-4 py-2">{formatDisplayDateTime(update.updated_at ?? update.created)}</td>
-                      <td className="px-4 py-2">{update.updated_by ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {displayUserRef(update.updated_by, userDisplay)}
+                      </td>
                     </tr>
                   )
                 })}
@@ -505,7 +530,9 @@ export function ReportsModule() {
                       <td className="px-4 py-2">{project.name}</td>
                       <td className="px-4 py-2">{project.category}</td>
                       <td className="px-4 py-2">{project.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">{project.location ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {projectLocationDisplayParts(project).join(" · ") || "—"}
+                      </td>
                       <td className="px-4 py-2">{project.status}</td>
                       <td className="px-4 py-2">{formatPhp(project.total_budget ?? 0)}</td>
                       <td className="px-4 py-2 text-destructive">{formatPhp(spent)}</td>
@@ -513,7 +540,9 @@ export function ReportsModule() {
                       <td className="px-4 py-2">
                         {project.approved_at ? formatDisplayDate(project.approved_at) : "Pending"}
                       </td>
-                      <td className="px-4 py-2">{project.approved_by ?? "Pending"}</td>
+                      <td className="px-4 py-2">
+                        {displayUserRef(project.approved_by, userDisplay, "Pending")}
+                      </td>
                     </tr>
                   )
                 })}
@@ -545,7 +574,9 @@ export function ReportsModule() {
               <tbody>
                 {activityLogs.map((log) => (
                   <tr key={log.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2">{log.actor_user ?? log.actor_role}</td>
+                    <td className="px-3 py-2">
+                      {displayUserRef(log.actor_user, userDisplay, log.actor_role)}
+                    </td>
                     <td className="px-3 py-2">{log.action}</td>
                     <td className="px-3 py-2">
                       {log.resource}

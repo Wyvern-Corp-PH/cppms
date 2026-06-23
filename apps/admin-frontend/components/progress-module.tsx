@@ -4,7 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
-import { formatProjectDateRange } from "@workspace/pocketbase/domain/project-filters"
+import {
+  formatProjectDateRange,
+  projectLocationDisplayParts,
+} from "@workspace/pocketbase/domain/project-filters"
+import {
+  buildUserDisplayMap,
+  displayUserRef,
+  type UserDisplayRecord,
+} from "@workspace/pocketbase/domain/user-display"
 import { buildProgressSummaryCards } from "@workspace/pocketbase/domain/progress-summary"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
@@ -83,6 +91,7 @@ function effectiveProgressPct(
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -106,9 +115,10 @@ export function ProgressModule() {
     setLoading(true)
     try {
       const pb = getPocketBase()
-      const [projectRows, updateRows] = await Promise.all([
+      const [projectRows, updateRows, userRows] = await Promise.all([
         pb.collection("projects").getFullList(),
         pb.collection("progress_updates").getFullList(),
+        pb.collection("users").getFullList().catch(() => []),
       ])
       const parsedUpdates = parseRecordList(
         progressUpdateRecordSchema,
@@ -121,6 +131,7 @@ export function ProgressModule() {
       })
       setProjects(parseRecordList(projectRecordSchema, projectRows))
       setUpdates(parsedUpdates)
+      setUsers(userRows as UserDisplayRecord[])
     } finally {
       setLoading(false)
     }
@@ -138,6 +149,10 @@ export function ProgressModule() {
   )
 
   const summary = buildProgressSummaryCards(projects, updates)
+  const userDisplay = useMemo(
+    () => buildUserDisplayMap(users, actor ? [actor] : []),
+    [actor, users]
+  )
   const selected = projects.find((project) => project.id === selectedId) ?? null
   const selectedUpdates = useMemo(
     () =>
@@ -352,7 +367,7 @@ export function ProgressModule() {
                       <Badge variant="secondary">{project.status}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {[project.location, project.lgu_level]
+                      {projectLocationDisplayParts(project)
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
@@ -427,7 +442,11 @@ export function ProgressModule() {
             <div className="mt-3 space-y-3 text-sm">
               <p className="font-medium">{selected.name}</p>
               <p className="text-muted-foreground">
-                {[selected.location, selected.category, selected.lgu_level]
+                {[
+                  ...projectLocationDisplayParts(selected),
+                  selected.category,
+                  selected.lgu_level,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -459,7 +478,7 @@ export function ProgressModule() {
                         {formatDisplayDateTime(
                           update.updated_at ?? update.created
                         )}{" "}
-                        · {update.updated_by ?? "Admin"}
+                        · {displayUserRef(update.updated_by, userDisplay, "Admin")}
                       </p>
                       {update.notes ? (
                         <p className="text-xs">{update.notes}</p>
@@ -503,7 +522,11 @@ export function ProgressModule() {
             <div className="space-y-3 text-sm">
               <p className="font-medium">{selected.name}</p>
               <p className="text-muted-foreground">
-                {[selected.location, selected.category, selected.lgu_level]
+                {[
+                  ...projectLocationDisplayParts(selected),
+                  selected.category,
+                  selected.lgu_level,
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -533,7 +556,7 @@ export function ProgressModule() {
                         {formatDisplayDateTime(
                           update.updated_at ?? update.created
                         )}{" "}
-                        · {update.updated_by ?? "Admin"}
+                        · {displayUserRef(update.updated_by, userDisplay, "Admin")}
                       </p>
                       {update.notes ? (
                         <p className="text-xs">{update.notes}</p>

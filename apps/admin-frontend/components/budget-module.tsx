@@ -9,6 +9,11 @@ import {
   formatAllocationAmount,
   formatExpenseAmount,
 } from "@workspace/pocketbase/domain/budget-summary"
+import {
+  buildUserDisplayMap,
+  displayUserRef,
+  type UserDisplayRecord,
+} from "@workspace/pocketbase/domain/user-display"
 import { formatDisplayDate } from "@workspace/pocketbase/domain/format-display-date"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
@@ -60,6 +65,7 @@ export function BudgetModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [tabProjectFilter, setTabProjectFilter] = useState("all")
   const [tabYearFilter, setTabYearFilter] = useState(String(new Date().getFullYear()))
@@ -95,14 +101,16 @@ export function BudgetModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows] = await Promise.all([
+    const [projectRows, allocationRows, expenseRows, userRows] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
+      pb.collection("users").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
+    setUsers(userRows as UserDisplayRecord[])
     setLoading(false)
   }, [])
 
@@ -119,6 +127,10 @@ export function BudgetModule() {
 
   const summary = computeBudgetSummary(projects, allocations, expenses)
   const breakdown = computeProjectBudgetBreakdown(projects, allocations, expenses)
+  const userDisplay = useMemo(
+    () => buildUserDisplayMap(users, actor ? [actor] : []),
+    [actor, users]
+  )
   const allocatedPct =
     summary.totalBudget > 0
       ? Math.round((summary.totalAllocated / summary.totalBudget) * 100)
@@ -353,7 +365,9 @@ export function BudgetModule() {
                     <td className="px-4 py-2">{row.year}</td>
                     <td className="px-4 py-2">{row.description ?? "—"}</td>
                     <td className="px-4 py-2">{formatDisplayDate(row.date)}</td>
-                    <td className="px-4 py-2">{row.allocated_by ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {displayUserRef(row.allocated_by, userDisplay)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
