@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   approvalFormSchema,
+  budgetExpenseMutateSchema,
   loginFormSchema,
   progressUpdateFormSchema,
   projectMutateSchema,
@@ -93,6 +94,47 @@ describe("approvalFormSchema (V5, V35)", () => {
       authority_name: "Governor",
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe("budgetExpenseMutateSchema (V34, V157)", () => {
+  it("accepts fund source fields without a category", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      fund_source: "General Fund",
+      funding_years: "2026",
+      fund_type: "Local",
+      date: "2026-06-24",
+      receipt_number: "OR-1",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toMatchObject({
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
+      })
+      expect("category" in result.data).toBe(false)
+    }
+  })
+
+  it("requires manual fund type text when fund type is Other", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      fund_source: "General Fund",
+      funding_years: "2026",
+      fund_type: "Other",
+      fund_type_other: "",
+      date: "2026-06-24",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).fund_type_other).toMatch(/required/i)
+    }
   })
 })
 

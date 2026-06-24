@@ -12,28 +12,33 @@ export const SAMPLE_INACTIVE_USER_EMAIL = "sample.inactive@cppms.test"
 export type DevSeedUser = {
   email: string
   name: string
-  role: "Super Admin" | "Admin" | "User"
+  role: "Super Admin" | "Province" | "Municipality" | "Barangay"
   account_status: "Active" | "Inactive"
+  municipality?: string
+  barangay?: string
 }
 
 export const DEV_SEED_USERS: DevSeedUser[] = [
   {
     email: SAMPLE_ADMIN_EMAIL,
-    name: "Sample Admin",
-    role: "Admin",
+    name: "Sample Province Reviewer",
+    role: "Province",
     account_status: "Active",
   },
   {
     email: SAMPLE_USER_EMAIL,
-    name: "Sample User",
-    role: "User",
+    name: "Sample Barangay Encoder",
+    role: "Barangay",
     account_status: "Active",
+    municipality: "Tuguegarao City",
+    barangay: "Centro 01 (Bagumbayan)",
   },
   {
     email: SAMPLE_INACTIVE_USER_EMAIL,
     name: "Sample Inactive User",
-    role: "User",
+    role: "Municipality",
     account_status: "Inactive",
+    municipality: "Lasam",
   },
 ]
 
@@ -59,7 +64,10 @@ export type DevSeedProject = {
   allocation: { amount: number; description: string }
   expenses: Array<{
     amount: number
-    category: "Materials" | "Labor" | "Equipment" | "Permits & Fees" | "Other"
+    fund_source: string
+    funding_years: string
+    fund_type: "Local" | "National" | "Grant" | "Other"
+    fund_type_other?: string
     description: string
   }>
   progress?: { from_pct: number; to_pct: number; notes: string }
@@ -87,10 +95,18 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 4_200_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         description: "Rebar and concrete",
       },
-      { amount: 1_800_000, category: "Labor", description: "Crew wages Q1" },
+      {
+        amount: 1_800_000,
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
+        description: "Crew wages Q1",
+      },
     ],
     progress: { from_pct: 45, to_pct: 62, notes: "Deck segment B poured." },
   },
@@ -118,7 +134,9 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 950_000,
-        category: "Equipment",
+        fund_source: "National Grant",
+        funding_years: "2026",
+        fund_type: "National",
         description: "Diagnostic package down payment",
       },
     ],
@@ -145,10 +163,19 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 2_100_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         description: "Seed stock procurement",
       },
-      { amount: 450_000, category: "Other", description: "Warehouse handling" },
+      {
+        amount: 450_000,
+        fund_source: "Trust Fund",
+        funding_years: "2026",
+        fund_type: "Other",
+        fund_type_other: "Warehouse handling fund",
+        description: "Warehouse handling",
+      },
     ],
     progress: {
       from_pct: 40,
@@ -176,7 +203,9 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 120_000,
-        category: "Permits & Fees",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         description: "Environmental clearance",
       },
     ],
@@ -203,7 +232,10 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 5_600_000,
-        category: "Other",
+        fund_source: "Scholarship Fund",
+        funding_years: "2026",
+        fund_type: "Other",
+        fund_type_other: "Scholarship trust fund",
         description: "First semester disbursements",
       },
     ],
@@ -230,7 +262,9 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 1_350_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         description: "Precast culverts",
       },
     ],
@@ -261,10 +295,18 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 2_800_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         description: "Clinic fit-out",
       },
-      { amount: 900_000, category: "Labor", description: "Construction labor" },
+      {
+        amount: 900_000,
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
+        description: "Construction labor",
+      },
     ],
     progress: { from_pct: 85, to_pct: 100, notes: "Final inspection passed." },
   },
@@ -290,12 +332,16 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 16_200_000,
-        category: "Materials",
+        fund_source: "National Grant",
+        funding_years: "2026",
+        fund_type: "National",
         description: "Paving works",
       },
       {
         amount: 1_200_000,
-        category: "Labor",
+        fund_source: "National Grant",
+        funding_years: "2026",
+        fund_type: "National",
         description: "Quality assurance crew",
       },
     ],

@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import {
   approvalActionSchema,
-  expenseCategorySchema,
+  fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
@@ -123,14 +123,27 @@ export const budgetAllocationMutateSchema = z.object({
   description: z.string().optional(),
 })
 
-export const budgetExpenseMutateSchema = z.object({
-  project: z.string().min(1, "Project is required."),
-  amount: z.coerce.number().positive("Amount must be greater than zero."),
-  category: expenseCategorySchema,
-  date: z.string().min(1),
-  receipt_number: z.string().optional(),
-  description: z.string().optional(),
-})
+export const budgetExpenseMutateSchema = z
+  .object({
+    project: z.string().min(1, "Project is required."),
+    amount: z.coerce.number().positive("Amount must be greater than zero."),
+    fund_source: z.string().trim().min(1, "Fund source is required."),
+    funding_years: z.string().trim().min(1, "Funding year is required."),
+    fund_type: fundTypeSchema,
+    fund_type_other: z.string().optional(),
+    date: z.string().min(1),
+    receipt_number: z.string().optional(),
+    description: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.fund_type === "Other" && !value.fund_type_other?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fund_type_other"],
+        message: "Other fund type is required.",
+      })
+    }
+  })
 
 export const progressUpdateFormSchema = z
   .object({
@@ -169,11 +182,17 @@ export const approvalFormSchema = z
     reason: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.action === "reject" && !value.reason?.trim()) {
+    if (
+      (value.action === "reject" || value.action === "request_revision") &&
+      !value.reason?.trim()
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["reason"],
-        message: "Rejection reason is required.",
+        message:
+          value.action === "reject"
+            ? "Rejection reason is required."
+            : "Revision notes are required.",
       })
     }
   })

@@ -141,6 +141,8 @@ async function upsertSampleUser(user: (typeof DEV_SEED_USERS)[number]) {
     name: user.name,
     role: user.role,
     account_status: user.account_status,
+    municipality: user.municipality,
+    barangay: user.barangay,
   }
 
   if (existing) {
@@ -296,7 +298,10 @@ async function seedDemoProjects(
       await pb.collection("budget_expenses").create({
         project: project.id,
         amount: expense.amount,
-        category: expense.category,
+        fund_source: expense.fund_source,
+        funding_years: expense.funding_years,
+        fund_type: expense.fund_type,
+        fund_type_other: expense.fund_type_other,
         description: expense.description,
         date: today,
       })

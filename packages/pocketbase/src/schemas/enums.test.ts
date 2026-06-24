@@ -4,7 +4,6 @@ import {
   APPROVAL_ACTION,
   ACCOUNT_STATUS,
   AUDIT_ACTION,
-  EXPENSE_CATEGORY,
   LGU_LEVEL,
   PROJECT_CATEGORY,
   PROJECT_STATUS,
@@ -15,7 +14,7 @@ import {
   approvalActionSchema,
   accountStatusSchema,
   auditActionSchema,
-  expenseCategorySchema,
+  fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
@@ -39,7 +38,7 @@ describe("schema enums (V36)", () => {
     expect(projectStatusSchema.safeParse("Invalid").success).toBe(false)
     expect(projectCategorySchema.safeParse("").success).toBe(false)
     expect(lguLevelSchema.safeParse("Province").success).toBe(false)
-    expect(expenseCategorySchema.safeParse("Travel").success).toBe(false)
+    expect(fundTypeSchema.safeParse("Travel").success).toBe(false)
     expect(approvalActionSchema.safeParse("hold").success).toBe(false)
     expect(roleSchema.safeParse("Manager").success).toBe(false)
     expect(accountStatusSchema.safeParse("Suspended").success).toBe(false)
@@ -50,10 +49,10 @@ describe("schema enums (V36)", () => {
     expect(PROJECT_STATUS).toHaveLength(6)
     expect(PROJECT_CATEGORY).toHaveLength(6)
     expect(LGU_LEVEL).toHaveLength(4)
-    expect(EXPENSE_CATEGORY).toHaveLength(5)
-    expect(APPROVAL_ACTION).toHaveLength(2)
-    expect(ROLE).toEqual(["Super Admin", "Admin", "User"])
+    expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
+    expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
+    expect(AUDIT_ACTION).toContain("request_revision")
     expect(AUDIT_ACTION).toContain("reset_password")
   })
 })

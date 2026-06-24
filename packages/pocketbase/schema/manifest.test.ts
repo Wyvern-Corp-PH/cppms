@@ -12,7 +12,7 @@ import {
   COLLECTION_DELETE_ORDER,
   COLLECTION_MANIFEST,
   COLLECTION_NAMES,
-  EXPENSE_CATEGORY,
+  FUND_TYPE,
   LGU_LEVEL,
   MIGRATION_FILE,
   PROJECT_CATEGORY,
@@ -62,6 +62,21 @@ const locationHierarchyMigrationPath = resolve(
   "pb_migrations",
   "1740000010_location_hierarchy.js"
 )
+const budgetFundSourceRbacMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000011_budget_fund_source_rbac.js"
+)
+const pbacRulesMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000012_pbac_scope_rules_audit_scope.js"
+)
+const enumRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000013_approval_audit_select_values.js"
+)
 
 describe("schema manifest (SPEC §I)", () => {
   it("defines auth, module, location, and audit collections", () => {
@@ -81,10 +96,11 @@ describe("schema manifest (SPEC §I)", () => {
     expect(PROJECT_STATUS).toContain("Completed")
     expect(PROJECT_CATEGORY).toContain("Infrastructure")
     expect(LGU_LEVEL).toContain("Municipality")
-    expect(EXPENSE_CATEGORY).toContain("Materials")
-    expect(APPROVAL_ACTION).toEqual(["approve", "reject"])
-    expect(ROLE).toEqual(["Super Admin", "Admin", "User"])
+    expect(FUND_TYPE).toContain("Other")
+    expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
+    expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
+    expect(AUDIT_ACTION).toContain("request_revision")
     expect(AUDIT_ACTION).toContain("reset_password")
   })
 
@@ -129,6 +145,15 @@ describe("schema manifest (SPEC §I)", () => {
 
 describe("pb migration file", () => {
   const migrationSource = readFileSync(migrationPath, "utf8")
+  const additiveMigrationSource = [
+    completionDocsMigrationPath,
+    userFieldRepairMigrationPath,
+    locationHierarchyMigrationPath,
+    budgetFundSourceRbacMigrationPath,
+    pbacRulesMigrationPath,
+  ]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n")
 
   it("exists and exports migrate()", () => {
     expect(migrationSource).toMatch(/migrate\s*\(/)
@@ -144,8 +169,8 @@ describe("pb migration file", () => {
     for (const { name, fields } of COLLECTION_MANIFEST) {
       for (const field of fields) {
         expect(
-          migrationSource,
-          `${name}.${field} missing in ${MIGRATION_FILE}`
+          `${migrationSource}\n${additiveMigrationSource}`,
+          `${name}.${field} missing in initial/additive migrations`
         ).toContain(`name: "${field}"`)
       }
     }
@@ -177,12 +202,12 @@ describe("pb migration file", () => {
 })
 
 describe("collection access rules (V14, T8)", () => {
-  it("manifest defines public read and admin write rule strings", () => {
-    expect(PUBLIC_READ_RULE).toBe("")
+  it("manifest defines scoped PBAC baseline rule strings", () => {
+    expect(PUBLIC_READ_RULE).toBe('@request.auth.id = ""')
     expect(ADMIN_WRITE_RULE).toBe('@request.auth.id != ""')
     expect(COLLECTION_ACCESS_RULES).toEqual({
-      listRule: "",
-      viewRule: "",
+      listRule: '@request.auth.id = ""',
+      viewRule: '@request.auth.id = ""',
       createRule: '@request.auth.id != ""',
       updateRule: '@request.auth.id != ""',
       deleteRule: '@request.auth.id != ""',
@@ -196,7 +221,7 @@ describe("collection access rules (V14, T8)", () => {
     expect(rulesMigrationSource).toMatch(/migrate\s*\(/)
   })
 
-  it("rules migration applies public read + admin write to every collection", () => {
+  it("rules migration applies scoped PBAC rules to every collection", () => {
     for (const name of COLLECTION_NAMES) {
       expect(
         rulesMigrationSource,
@@ -209,8 +234,8 @@ describe("collection access rules (V14, T8)", () => {
     expect(rulesMigrationSource).toContain("createRule")
     expect(rulesMigrationSource).toContain("updateRule")
     expect(rulesMigrationSource).toContain("deleteRule")
-    expect(rulesMigrationSource).toContain(PUBLIC_READ_RULE)
     expect(rulesMigrationSource).toContain(ADMIN_WRITE_RULE)
+    expect(readFileSync(pbacRulesMigrationPath, "utf8")).toContain("applyPbacRules")
   })
 
   it("skips collections that are not present yet on fresh databases", () => {
@@ -263,6 +288,44 @@ describe("collection access rules (V14, T8)", () => {
     expect(seedScriptSource).toContain("CAGAYAN_LOCATION_TREE")
     expect(seedScriptSource).toContain("barangay_name")
   })
+
+  it("adds fund source fields and four-role RBAC for existing collections", () => {
+    const migrationSource = readFileSync(budgetFundSourceRbacMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("ensureBudgetExpenseFields")
+    expect(migrationSource).toContain("fund_source")
+    expect(migrationSource).toContain("funding_years")
+    expect(migrationSource).toContain("fund_type")
+    expect(migrationSource).toContain("fund_type_other")
+    expect(migrationSource).toContain("ROLE_VALUES")
+    expect(migrationSource).toContain("Province")
+    expect(migrationSource).toContain("Barangay")
+    expect(seedScriptSource).toContain("fund_source: expense.fund_source")
+  })
+
+  it("adds PBAC scope rules and audit actor scope fields for existing collections", () => {
+    const migrationSource = readFileSync(pbacRulesMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("PROVINCE_RULE")
+    expect(migrationSource).toContain("BARANGAY_PROJECT_SCOPE_RULE")
+    expect(migrationSource).toContain("MUNICIPALITY_PROJECT_SCOPE_RULE")
+    expect(migrationSource).toContain("applyPbacRules")
+    expect(migrationSource).toContain("approval_actions")
+    expect(migrationSource).toContain('role = "Province"')
+    expect(migrationSource).toContain("actor_municipality")
+    expect(migrationSource).toContain("actor_barangay")
+  })
+
+  it("repairs approval and audit select values to match manifest enums", () => {
+    const migrationSource = readFileSync(enumRepairMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("approval_actions")
+    expect(migrationSource).toContain("activity_logs")
+    expect(migrationSource).toContain("request_revision")
+    expect(migrationSource).toContain("Province")
+    expect(migrationSource).toContain("Municipality")
+    expect(migrationSource).toContain("Barangay")
+  })
 })
 
 describe("PocketBase audit hook (V124-V130)", () => {
@@ -300,6 +363,12 @@ describe("PocketBase audit hook (V124-V130)", () => {
     expect(hookSource).toContain("request_id")
     expect(hookSource).toContain("version")
     expect(hookSource).toContain("commit")
+  })
+
+  it("writes actor municipality and barangay scope in wide events", () => {
+    expect(hookSource).toContain("actorScope")
+    expect(hookSource).toContain('audit.set("actor_municipality"')
+    expect(hookSource).toContain('audit.set("actor_barangay"')
   })
 
   it("carries request auth into delayed success/error hooks", () => {

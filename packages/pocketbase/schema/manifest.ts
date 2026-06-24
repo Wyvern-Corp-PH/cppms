@@ -20,16 +20,10 @@ export const PROJECT_CATEGORY = [
 
 export const LGU_LEVEL = ["Municipality", "Barangay", "District", "SK"] as const
 
-export const EXPENSE_CATEGORY = [
-  "Materials",
-  "Labor",
-  "Equipment",
-  "Permits & Fees",
-  "Other",
-] as const
+export const FUND_TYPE = ["Local", "National", "Grant", "Other"] as const
 
-export const APPROVAL_ACTION = ["approve", "reject"] as const
-export const ROLE = ["Super Admin", "Admin", "User"] as const
+export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const
+export const ROLE = ["Super Admin", "Province", "Municipality", "Barangay"] as const
 export const ACCOUNT_STATUS = ["Active", "Inactive"] as const
 export const AUDIT_ACTION = [
   "create",
@@ -38,6 +32,7 @@ export const AUDIT_ACTION = [
   "deactivate",
   "approve",
   "reject",
+  "request_revision",
   "reset_password",
 ] as const
 
@@ -50,7 +45,7 @@ export type CollectionManifest = {
 export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
   {
     name: "users",
-    fields: ["name", "role", "account_status"],
+    fields: ["name", "role", "account_status", "municipality", "barangay"],
   },
   {
     name: "projects",
@@ -100,7 +95,10 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
     fields: [
       "project",
       "amount",
-      "category",
+      "fund_source",
+      "funding_years",
+      "fund_type",
+      "fund_type_other",
       "date",
       "receipt_number",
       "description",
@@ -153,6 +151,8 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
     fields: [
       "actor_user",
       "actor_role",
+      "actor_municipality",
+      "actor_barangay",
       "action",
       "resource",
       "resource_id",
@@ -174,8 +174,8 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
 export const MIGRATION_FILE = "1740000001_cppms_collections.js"
 export const RULES_MIGRATION_FILE = "1740000002_cppms_collection_rules.js"
 
-/** V14: public list/view; authenticated admin write */
-export const PUBLIC_READ_RULE = ""
+/** V14: public read is explicit and later scoped PBAC migrations tighten collection access. */
+export const PUBLIC_READ_RULE = '@request.auth.id = ""'
 export const ADMIN_WRITE_RULE = '@request.auth.id != ""'
 
 export const COLLECTION_ACCESS_RULES = {

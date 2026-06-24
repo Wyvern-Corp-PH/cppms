@@ -31,7 +31,16 @@ const AUDIT_FIELDS = {
     "approval_status",
   ],
   budget_allocations: ["project", "amount", "year", "description", "date", "allocated_by"],
-  budget_expenses: ["project", "amount", "category", "date", "receipt_number"],
+  budget_expenses: [
+    "project",
+    "amount",
+    "fund_source",
+    "funding_years",
+    "fund_type",
+    "fund_type_other",
+    "date",
+    "receipt_number",
+  ],
   progress_updates: ["project", "from_pct", "to_pct", "updated_by", "updated_at"],
   approval_actions: ["project", "action", "authority_name", "reason"],
   locations: ["name", "slug", "active", "sort_order"],
@@ -68,9 +77,12 @@ function actorRole(auth) {
     return "Super Admin"
   }
   const role = auth?.get?.("role")
-  return role === "Super Admin" || role === "Admin" || role === "User"
+  return role === "Super Admin" ||
+    role === "Province" ||
+    role === "Municipality" ||
+    role === "Barangay"
     ? role
-    : "User"
+    : "Barangay"
 }
 
 function authCollectionName(auth) {
@@ -84,6 +96,16 @@ function authCollectionName(auth) {
 function actorUserId(auth) {
   if (authCollectionName(auth) !== "users") return ""
   return auth.id || auth.get?.("id") || ""
+}
+
+function actorScope(auth) {
+  if (authCollectionName(auth) !== "users") {
+    return { municipality: "", barangay: "" }
+  }
+  return {
+    municipality: auth?.get?.("municipality") || "",
+    barangay: auth?.get?.("barangay") || "",
+  }
 }
 
 function snapshot(record) {
@@ -186,10 +208,13 @@ function writeAudit(record, event, action, outcome, error) {
   const audit = new globalThis.Record(collection)
   const context = requestContext(record, event)
   const auth = context.auth
+  const scope = actorScope(auth)
   const startedAt = startedAtFor(record)
 
   audit.set("actor_user", actorUserId(auth))
   audit.set("actor_role", actorRole(auth))
+  audit.set("actor_municipality", scope.municipality)
+  audit.set("actor_barangay", scope.barangay)
   audit.set("action", action)
   audit.set("resource", record.collection().name)
   audit.set("resource_id", record.id)

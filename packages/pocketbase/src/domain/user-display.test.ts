@@ -10,7 +10,7 @@ const users: UserRecord[] = [
     collectionName: "users",
     email: "ana@example.test",
     name: "Ana Santos",
-    role: "Admin",
+    role: "Province",
     account_status: "Active",
   },
   {
@@ -18,7 +18,7 @@ const users: UserRecord[] = [
     collectionId: "users",
     collectionName: "users",
     email: "ben@example.test",
-    role: "User",
+    role: "Barangay",
     account_status: "Active",
   },
 ]

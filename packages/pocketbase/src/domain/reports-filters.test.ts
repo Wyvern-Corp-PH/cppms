@@ -16,6 +16,8 @@ const projects: ProjectRecord[] = [
     budget_year: 2026,
     approval_status: "approved",
     lgu_level: "Municipality",
+    municipality: "Tuguegarao City",
+    barangay: "Centro 01",
     start_date: "2026-01-01",
     target_end_date: "2026-12-31",
   },
@@ -30,6 +32,8 @@ const projects: ProjectRecord[] = [
     status: "Planning",
     budget_year: 2026,
     lgu_level: "Barangay",
+    municipality: "Lasam",
+    barangay: "Centro",
   },
 ]
 
@@ -37,7 +41,12 @@ describe("filterReportProjects (V89)", () => {
   it("applies all sentinel filters", () => {
     expect(filterReportProjects(projects, { status: "all", category: "all" })).toHaveLength(2)
     expect(filterReportProjects(projects, { status: "Approved" })).toHaveLength(1)
-    expect(filterReportProjects(projects, { lgu_level: "Barangay" })).toHaveLength(1)
+    expect(
+      filterReportProjects(projects, {
+        municipality: "Lasam",
+        barangay: "Centro",
+      })
+    ).toHaveLength(1)
   })
 })
 

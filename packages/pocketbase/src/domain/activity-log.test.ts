@@ -8,6 +8,8 @@ describe("activity log wide events (V124-V128)", () => {
       actor: {
         id: "u1",
         role: "Super Admin",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01",
       },
       action: "update",
       resource: "projects",
@@ -26,6 +28,8 @@ describe("activity log wide events (V124-V128)", () => {
     expect(event).toMatchObject({
       actor_user: "u1",
       actor_role: "Super Admin",
+      actor_municipality: "Tuguegarao City",
+      actor_barangay: "Centro 01",
       action: "update",
       resource: "projects",
       resource_id: "p1",
@@ -44,7 +48,7 @@ describe("activity log wide events (V124-V128)", () => {
     const event = createActivityLogEvent({
       actor: {
         id: "u2",
-        role: "Admin",
+        role: "Province",
       },
       action: "reset_password",
       resource: "users",

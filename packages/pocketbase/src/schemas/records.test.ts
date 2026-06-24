@@ -166,12 +166,35 @@ describe("collection record schemas (V33, V36)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 500,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         date: "2026-06-15 00:00:00.000Z",
         receipt_number: "",
         description: "Rebar",
       }).success
     ).toBe(true)
+  })
+
+  it("parses Other fund type text on budget expense records", () => {
+    const result = budgetExpenseRecordSchema.safeParse({
+      id: "o9jfia8svz2j0rj",
+      collectionId: "pbc_2635419501",
+      collectionName: "budget_expenses",
+      project: "p1",
+      amount: 500,
+      fund_source: "Supplemental fund",
+      funding_years: "2026",
+      fund_type: "Other",
+      fund_type_other: "Disaster response fund",
+      date: "2026-06-15 00:00:00.000Z",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.fund_type_other).toBe("Disaster response fund")
+      expect("category" in result.data).toBe(false)
+    }
   })
 
   it("parses progress update and approval action records", () => {
@@ -280,6 +303,8 @@ describe("collection record schemas (V33, V36)", () => {
         collectionName: "activity_logs",
         actor_user: "u1",
         actor_role: "Super Admin",
+        actor_municipality: "Tuguegarao City",
+        actor_barangay: "Centro 01",
         action: "update",
         resource: "projects",
         resource_id: "p1",

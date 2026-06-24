@@ -6,6 +6,8 @@ export type ActivityLogEventInput = {
   actor: {
     id?: string
     role: Role
+    municipality?: string
+    barangay?: string
   }
   action: AuditAction
   resource: string
@@ -25,6 +27,8 @@ export type ActivityLogEventInput = {
 export type ActivityLogEvent = {
   actor_user?: string
   actor_role: Role
+  actor_municipality?: string
+  actor_barangay?: string
   action: AuditAction
   resource: string
   resource_id?: string
@@ -45,6 +49,8 @@ export function createActivityLogEvent(
   return {
     actor_user: input.actor.id,
     actor_role: input.actor.role,
+    actor_municipality: input.actor.municipality,
+    actor_barangay: input.actor.barangay,
     action: input.action,
     resource: input.resource,
     resource_id: input.resourceId,

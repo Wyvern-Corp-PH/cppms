@@ -90,9 +90,9 @@ describe("dev seed fixtures (V70)", () => {
   it("defines and upserts sample users for role simulation", () => {
     expect(DEV_SEED_USERS).toHaveLength(3)
     expect(DEV_SEED_USERS.map((user) => user.role)).toEqual([
-      "Admin",
-      "User",
-      "User",
+      "Province",
+      "Barangay",
+      "Municipality",
     ])
     expect(DEV_SEED_USERS.some((user) => user.account_status === "Inactive")).toBe(
       true
@@ -107,6 +107,8 @@ describe("dev seed fixtures (V70)", () => {
     expect(seedScriptSource).toContain("seedSampleUsers")
     expect(seedScriptSource).toContain("getFirstListItem(`email=")
     expect(seedScriptSource).toContain("passwordConfirm")
+    expect(seedScriptSource).toContain("municipality: user.municipality")
+    expect(seedScriptSource).toContain("barangay: user.barangay")
     expect(seedScriptSource).toContain("Sample users:")
   })
 
@@ -116,5 +118,18 @@ describe("dev seed fixtures (V70)", () => {
     expect(seedScriptSource).toContain("allocated_by: sampleAdmin?.id")
     expect(seedScriptSource).toContain('formData.append("updated_by"')
     expect(seedScriptSource).toContain('collection("approval_actions").create')
+  })
+
+  it("seeds budget expenses with fund source fields", () => {
+    for (const fixture of DEV_SEED_FIXTURES) {
+      for (const expense of fixture.expenses) {
+        expect(expense.fund_source).toBeTruthy()
+        expect(expense.funding_years).toBeTruthy()
+        expect(expense.fund_type).toBeTruthy()
+      }
+    }
+    expect(seedScriptSource).toContain("fund_source: expense.fund_source")
+    expect(seedScriptSource).toContain("funding_years: expense.funding_years")
+    expect(seedScriptSource).toContain("fund_type: expense.fund_type")
   })
 })
