@@ -60,6 +60,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { DocumentUploadField } from "@/components/document-upload-field"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
@@ -712,26 +713,13 @@ export function ProjectsModule() {
               ))}
             </SelectContent>
           </Select>
-          <div className="space-y-1">
-            <Label htmlFor="filter-date-from">From:</Label>
-            <Input
-              id="filter-date-from"
-              aria-label="Filter from date"
-              type="date"
-              value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="filter-date-to">To:</Label>
-            <Input
-              id="filter-date-to"
-              aria-label="Filter to date"
-              type="date"
-              value={dateTo}
-              onChange={(event) => setDateTo(event.target.value)}
-            />
-          </div>
+          <DateRangeFilter
+            id="projects-date-range"
+            from={dateFrom}
+            to={dateTo}
+            onFromChange={setDateFrom}
+            onToChange={setDateTo}
+          />
         </div>
         {canCreateProjects ? (
           <div className="flex justify-end">

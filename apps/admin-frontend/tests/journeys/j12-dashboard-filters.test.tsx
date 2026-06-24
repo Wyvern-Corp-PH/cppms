@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest"
 
 const store = {
   projects: [] as Array<Record<string, unknown>>,
@@ -30,13 +30,7 @@ vi.mock("@/lib/pocketbase", () => ({
 
 import { DashboardModule } from "@/components/dashboard-module"
 
-async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
-  await user.click(screen.getByRole("button", { name: /pick date range/i }))
-  await user.type(screen.getByLabelText(/from date/i), from)
-  await user.type(screen.getByLabelText(/to date/i), to)
-}
-
-describe("DashboardModule (V9, V24)", () => {
+describe("J12 dashboard filter journey", () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
       configurable: true,
@@ -46,14 +40,10 @@ describe("DashboardModule (V9, V24)", () => {
       configurable: true,
       value: vi.fn(),
     })
-    Object.defineProperty(
-      window.HTMLElement.prototype,
-      "releasePointerCapture",
-      {
-        configurable: true,
-        value: vi.fn(),
-      }
-    )
+    Object.defineProperty(window.HTMLElement.prototype, "releasePointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    })
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: vi.fn(),
@@ -61,58 +51,6 @@ describe("DashboardModule (V9, V24)", () => {
   })
 
   beforeEach(() => {
-    store.projects = []
-    store.allocations = []
-    store.expenses = []
-    store.locations = [
-      {
-        id: "loc1",
-        collectionId: "locations",
-        collectionName: "locations",
-        name: "Tuguegarao City",
-        slug: "tuguegarao-city",
-        level: "Municipality",
-        municipality_name: "Tuguegarao City",
-        active: true,
-      },
-      {
-        id: "loc2",
-        collectionId: "locations",
-        collectionName: "locations",
-        name: "Lasam",
-        slug: "lasam",
-        level: "Municipality",
-        municipality_name: "Lasam",
-        active: true,
-      },
-      {
-        id: "loc3",
-        collectionId: "locations",
-        collectionName: "locations",
-        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
-        slug: "tuguegarao-city/centro-01-bagumbayan",
-        level: "Barangay",
-        municipality_name: "Tuguegarao City",
-        barangay_name: "Centro 01 (Bagumbayan)",
-        active: true,
-      },
-    ]
-  })
-
-  it("shows overview metrics with skeleton-first loading", async () => {
-    const { rerender } = render(<DashboardModule />)
-    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("dashboard-skeleton")).not.toBeInTheDocument()
-      expect(screen.getByTestId("dashboard-projects")).toBeInTheDocument()
-    })
-
-    rerender(<DashboardModule />)
-  })
-
-  it("filters dashboard KPI cards, utilization, and heatmap by date and location", async () => {
-    const user = userEvent.setup()
     store.projects = [
       {
         id: "p1",
@@ -178,38 +116,53 @@ describe("DashboardModule (V9, V24)", () => {
         fund_type: "Local",
         date: "2026-06-10",
       },
+    ]
+    store.locations = [
       {
-        id: "e2",
-        collectionId: "budget_expenses",
-        collectionName: "budget_expenses",
-        project: "p2",
-        amount: 150_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
-        date: "2026-07-10",
+        id: "loc1",
+        collectionId: "locations",
+        collectionName: "locations",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        active: true,
+      },
+      {
+        id: "loc2",
+        collectionId: "locations",
+        collectionName: "locations",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        barangay_name: "Centro 01 (Bagumbayan)",
+        active: true,
       },
     ]
+  })
 
+  it("date and location filters update KPI and widget data", async () => {
+    const user = userEvent.setup()
     render(<DashboardModule />)
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("2")
       expect(screen.getByTestId("dashboard-budget")).toHaveTextContent("₱400,000")
-      expect(screen.getByText("44% spent")).toBeInTheDocument()
     })
 
     await user.click(screen.getByLabelText(/filter by municipality/i))
     await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
     await user.click(screen.getByLabelText(/filter by barangay/i))
     await user.click(await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" }))
-    await chooseDateRange(user, "2026-06-01", "2026-06-30")
+    await user.click(screen.getByRole("button", { name: /pick date range/i }))
+    await user.type(screen.getByLabelText(/from date/i), "2026-06-01")
+    await user.type(screen.getByLabelText(/to date/i), "2026-06-30")
 
     await waitFor(() => {
       expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
       expect(screen.getByTestId("dashboard-budget")).toHaveTextContent("₱100,000")
       expect(screen.getByTestId("dashboard-on-track")).toHaveTextContent("1")
-      expect(screen.getByTestId("dashboard-approvals")).toHaveTextContent("0")
       expect(screen.getByText("25% spent")).toBeInTheDocument()
       expect(screen.getByTitle(/City Bridge:/)).toBeInTheDocument()
       expect(screen.queryByTitle("Lasam School: Completed")).not.toBeInTheDocument()

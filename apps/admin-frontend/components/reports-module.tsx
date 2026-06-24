@@ -45,8 +45,6 @@ import type {
 } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import {
   Select,
   SelectContent,
@@ -58,6 +56,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/componen
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
+import { DateRangeFilter } from "@/components/date-range-filter"
+import { LivePill } from "@/components/live-pill"
 import {
   LocationFilterControls,
   type LocationFilterValue,
@@ -245,11 +245,13 @@ export function ReportsModule() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+          {live ? <LivePill /> : null}
+        </div>
         <p className="text-muted-foreground text-sm">
           Generate and export reports as Excel files
         </p>
-        {live ? <span className="sr-only">Live</span> : null}
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -309,26 +311,17 @@ export function ReportsModule() {
           value={locationFilterValue}
           onChange={setLocationFilterValue}
         />
-        <div className="space-y-1">
-          <Label htmlFor="reports-filter-date-from">From:</Label>
-          <Input
-            id="reports-filter-date-from"
-            aria-label="Filter from date"
-            type="date"
-            value={filters.dateFrom ?? ""}
-            onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="reports-filter-date-to">To:</Label>
-          <Input
-            id="reports-filter-date-to"
-            aria-label="Filter to date"
-            type="date"
-            value={filters.dateTo ?? ""}
-            onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-          />
-        </div>
+        <DateRangeFilter
+          id="reports-date-range"
+          from={filters.dateFrom ?? ""}
+          to={filters.dateTo ?? ""}
+          onFromChange={(value) =>
+            setFilters((prev) => ({ ...prev, dateFrom: value || undefined }))
+          }
+          onToChange={(value) =>
+            setFilters((prev) => ({ ...prev, dateTo: value || undefined }))
+          }
+        />
       </div>
 
       <SummaryCardRow

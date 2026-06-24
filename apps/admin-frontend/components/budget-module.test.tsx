@@ -11,8 +11,8 @@ const store = {
   authRecord: {
     id: "current-user",
     email: "current@example.test",
-    name: "Current Admin",
-    role: "Admin",
+    name: "Current Province User",
+    role: "Province",
     account_status: "Active",
   } as Record<string, unknown> | null,
 }
@@ -36,6 +36,12 @@ vi.mock("@/lib/pocketbase", () => ({
 }))
 
 import { BudgetModule } from "./budget-module"
+
+async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+  await user.click(screen.getByRole("button", { name: /pick date range/i }))
+  await user.type(screen.getByLabelText(/from date/i), from)
+  await user.type(screen.getByLabelText(/to date/i), to)
+}
 
 describe("BudgetModule (V9, V10, V24)", () => {
   beforeAll(() => {
@@ -121,8 +127,8 @@ describe("BudgetModule (V9, V10, V24)", () => {
     store.authRecord = {
       id: "current-user",
       email: "current@example.test",
-      name: "Current Admin",
-      role: "Admin",
+      name: "Current Province User",
+      role: "Province",
       account_status: "Active",
     }
   })
@@ -159,7 +165,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 100_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         date: "2026-06-17",
       },
     ]
@@ -234,7 +242,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 25_000,
-        category: "Materials",
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
         date: "2026-06-17",
       },
       {
@@ -243,7 +253,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p2",
         amount: 10_000,
-        category: "Materials",
+        fund_source: "National Grant",
+        funding_years: "2026",
+        fund_type: "National",
         date: "2026-06-17",
       },
     ]
@@ -270,6 +282,148 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.getByText("-25,000")).toBeInTheDocument()
       expect(screen.queryByText("-10,000")).not.toBeInTheDocument()
     })
+  })
+
+  it("filters budget summaries, allocations, and released amounts by date range", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 500_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-10",
+      },
+      {
+        id: "a2",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 300_000,
+        year: 2026,
+        date: "2026-07-10",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Local",
+        date: "2026-06-12",
+      },
+      {
+        id: "e2",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 150_000,
+        fund_source: "National Grant",
+        funding_years: "2026",
+        fund_type: "National",
+        date: "2026-07-12",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-allocated")).toHaveTextContent("₱400,000")
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱175,000")
+    })
+
+    await chooseDateRange(user, "2026-06-01", "2026-06-30")
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-allocated")).toHaveTextContent("₱100,000")
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
+      expect(screen.getByText("+100,000")).toBeInTheDocument()
+      expect(screen.queryByText("+300,000")).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("-25,000")).toBeInTheDocument()
+      expect(screen.queryByText("-150,000")).not.toBeInTheDocument()
+    })
+  })
+
+  it("uses Released Amount fund source fields instead of expense category", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 100_000,
+        fund_source: "General Fund",
+        funding_years: "2026",
+        fund_type: "Other",
+        fund_type_other: "Calamity reserve",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /\+ record expense/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /category/i })).not.toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /fund source/i })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /funding years/i })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /fund type/i })).toBeInTheDocument()
+      expect(screen.getByText("General Fund")).toBeInTheDocument()
+      expect(screen.getAllByText("2026").length).toBeGreaterThan(0)
+      expect(screen.getByText("Calamity reserve")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /\+ released amount/i }))
+
+    expect(screen.getAllByText("Fund Source").length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/^fund source$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/funding years/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^fund type$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/other fund type/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/^fund type$/i))
+    await user.click(await screen.findByRole("option", { name: "Other" }))
+
+    expect(screen.getByLabelText(/other fund type/i)).toBeInTheDocument()
   })
 
   it("renders allocation user ids as user names", async () => {
@@ -304,7 +458,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "users",
         email: "ana@example.test",
         name: "Ana Santos",
-        role: "Admin",
+        role: "Province",
         account_status: "Active",
       },
     ]
@@ -347,7 +501,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     render(<BudgetModule />)
 
     await waitFor(() => {
-      expect(screen.getByText("Current Admin")).toBeInTheDocument()
+      expect(screen.getByText("Current Province User")).toBeInTheDocument()
       expect(screen.queryByText("current-user")).not.toBeInTheDocument()
     })
   })
@@ -412,12 +566,12 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(dialog).toHaveClass("sm:max-w-lg")
   })
 
-  it("keeps record expense content responsive at zoomed viewports", async () => {
+  it("keeps released amount content responsive at zoomed viewports", async () => {
     const user = userEvent.setup()
     render(<BudgetModule />)
 
     await user.click(await screen.findByRole("tab", { name: /expenses/i }))
-    await user.click(await screen.findByTestId("record-expense"))
+    await user.click(await screen.findByTestId("released-amount"))
 
     const dialog = await screen.findByRole("dialog")
     expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")

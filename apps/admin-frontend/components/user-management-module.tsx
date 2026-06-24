@@ -40,7 +40,7 @@ type UserFormState = {
 const emptyForm = (): UserFormState => ({
   name: "",
   email: "",
-  role: "Admin",
+  role: "Province",
   account_status: "Active",
   password: "",
 })

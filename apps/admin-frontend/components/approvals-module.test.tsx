@@ -21,6 +21,13 @@ const store = {
   updates: [] as Array<Record<string, unknown>>,
   actions: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
+  authRecord: {
+    id: "province-user",
+    email: "province@example.test",
+    name: "Province Reviewer",
+    role: "Province",
+    account_status: "Active",
+  } as Record<string, unknown> | null,
 }
 
 const updateMock = vi.fn(
@@ -33,6 +40,9 @@ const updateMock = vi.fn(
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
+    authStore: {
+      record: store.authRecord,
+    },
     collection: (name: string) => ({
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects
@@ -51,6 +61,12 @@ vi.mock("@/lib/pocketbase", () => ({
 }))
 
 import { ApprovalsModule } from "./approvals-module"
+
+async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+  await user.click(screen.getByRole("button", { name: /pick date range/i }))
+  await user.type(screen.getByLabelText(/from date/i), from)
+  await user.type(screen.getByLabelText(/to date/i), to)
+}
 
 describe("ApprovalsModule (J5, V5)", () => {
   beforeAll(() => {
@@ -115,6 +131,13 @@ describe("ApprovalsModule (J5, V5)", () => {
         approval_status: "pending",
       },
     ]
+    store.authRecord = {
+      id: "province-user",
+      email: "province@example.test",
+      name: "Province Reviewer",
+      role: "Province",
+      account_status: "Active",
+    }
     store.locations = [
       {
         id: "loc1",
@@ -188,6 +211,50 @@ describe("ApprovalsModule (J5, V5)", () => {
         expect.not.objectContaining({ approved_by: "Provincial Engineer" })
       )
     })
+  })
+
+  it("shows approval actions only to Province users and includes request revision", async () => {
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByRole("button", { name: /^approve$/i })).toBeInTheDocument()
+    expect(within(card).getByRole("button", { name: /^reject$/i })).toBeInTheDocument()
+    expect(
+      within(card).getByRole("button", { name: /request revision/i })
+    ).toBeInTheDocument()
+
+    await user.click(within(card).getByRole("button", { name: /request revision/i }))
+    await user.type(screen.getByLabelText(/reviewing authority name/i), "Provincial Engineer")
+    await user.type(screen.getByLabelText(/revision notes/i), "Please upload clearer liquidation docs.")
+    await user.click(screen.getByTestId("confirm-approval-action"))
+
+    await waitFor(() => {
+      expect(store.actions[0]).toMatchObject({
+        action: "request_revision",
+        reason: "Please upload clearer liquidation docs.",
+      })
+    })
+  })
+
+  it("shows Barangay users status-only approval cards", async () => {
+    store.authRecord = {
+      id: "barangay-user",
+      email: "barangay@example.test",
+      name: "Barangay Encoder",
+      role: "Barangay",
+      account_status: "Active",
+    }
+
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /request revision/i })
+    ).not.toBeInTheDocument()
   })
 
   it("shows approved projects as read-only entries", async () => {
@@ -283,6 +350,94 @@ describe("ApprovalsModule (J5, V5)", () => {
     await waitFor(() => {
       expect(screen.getByText("City Bridge")).toBeInTheDocument()
       expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    })
+  })
+
+  it("filters approval queue and summary by completion update date range", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        total_budget: 100_000,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Completed",
+        budget_year: 2026,
+        total_budget: 300_000,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-12T00:00:00.000Z",
+        project: "1",
+        from_pct: 90,
+        to_pct: 100,
+        site_photo: "",
+        certification_completion: "certification.pdf",
+        certificate_acceptance: "acceptance.pdf",
+        proof_payment_barangay: "payment.pdf",
+        acknowledgment_completion: "acknowledgment.pdf",
+        audit_documents: ["audit.pdf"],
+        verification_documents: ["verification.pdf"],
+        liquidation_documents: ["liquidation.pdf"],
+      },
+      {
+        id: "u2",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-07-12T00:00:00.000Z",
+        project: "2",
+        from_pct: 90,
+        to_pct: 100,
+        site_photo: "",
+        certification_completion: "certification.pdf",
+        certificate_acceptance: "acceptance.pdf",
+        proof_payment_barangay: "payment.pdf",
+        acknowledgment_completion: "acknowledgment.pdf",
+        audit_documents: ["audit.pdf"],
+        verification_documents: ["verification.pdf"],
+        liquidation_documents: ["liquidation.pdf"],
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+      expect(screen.getByTestId("approvals-queue")).toHaveTextContent("2")
+      expect(screen.getByTestId("approvals-budget-managed")).toHaveTextContent("₱400,000")
+    })
+
+    await chooseDateRange(user, "2026-06-01", "2026-06-30")
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+      expect(screen.getByTestId("approvals-queue")).toHaveTextContent("1")
+      expect(screen.getByTestId("approvals-budget-managed")).toHaveTextContent("₱100,000")
     })
   })
 

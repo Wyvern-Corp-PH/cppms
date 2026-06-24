@@ -187,21 +187,14 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
-  it("shows From and To labels on date range filters", async () => {
+  it("uses the shared date range picker instead of standalone date inputs", async () => {
     render(<ProjectsModule />)
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/^from:$/i)).toHaveAttribute(
-        "id",
-        "filter-date-from"
-      )
-      expect(screen.getByLabelText(/^to:$/i)).toHaveAttribute(
-        "id",
-        "filter-date-to"
-      )
-      expect(screen.getByLabelText(/^filter from date$/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/^filter to date$/i)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /pick date range/i })).toBeInTheDocument()
     })
+    expect(screen.queryByLabelText(/^filter from date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^filter to date$/i)).not.toBeInTheDocument()
   })
 
   it("filters admin projects by active municipalities", async () => {
@@ -496,7 +489,7 @@ describe("ProjectsModule (J4)", () => {
   it("hides project mutation controls for users without project policy", async () => {
     store.authRecord = {
       id: "u1",
-      role: "User",
+      role: "Municipality",
       account_status: "Active",
     }
 

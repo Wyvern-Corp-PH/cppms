@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { canAccess } from "@workspace/pocketbase/domain/access-control"
+import {
+  canAccess,
+  filterProjectsForUser,
+} from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import {
   formatProjectDateRange,
@@ -49,6 +52,7 @@ import {
   DocumentUploadField,
   IMAGE_UPLOAD_ACCEPT,
 } from "@/components/document-upload-field"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import {
   LocationFilterControls,
   projectMatchesLocationFilters,
@@ -61,6 +65,22 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
+
+function recordInDateRange(date: string | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!date) return false
+  const value = Date.parse(date)
+  if (Number.isNaN(value)) return false
+  if (from) {
+    const fromValue = Date.parse(from)
+    if (!Number.isNaN(fromValue) && value < fromValue) return false
+  }
+  if (to) {
+    const toValue = Date.parse(to)
+    if (!Number.isNaN(toValue) && value > toValue) return false
+  }
+  return true
+}
 
 type CompletionDocumentState = {
   certification_completion: File | null
@@ -105,6 +125,8 @@ export function ProgressModule() {
     municipality: "",
     barangay: "",
   })
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -162,20 +184,38 @@ export function ProgressModule() {
     }
   )
 
+  const dateFilteredUpdates = useMemo(
+    () =>
+      updates.filter((update) =>
+        recordInDateRange(update.updated_at ?? update.created, dateFrom, dateTo)
+      ),
+    [dateFrom, dateTo, updates]
+  )
+  const dateFilteredProjectIds = useMemo(
+    () => new Set(dateFilteredUpdates.map((update) => update.project)),
+    [dateFilteredUpdates]
+  )
+  const hasDateFilter = Boolean(dateFrom || dateTo)
+  const scopedProjects = useMemo(
+    () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
+    [actor, projects]
+  )
   const filteredProjects = useMemo(
     () =>
-      projects.filter((project) =>
-        projectMatchesLocationFilters(project, locationFilters)
+      scopedProjects.filter(
+        (project) =>
+          projectMatchesLocationFilters(project, locationFilters) &&
+          (!hasDateFilter || dateFilteredProjectIds.has(project.id))
       ),
-    [locationFilters, projects]
+    [dateFilteredProjectIds, hasDateFilter, locationFilters, scopedProjects]
   )
   const filteredProjectIds = useMemo(
     () => new Set(filteredProjects.map((project) => project.id)),
     [filteredProjects]
   )
   const filteredUpdates = useMemo(
-    () => updates.filter((update) => filteredProjectIds.has(update.project)),
-    [filteredProjectIds, updates]
+    () => dateFilteredUpdates.filter((update) => filteredProjectIds.has(update.project)),
+    [dateFilteredUpdates, filteredProjectIds]
   )
   const summary = buildProgressSummaryCards(filteredProjects, filteredUpdates)
   const userDisplay = useMemo(
@@ -378,6 +418,13 @@ export function ProgressModule() {
           value={locationFilters}
           onChange={setLocationFilters}
         />
+        <DateRangeFilter
+          id="progress-date-range"
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -515,7 +562,7 @@ export function ProgressModule() {
                         {formatDisplayDateTime(
                           update.updated_at ?? update.created
                         )}{" "}
-                        · {displayUserRef(update.updated_by, userDisplay, "Admin")}
+                        · {displayUserRef(update.updated_by, userDisplay, "Unknown user")}
                       </p>
                       {update.notes ? (
                         <p className="text-xs">{update.notes}</p>
@@ -593,7 +640,7 @@ export function ProgressModule() {
                         {formatDisplayDateTime(
                           update.updated_at ?? update.created
                         )}{" "}
-                        · {displayUserRef(update.updated_by, userDisplay, "Admin")}
+                        · {displayUserRef(update.updated_by, userDisplay, "Unknown user")}
                       </p>
                       {update.notes ? (
                         <p className="text-xs">{update.notes}</p>

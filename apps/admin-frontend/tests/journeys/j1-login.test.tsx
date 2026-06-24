@@ -34,7 +34,7 @@ vi.mock("@/lib/pocketbase", () => ({
           authStore.record = {
             id: "1",
             email,
-            role: "Admin",
+            role: "Province",
             account_status: "Active",
           }
           return { record: authStore.record }

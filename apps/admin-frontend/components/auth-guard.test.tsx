@@ -46,7 +46,7 @@ describe("AuthGuard (V1)", () => {
   })
 
   it("renders children when authenticated", () => {
-    authState.user = { id: "1", role: "Admin", account_status: "Active" }
+    authState.user = { id: "1", role: "Province", account_status: "Active" }
 
     render(
       <AuthGuard>
@@ -59,7 +59,7 @@ describe("AuthGuard (V1)", () => {
   })
 
   it("allows legacy sessions missing account_status", () => {
-    authState.user = { id: "1", role: "Admin" }
+    authState.user = { id: "1", role: "Province" }
 
     render(
       <AuthGuard>
@@ -72,7 +72,7 @@ describe("AuthGuard (V1)", () => {
   })
 
   it("denies inactive sessions", async () => {
-    authState.user = { id: "1", role: "Admin", account_status: "Inactive" }
+    authState.user = { id: "1", role: "Province", account_status: "Inactive" }
 
     render(
       <AuthGuard>
@@ -86,9 +86,9 @@ describe("AuthGuard (V1)", () => {
     expect(screen.queryByText("Protected")).not.toBeInTheDocument()
   })
 
-  it("denies Admin access to Super Admin user management", async () => {
+  it("denies Province access to Super Admin user management", async () => {
     mockPathname = "/users"
-    authState.user = { id: "1", role: "Admin", account_status: "Active" }
+    authState.user = { id: "1", role: "Province", account_status: "Active" }
 
     render(
       <AuthGuard>

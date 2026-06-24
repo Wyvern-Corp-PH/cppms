@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { filterProjectsForUser } from "@workspace/pocketbase/domain/access-control"
 import { computeBudgetSummary } from "@workspace/pocketbase/domain/budget-summary"
 import { resolveDeadlineStatus, deadlineStatusTone } from "@workspace/pocketbase/domain/deadline-status"
 import { countProgressBuckets } from "@workspace/pocketbase/domain/progress-summary"
@@ -11,17 +12,25 @@ import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
+  locationRecordSchema,
   parseRecordList,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
+  LocationRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { DateRangeFilter } from "@/components/date-range-filter"
+import {
+  LocationFilterControls,
+  projectMatchesLocationFilters,
+  type LocationFilterValue,
+} from "@/components/location-filter-controls"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -30,23 +39,57 @@ import { getPocketBase } from "@/lib/pocketbase"
 
 const quickLinks = adminNavItems.filter((item) => item.href !== "/dashboard")
 
+function recordInDateRange(date: string | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!date) return false
+  const value = Date.parse(date)
+  if (Number.isNaN(value)) return false
+  if (from) {
+    const fromValue = Date.parse(from)
+    if (!Number.isNaN(fromValue) && value < fromValue) return false
+  }
+  if (to) {
+    const toValue = Date.parse(to)
+    if (!Number.isNaN(toValue) && value > toValue) return false
+  }
+  return true
+}
+
+function projectInDateRange(project: ProjectRecord, from: string, to: string) {
+  if (!from && !to) return true
+  return (
+    recordInDateRange(project.start_date, from, to) ||
+    recordInDateRange(project.target_end_date, from, to)
+  )
+}
+
 export function DashboardModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
+  const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
+    municipality: "",
+    barangay: "",
+  })
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
+  const actor = getPocketBase().authStore?.record
 
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows] = await Promise.all([
+    const [projectRows, allocationRows, expenseRows, locationRows] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
+      pb.collection("locations").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
+    setLocations(parseRecordList(locationRecordSchema, locationRows))
     setLoading(false)
   }, [])
 
@@ -61,17 +104,54 @@ export function DashboardModule() {
     }
   )
 
-  const budget = useMemo(
-    () => computeBudgetSummary(projects, allocations, expenses),
-    [projects, allocations, expenses]
+  const scopedProjects = useMemo(
+    () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
+    [actor, projects]
   )
-  const progress = useMemo(() => countProgressBuckets(projects), [projects])
+
+  const filteredProjects = useMemo(
+    () =>
+      scopedProjects.filter(
+        (project) =>
+          projectMatchesLocationFilters(project, locationFilters) &&
+          projectInDateRange(project, dateFrom, dateTo)
+      ),
+    [dateFrom, dateTo, locationFilters, scopedProjects]
+  )
+  const filteredProjectIds = useMemo(
+    () => new Set(filteredProjects.map((project) => project.id)),
+    [filteredProjects]
+  )
+  const filteredAllocations = useMemo(
+    () =>
+      allocations.filter(
+        (row) =>
+          filteredProjectIds.has(row.project) &&
+          recordInDateRange(row.date, dateFrom, dateTo)
+      ),
+    [allocations, dateFrom, dateTo, filteredProjectIds]
+  )
+  const filteredExpenses = useMemo(
+    () =>
+      expenses.filter(
+        (row) =>
+          filteredProjectIds.has(row.project) &&
+          recordInDateRange(row.date, dateFrom, dateTo)
+      ),
+    [dateFrom, dateTo, expenses, filteredProjectIds]
+  )
+
+  const budget = useMemo(
+    () => computeBudgetSummary(filteredProjects, filteredAllocations, filteredExpenses),
+    [filteredProjects, filteredAllocations, filteredExpenses]
+  )
+  const progress = useMemo(() => countProgressBuckets(filteredProjects), [filteredProjects])
   const awaitingApproval = useMemo(
     () =>
-      projects.filter(
+      filteredProjects.filter(
         (project) => isApprovalEligible(project) && project.approval_status !== "approved"
       ).length,
-    [projects]
+    [filteredProjects]
   )
 
   if (loading) {
@@ -79,7 +159,7 @@ export function DashboardModule() {
       <div className="space-y-4" data-testid="dashboard-skeleton">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((key) => (
-            <div key={key} className="bg-muted h-24 animate-pulse rounded-[var(--radius-lg)]" />
+            <div key={key} className="bg-muted h-24 animate-pulse rounded-(--radius-lg)" />
           ))}
         </div>
       </div>
@@ -98,14 +178,14 @@ export function DashboardModule() {
         context="Records as of today"
         live={live}
         kpis={[
-          { label: "Projects", value: String(projects.length) },
+          { label: "Projects", value: String(filteredProjects.length) },
           { label: "Budget", value: formatPhp(budget.totalBudget) },
           { label: "Awaiting", value: String(awaitingApproval) },
         ]}
       />
 
       {awaitingApproval > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-lg) border border-border bg-card px-4 py-3 text-sm">
           <p>{awaitingApproval} completed project(s) need approval.</p>
           <Button asChild size="sm" variant="outline">
             <Link href="/approvals">Review queue</Link>
@@ -113,9 +193,24 @@ export function DashboardModule() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap gap-3 rounded-(--radius-lg) border border-border bg-card p-4">
+        <LocationFilterControls
+          locations={locations}
+          value={locationFilters}
+          onChange={setLocationFilters}
+        />
+        <DateRangeFilter
+          id="dashboard-date-range"
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+        />
+      </div>
+
       <SummaryCardRow
         cards={[
-          { label: "Active projects", value: String(projects.length), testId: "dashboard-projects" },
+          { label: "Active projects", value: String(filteredProjects.length), testId: "dashboard-projects" },
           { label: "Total budget", value: formatPhp(budget.totalBudget), testId: "dashboard-budget" },
           { label: "On track", value: String(progress.onTrack), testId: "dashboard-on-track" },
           { label: "Awaiting approval", value: String(awaitingApproval), testId: "dashboard-approvals" },
@@ -123,17 +218,17 @@ export function DashboardModule() {
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[var(--radius-lg)] border border-border bg-card p-4">
+        <div className="rounded-(--radius-lg) border border-border bg-card p-4">
           <h2 className="text-sm font-semibold">Budget utilization</h2>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{utilizationPct}% spent</p>
           <div className="bg-muted mt-3 h-2 overflow-hidden rounded-full">
             <span className="bg-primary block h-full" style={{ width: `${utilizationPct}%` }} />
           </div>
         </div>
-        <div className="rounded-[var(--radius-lg)] border border-border bg-card p-4">
+        <div className="rounded-(--radius-lg) border border-border bg-card p-4">
           <h2 className="text-sm font-semibold">Deadline heatmap</h2>
           <div className="mt-3 grid grid-cols-7 gap-1">
-            {projects.slice(0, 28).map((project, index) => {
+            {filteredProjects.slice(0, 28).map((project, index) => {
               const deadline = resolveDeadlineStatus(
                 project.target_end_date,
                 project.progress_pct ?? 0

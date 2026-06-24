@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { canAccess } from "@workspace/pocketbase/domain/access-control"
+import {
+  canAccess,
+  filterProjectsForUser,
+} from "@workspace/pocketbase/domain/access-control"
 import { computeProjectBudgetBreakdown } from "@workspace/pocketbase/domain/budget-summary"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
@@ -51,6 +54,7 @@ import {
 } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { PageHeaderBand } from "@/components/page-header-band"
 import {
   LocationFilterControls,
@@ -62,6 +66,22 @@ import { SitePhotoCarousel } from "@/components/site-photo-carousel"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
+
+function recordInDateRange(date: string | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!date) return false
+  const value = Date.parse(date)
+  if (Number.isNaN(value)) return false
+  if (from) {
+    const fromValue = Date.parse(from)
+    if (!Number.isNaN(fromValue) && value < fromValue) return false
+  }
+  if (to) {
+    const toValue = Date.parse(to)
+    if (!Number.isNaN(toValue) && value > toValue) return false
+  }
+  return true
+}
 
 function isReviewedProject(
   project: Pick<ProjectRecord, "approval_status" | "status">
@@ -184,7 +204,9 @@ export function ApprovalsModule() {
     municipality: "",
     barangay: "",
   })
-  const [dialog, setDialog] = useState<"approve" | "reject" | null>(null)
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [dialog, setDialog] = useState<"approve" | "reject" | "request_revision" | null>(null)
   const [authorityName, setAuthorityName] = useState("")
   const [reason, setReason] = useState("")
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -228,12 +250,32 @@ export function ApprovalsModule() {
     }
   )
 
+  const dateFilteredCompletionProjectIds = useMemo(() => {
+    if (!dateFrom && !dateTo) return null
+    return new Set(
+      updates
+        .filter(
+          (update) =>
+            update.to_pct >= 100 &&
+            recordInDateRange(update.updated_at ?? update.created, dateFrom, dateTo)
+        )
+        .map((update) => update.project)
+    )
+  }, [dateFrom, dateTo, updates])
+
+  const scopedProjects = useMemo(
+    () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
+    [actor, projects]
+  )
   const filteredProjects = useMemo(
     () =>
-      projects.filter((project) =>
-        projectMatchesLocationFilters(project, locationFilters)
+      scopedProjects.filter(
+        (project) =>
+          projectMatchesLocationFilters(project, locationFilters) &&
+          (!dateFilteredCompletionProjectIds ||
+            dateFilteredCompletionProjectIds.has(project.id))
       ),
-    [locationFilters, projects]
+    [dateFilteredCompletionProjectIds, locationFilters, scopedProjects]
   )
 
   const queue = useMemo(
@@ -278,7 +320,7 @@ export function ApprovalsModule() {
     return updates.filter((update) => update.project === projectId)
   }
 
-  async function submitAction(action: "approve" | "reject") {
+  async function submitAction(action: "approve" | "reject" | "request_revision") {
     if (!selected) return
     if (!canCreateApprovalActions) return
 
@@ -311,20 +353,26 @@ export function ApprovalsModule() {
       project: selected.id,
       action: parsed.data.action,
       authority_name: parsed.data.authority_name,
-      reason: parsed.data.action === "reject" ? parsed.data.reason : undefined,
+      reason:
+        parsed.data.action === "reject" ||
+        parsed.data.action === "request_revision"
+          ? parsed.data.reason
+          : undefined,
     })
 
-    await pb.collection("projects").update(selected.id, {
-      approval_status:
-        parsed.data.action === "approve" ? "approved" : "rejected",
-      status: parsed.data.action === "approve" ? "Approved" : "Rejected",
-      approved_at:
-        parsed.data.action === "approve"
-          ? new Date().toISOString().slice(0, 10)
-          : undefined,
-      rejection_reason:
-        parsed.data.action === "reject" ? parsed.data.reason : undefined,
-    })
+    if (parsed.data.action !== "request_revision") {
+      await pb.collection("projects").update(selected.id, {
+        approval_status:
+          parsed.data.action === "approve" ? "approved" : "rejected",
+        status: parsed.data.action === "approve" ? "Approved" : "Rejected",
+        approved_at:
+          parsed.data.action === "approve"
+            ? new Date().toISOString().slice(0, 10)
+            : undefined,
+        rejection_reason:
+          parsed.data.action === "reject" ? parsed.data.reason : undefined,
+      })
+    }
 
     setDialog(null)
     setAuthorityName("")
@@ -442,6 +490,18 @@ export function ApprovalsModule() {
               >
                 Reject
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelected(project)
+                  setCompletionDocError(null)
+                  setDialog("request_revision")
+                }}
+              >
+                Request Revision
+              </Button>
             </>
           ) : null}
         </div>
@@ -505,6 +565,13 @@ export function ApprovalsModule() {
           locations={locations}
           value={locationFilters}
           onChange={setLocationFilters}
+        />
+        <DateRangeFilter
+          id="approvals-date-range"
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
         />
       </div>
 
@@ -634,6 +701,17 @@ export function ApprovalsModule() {
                   >
                     Approve
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCompletionDocError(null)
+                      setDialog("request_revision")
+                    }}
+                  >
+                    Request Revision
+                  </Button>
                 </div>
               ) : null}
             </div>
@@ -657,12 +735,16 @@ export function ApprovalsModule() {
             <DialogTitle>
               {dialog === "approve"
                 ? "Approve project completion"
-                : "Reject project completion"}
+                : dialog === "reject"
+                  ? "Reject project completion"
+                  : "Request revision"}
             </DialogTitle>
             <DialogDescription>
               {dialog === "approve"
                 ? "Confirm that deliverables and completion documents are ready for approval."
-                : "Provide a rejection reason so the project team can address it."}
+                : dialog === "reject"
+                  ? "Provide a rejection reason so the project team can address it."
+                  : "Send revision notes back to the barangay before provincial approval."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -697,9 +779,11 @@ export function ApprovalsModule() {
                 {fieldErrors.authority_name}
               </p>
             ) : null}
-            {dialog === "reject" ? (
+            {dialog === "reject" || dialog === "request_revision" ? (
               <>
-                <Label htmlFor="reject-reason">Reason for rejection</Label>
+                <Label htmlFor="reject-reason">
+                  {dialog === "reject" ? "Reason for rejection" : "Revision notes"}
+                </Label>
                 <Textarea
                   id="reject-reason"
                   value={reason}
@@ -727,7 +811,11 @@ export function ApprovalsModule() {
               data-testid="confirm-approval-action"
               onClick={() => void submitAction(dialog ?? "approve")}
             >
-              {dialog === "approve" ? "Confirm approval" : "Confirm rejection"}
+              {dialog === "approve"
+                ? "Confirm approval"
+                : dialog === "reject"
+                  ? "Confirm rejection"
+                  : "Confirm request"}
             </Button>
           </DialogFooter>
         </DialogContent>

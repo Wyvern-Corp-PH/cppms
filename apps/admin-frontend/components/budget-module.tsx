@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { canAccess } from "@workspace/pocketbase/domain/access-control"
+import {
+  canAccess,
+  filterProjectsForUser,
+} from "@workspace/pocketbase/domain/access-control"
 import {
   computeBudgetSummary,
   computeProjectBudgetBreakdown,
@@ -32,7 +35,7 @@ import type {
   LocationRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
-import { EXPENSE_CATEGORY } from "@workspace/pocketbase/schema"
+import { FUND_TYPE } from "@workspace/pocketbase/schema"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -55,6 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { DocumentUploadField } from "@/components/document-upload-field"
 import {
   LocationFilterControls,
@@ -67,6 +71,24 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() - index)
+const FUND_SOURCE_OPTIONS = ["General Fund", "National Grant", "Trust Fund"]
+const FUNDING_YEAR_OPTIONS = YEAR_OPTIONS.map(String)
+
+function recordInDateRange(date: string | undefined, from: string, to: string) {
+  if (!from && !to) return true
+  if (!date) return false
+  const value = Date.parse(date)
+  if (Number.isNaN(value)) return false
+  if (from) {
+    const fromValue = Date.parse(from)
+    if (!Number.isNaN(fromValue) && value < fromValue) return false
+  }
+  if (to) {
+    const toValue = Date.parse(to)
+    if (!Number.isNaN(toValue) && value > toValue) return false
+  }
+  return true
+}
 
 export function BudgetModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
@@ -77,6 +99,8 @@ export function BudgetModule() {
   const [loading, setLoading] = useState(true)
   const [tabProjectFilter, setTabProjectFilter] = useState("all")
   const [tabYearFilter, setTabYearFilter] = useState(String(new Date().getFullYear()))
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
     municipality: "",
     barangay: "",
@@ -87,8 +111,10 @@ export function BudgetModule() {
   const [amount, setAmount] = useState("")
   const [allocationYear, setAllocationYear] = useState(String(new Date().getFullYear()))
   const [allocationDescription, setAllocationDescription] = useState("")
-  const [expenseCategory, setExpenseCategory] =
-    useState<BudgetExpenseRecord["category"]>("Materials")
+  const [fundSource, setFundSource] = useState("")
+  const [fundingYears, setFundingYears] = useState(String(new Date().getFullYear()))
+  const [fundType, setFundType] = useState<BudgetExpenseRecord["fund_type"]>("Local")
+  const [fundTypeOther, setFundTypeOther] = useState("")
   const [receiptNumber, setReceiptNumber] = useState("")
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [expenseDescription, setExpenseDescription] = useState("")
@@ -139,12 +165,16 @@ export function BudgetModule() {
     }
   )
 
+  const scopedProjects = useMemo(
+    () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
+    [actor, projects]
+  )
   const locationFilteredProjects = useMemo(
     () =>
-      projects.filter((project) =>
+      scopedProjects.filter((project) =>
         projectMatchesLocationFilters(project, locationFilters)
       ),
-    [locationFilters, projects]
+    [locationFilters, scopedProjects]
   )
   const locationFilteredProjectIds = useMemo(
     () => new Set(locationFilteredProjects.map((project) => project.id)),
@@ -152,22 +182,33 @@ export function BudgetModule() {
   )
   const locationFilteredAllocations = useMemo(
     () =>
-      allocations.filter((row) => locationFilteredProjectIds.has(row.project)),
-    [allocations, locationFilteredProjectIds]
+      allocations.filter(
+        (row) =>
+          locationFilteredProjectIds.has(row.project) &&
+          recordInDateRange(row.date, dateFrom, dateTo)
+      ),
+    [allocations, dateFrom, dateTo, locationFilteredProjectIds]
   )
   const locationFilteredExpenses = useMemo(
     () => expenses.filter((row) => locationFilteredProjectIds.has(row.project)),
     [expenses, locationFilteredProjectIds]
   )
+  const dateFilteredExpenses = useMemo(
+    () =>
+      locationFilteredExpenses.filter((row) =>
+        recordInDateRange(row.date, dateFrom, dateTo)
+      ),
+    [dateFrom, dateTo, locationFilteredExpenses]
+  )
   const summary = computeBudgetSummary(
     locationFilteredProjects,
     locationFilteredAllocations,
-    locationFilteredExpenses
+    dateFilteredExpenses
   )
   const breakdown = computeProjectBudgetBreakdown(
     locationFilteredProjects,
     locationFilteredAllocations,
-    locationFilteredExpenses
+    dateFilteredExpenses
   )
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, actor ? [actor] : []),
@@ -194,12 +235,12 @@ export function BudgetModule() {
 
   const filteredExpenses = useMemo(
     () =>
-      locationFilteredExpenses.filter((row) => {
+      dateFilteredExpenses.filter((row) => {
         if (tabProjectFilter !== "all" && row.project !== tabProjectFilter) return false
         if (tabYearFilter !== "all" && !row.date.startsWith(tabYearFilter)) return false
         return true
       }),
-    [locationFilteredExpenses, tabProjectFilter, tabYearFilter]
+    [dateFilteredExpenses, tabProjectFilter, tabYearFilter]
   )
 
   const projectName = (id: string) =>
@@ -254,7 +295,10 @@ export function BudgetModule() {
     const parsed = budgetExpenseMutateSchema.safeParse({
       project: projectId,
       amount,
-      category: expenseCategory,
+      fund_source: fundSource,
+      funding_years: fundingYears,
+      fund_type: fundType,
+      fund_type_other: fundType === "Other" ? fundTypeOther : undefined,
       date: expenseDate,
       receipt_number: receiptNumber || undefined,
       description: expenseDescription || undefined,
@@ -373,6 +417,13 @@ export function BudgetModule() {
               value={locationFilters}
               onChange={setLocationFilters}
             />
+            <DateRangeFilter
+              id="budget-date-range"
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={setDateFrom}
+              onToChange={setDateTo}
+            />
           </div>
         </div>
 
@@ -426,13 +477,13 @@ export function BudgetModule() {
           {canCreateExpenses ? (
             <Button
               type="button"
-              data-testid="record-expense"
+              data-testid="released-amount"
               onClick={() => {
                 setFieldErrors({})
                 setExpenseOpen(true)
               }}
             >
-              + Record Expense
+              + Released Amount
             </Button>
           ) : null}
           <div className="overflow-x-auto rounded-lg border">
@@ -441,7 +492,9 @@ export function BudgetModule() {
                 <tr>
                   <th className="px-4 py-2 text-left">Project</th>
                   <th className="px-4 py-2 text-left">Amount</th>
-                  <th className="px-4 py-2 text-left">Category</th>
+                  <th className="px-4 py-2 text-left">Fund Source</th>
+                  <th className="px-4 py-2 text-left">Funding Years</th>
+                  <th className="px-4 py-2 text-left">Fund Type</th>
                   <th className="px-4 py-2 text-left">Date</th>
                   <th className="px-4 py-2 text-left">Receipt #</th>
                 </tr>
@@ -453,7 +506,13 @@ export function BudgetModule() {
                     <td className="px-4 py-2 text-destructive">
                       {formatExpenseAmount(row.amount)}
                     </td>
-                    <td className="px-4 py-2">{row.category}</td>
+                    <td className="px-4 py-2">{row.fund_source ?? "—"}</td>
+                    <td className="px-4 py-2">{row.funding_years ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {row.fund_type === "Other"
+                        ? (row.fund_type_other ?? "Other")
+                        : row.fund_type}
+                    </td>
                     <td className="px-4 py-2">{formatDisplayDate(row.date)}</td>
                     <td className="px-4 py-2">{row.receipt_number ?? "—"}</td>
                   </tr>
@@ -541,9 +600,9 @@ export function BudgetModule() {
       <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Record expense</DialogTitle>
+            <DialogTitle>Released Amount</DialogTitle>
             <DialogDescription>
-              Log project spending against an existing allocation.
+              Log a released amount against a project fund source.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -563,25 +622,71 @@ export function BudgetModule() {
             <Input id="expense-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
             <Label htmlFor="receipt-number">Receipt number</Label>
             <Input id="receipt-number" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} />
-            <Select value={expenseCategory} onValueChange={(v) => setExpenseCategory(v as BudgetExpenseRecord["category"])}>
-              <SelectTrigger aria-label="Expense category">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EXPENSE_CATEGORY.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="text-sm font-medium">Fund Source</p>
+              <Label htmlFor="fund-source-trigger">Fund source</Label>
+              <Select value={fundSource} onValueChange={setFundSource}>
+                <SelectTrigger id="fund-source-trigger" aria-label="Fund source">
+                  <SelectValue placeholder="Select fund source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUND_SOURCE_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Label htmlFor="funding-years-trigger">Funding years</Label>
+              <Select value={fundingYears} onValueChange={setFundingYears}>
+                <SelectTrigger id="funding-years-trigger" aria-label="Funding years">
+                  <SelectValue placeholder="Select funding year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUNDING_YEAR_OPTIONS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Label htmlFor="fund-type-trigger">Fund type</Label>
+              <Select
+                value={fundType}
+                onValueChange={(value) => {
+                  setFundType(value as BudgetExpenseRecord["fund_type"])
+                  if (value !== "Other") setFundTypeOther("")
+                }}
+              >
+                <SelectTrigger id="fund-type-trigger" aria-label="Fund type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUND_TYPE.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fundType === "Other" ? (
+                <>
+                  <Label htmlFor="fund-type-other">Other fund type</Label>
+                  <Input
+                    id="fund-type-other"
+                    value={fundTypeOther}
+                    onChange={(event) => setFundTypeOther(event.target.value)}
+                  />
+                </>
+              ) : null}
+            </div>
             <Label htmlFor="expense-date">Expense date</Label>
             <Input id="expense-date" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
             <Label htmlFor="expense-description">Description</Label>
             <Textarea id="expense-description" value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button type="button" onClick={() => void saveExpense()}>Record expense</Button>
+            <Button type="button" onClick={() => void saveExpense()}>Released Amount</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

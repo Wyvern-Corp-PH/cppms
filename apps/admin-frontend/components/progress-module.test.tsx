@@ -10,8 +10,8 @@ const store = {
   authRecord: {
     id: "current-user",
     email: "current@example.test",
-    name: "Current Admin",
-    role: "Admin",
+    name: "Current Province User",
+    role: "Province",
     account_status: "Active",
   } as Record<string, unknown> | null,
 }
@@ -39,6 +39,12 @@ vi.mock("@/lib/pocketbase", () => ({
 }))
 
 import { ProgressModule } from "./progress-module"
+
+async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+  await user.click(screen.getByRole("button", { name: /pick date range/i }))
+  await user.type(screen.getByLabelText(/from date/i), from)
+  await user.type(screen.getByLabelText(/to date/i), to)
+}
 
 describe("ProgressModule (V81, V84)", () => {
   beforeAll(() => {
@@ -123,8 +129,8 @@ describe("ProgressModule (V81, V84)", () => {
     store.authRecord = {
       id: "current-user",
       email: "current@example.test",
-      name: "Current Admin",
-      role: "Admin",
+      name: "Current Province User",
+      role: "Province",
       account_status: "Active",
     }
     createMock.mockReset().mockResolvedValue({})
@@ -232,6 +238,74 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it("filters progress rows and summaries by progress update date range", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 30,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 60,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-06-12 00:00:00.000Z",
+        project: "1",
+        from_pct: 20,
+        to_pct: 30,
+        site_photo: "city.jpg",
+      },
+      {
+        id: "u2",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-07-12 00:00:00.000Z",
+        project: "2",
+        from_pct: 40,
+        to_pct: 60,
+        site_photo: "lasam.jpg",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+    })
+
+    await chooseDateRange(user, "2026-06-01", "2026-06-30")
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+      expect(screen.getByTestId("progress-active")).toHaveTextContent("1")
+      expect(screen.getByTestId("progress-on-track")).toHaveTextContent("0")
+    })
+  })
+
   it("uses the latest progress update for the visible project meter", async () => {
     store.projects = [
       {
@@ -302,7 +376,7 @@ describe("ProgressModule (V81, V84)", () => {
         collectionName: "users",
         email: "ana@example.test",
         name: "Ana Santos",
-        role: "Admin",
+        role: "Province",
         account_status: "Active",
       },
     ]
@@ -353,7 +427,7 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(await screen.findByRole("button", { name: /view details/i }))
 
     await waitFor(() => {
-      expect(screen.getAllByText(/Current Admin/)).not.toHaveLength(0)
+      expect(screen.getAllByText(/Current Province User/)).not.toHaveLength(0)
       expect(screen.queryByText(/current-user/)).not.toBeInTheDocument()
     })
   })

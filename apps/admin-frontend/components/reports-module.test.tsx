@@ -7,7 +7,7 @@ const authState = {
     id: "u1",
     name: "Current Admin",
     email: "current@example.test",
-    role: "Admin",
+    role: "Province",
     account_status: "Active",
   },
 }
@@ -66,6 +66,10 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => authState,
 }))
 
+vi.mock("@/hooks/use-pocketbase-realtime", () => ({
+  usePocketBaseRealtime: () => ({ live: true }),
+}))
+
 import { ReportsModule } from "./reports-module"
 
 describe("ReportsModule (V12)", () => {
@@ -97,7 +101,7 @@ describe("ReportsModule (V12)", () => {
       id: "u1",
       name: "Current Admin",
       email: "current@example.test",
-      role: "Admin",
+      role: "Province",
       account_status: "Active",
     }
     store.projects = []
@@ -167,6 +171,24 @@ describe("ReportsModule (V12)", () => {
       expect(screen.getByTestId("export-all-sheets")).toBeInTheDocument()
       expect(screen.getByTestId("export-current-tab")).toBeInTheDocument()
     })
+  })
+
+  it("renders a visible Live pill in the page header when subscribed", async () => {
+    render(<ReportsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("live-pill")).toHaveTextContent("Live")
+    })
+  })
+
+  it("uses the shared date range picker instead of standalone date inputs", async () => {
+    render(<ReportsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /pick date range/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByLabelText(/^filter from date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^filter to date$/i)).not.toBeInTheDocument()
   })
 
   it("shows activity logs only to Super Admin", async () => {

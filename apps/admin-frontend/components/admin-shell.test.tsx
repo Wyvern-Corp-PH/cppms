@@ -6,7 +6,7 @@ import { getVisibleAdminNavItems } from "@/lib/admin-nav"
 const authState = {
   user: {
     id: "1",
-    role: "Admin",
+    role: "Province",
     account_status: "Active",
   },
   logout: vi.fn(),
@@ -92,7 +92,7 @@ describe("AdminShell", () => {
   beforeEach(() => {
     authState.user = {
       id: "1",
-      role: "Admin",
+      role: "Province",
       account_status: "Active",
     }
     authState.logout.mockReset()
@@ -116,7 +116,7 @@ describe("AdminShell", () => {
     }
   })
 
-  it("hides User Management navigation from regular Admins", () => {
+  it("hides User Management navigation from Province users", () => {
     render(
       <AdminShell>
         <p>Page content</p>
@@ -124,7 +124,7 @@ describe("AdminShell", () => {
     )
 
     expect(screen.queryByRole("link", { name: "User Management" })).not.toBeInTheDocument()
-    expect(screen.getByText("Admin")).toBeInTheDocument()
+    expect(screen.getByText("Province")).toBeInTheDocument()
   })
 
   it("shows User Management navigation and role badge to Super Admins", () => {

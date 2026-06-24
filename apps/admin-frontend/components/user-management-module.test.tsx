@@ -12,7 +12,7 @@ const store = {
       updated: "",
       email: "admin@example.test",
       name: "Admin User",
-      role: "Admin",
+      role: "Province",
       account_status: "Active",
     },
   ],
@@ -80,7 +80,7 @@ describe("UserManagementModule (J6)", () => {
     })
 
     expect(screen.getByText("admin@example.test")).toBeInTheDocument()
-    expect(screen.getByText("Admin")).toBeInTheDocument()
+    expect(screen.getByText("Province")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /edit admin user/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /deactivate admin user/i })).toBeInTheDocument()
