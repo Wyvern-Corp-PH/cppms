@@ -8,7 +8,7 @@ function makeFile(name: string, content = "content") {
   return new File([content], name, { type: "application/pdf" })
 }
 
-function makeDistinctFiles(name: string) {
+function makeDistinctFiles(name: string): [File, File] {
   return [makeFile(name, "alpha"), makeFile(name, "beta")]
 }
 
