@@ -23,6 +23,15 @@ const store = {
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
+    authStore: {
+      record: {
+        id: "province-user",
+        email: "province@example.test",
+        name: "Province Reviewer",
+        role: "Province",
+        account_status: "Active",
+      },
+    },
     collection: (name: string) => ({
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects

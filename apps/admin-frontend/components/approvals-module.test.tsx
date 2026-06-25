@@ -13,6 +13,8 @@ const store = {
       name: "Completed Bridge",
       category: "Infrastructure",
       status: "Completed",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "pending",
@@ -126,6 +128,8 @@ describe("ApprovalsModule (J5, V5)", () => {
         name: "Completed Bridge",
         category: "Infrastructure",
         status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
         progress_pct: 100,
         approval_status: "pending",
@@ -244,11 +248,28 @@ describe("ApprovalsModule (J5, V5)", () => {
       name: "Barangay Encoder",
       role: "Barangay",
       account_status: "Active",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
     }
 
     render(<ApprovalsModule />)
 
     const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /request revision/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("hides approval actions when no authenticated Province actor is present", async () => {
+    store.authRecord = null
+
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByText("Completed")).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()

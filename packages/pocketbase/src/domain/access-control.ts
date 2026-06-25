@@ -40,6 +40,10 @@ export type ScopedProject = {
   barangay?: string
 }
 
+function hasScopeValue(value: string | undefined): boolean {
+  return Boolean(value?.trim())
+}
+
 const BARANGAY_POLICIES: readonly PolicyKey[] = [
   "projects.update",
   "progress_updates.create",
@@ -100,7 +104,14 @@ export function getRolePolicy(role: Role | string | undefined): readonly PolicyK
 }
 
 export function isActiveUser(user: PolicyUser | null | undefined): boolean {
-  return Boolean(user) && user?.account_status !== "Inactive"
+  if (!user || user.account_status === "Inactive") return false
+  if (!user.role && user.account_status !== "Inactive") return true
+  if (user.role === "Super Admin" || user.role === "Province") return true
+  if (user.role === "Municipality") return hasScopeValue(user.municipality)
+  if (user.role === "Barangay") {
+    return hasScopeValue(user.municipality) && hasScopeValue(user.barangay)
+  }
+  return false
 }
 
 export function isSuperAdmin(user: PolicyUser | null | undefined): boolean {
@@ -118,7 +129,8 @@ export function canAccess(
 }
 
 function sameScopeValue(a: string | undefined, b: string | undefined): boolean {
-  return (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase()
+  if (!hasScopeValue(a) || !hasScopeValue(b)) return false
+  return a!.trim().toLowerCase() === b!.trim().toLowerCase()
 }
 
 export function isProjectInUserScope(

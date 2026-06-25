@@ -141,8 +141,25 @@ describe("ProgressModule (V81, V84)", () => {
     return new File(["content"], name, { type })
   }
 
+  const barangayScope = {
+    municipality: "Tuguegarao City",
+    barangay: "Centro 01 (Bagumbayan)",
+  }
+
+  function useBarangayActor() {
+    store.authRecord = {
+      id: "barangay-user",
+      email: "barangay@example.test",
+      name: "Current Barangay User",
+      role: "Barangay",
+      account_status: "Active",
+      ...barangayScope,
+    }
+  }
+
   it("shows drag-and-drop site photo upload in update modal", async () => {
     const user = userEvent.setup()
+    useBarangayActor()
     store.projects = [
       {
         id: "1",
@@ -155,6 +172,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 25,
+        ...barangayScope,
       },
     ]
     store.updates = []
@@ -434,6 +452,7 @@ describe("ProgressModule (V81, V84)", () => {
 
   it("saves a progress update even when the project meter PATCH fails", async () => {
     const user = userEvent.setup()
+    useBarangayActor()
     store.projects = [
       {
         id: "1",
@@ -446,6 +465,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 25,
+        ...barangayScope,
       },
     ]
     store.updates = []
@@ -477,6 +497,7 @@ describe("ProgressModule (V81, V84)", () => {
 
   it("shows a Zod validation message when saving without a site photo", async () => {
     const user = userEvent.setup()
+    useBarangayActor()
     store.projects = [
       {
         id: "1",
@@ -489,6 +510,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 25,
+        ...barangayScope,
       },
     ]
 
@@ -507,6 +529,7 @@ describe("ProgressModule (V81, V84)", () => {
 
   it("saves below-100 progress with a site photo and empty completion document lists", async () => {
     const user = userEvent.setup()
+    useBarangayActor()
     store.projects = [
       {
         id: "1",
@@ -519,6 +542,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 5,
+        ...barangayScope,
       },
     ]
 
@@ -543,6 +567,7 @@ describe("ProgressModule (V81, V84)", () => {
 
   it("blocks saving a 100% progress update until completion documents are uploaded", async () => {
     const user = userEvent.setup()
+    useBarangayActor()
     store.projects = [
       {
         id: "1",
@@ -555,6 +580,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 100,
+        ...barangayScope,
       },
     ]
 
