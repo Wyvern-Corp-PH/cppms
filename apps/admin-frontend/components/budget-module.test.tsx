@@ -766,6 +766,40 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(payload).not.toHaveProperty("funding_years")
   })
 
+  it("requires sub account before creating General Fund released amounts", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+    await user.click(await screen.findByTestId("released-amount"))
+    await user.click(screen.getByLabelText(/expense project/i))
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "25000")
+    await user.click(screen.getByLabelText(/main account/i))
+    await user.click(await screen.findByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
+
+    expect(await screen.findByText("Sub account is required.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
   it("renders released amount validation with Field primitives", async () => {
     const user = userEvent.setup()
     store.projects = [

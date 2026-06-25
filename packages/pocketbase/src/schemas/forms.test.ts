@@ -141,6 +141,24 @@ describe("budgetExpenseMutateSchema (V34, V157)", () => {
     }
   })
 
+  it("requires sub account when main account has sub accounts", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      year: "2026",
+      main_account: "General Fund",
+      sub_account: "",
+      date: "2026-06-24",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).sub_account).toBe(
+        "Sub account is required."
+      )
+    }
+  })
+
   it("accepts Special Education Fund without sub account", () => {
     const result = budgetExpenseMutateSchema.safeParse({
       project: "p1",

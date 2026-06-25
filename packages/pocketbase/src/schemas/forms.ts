@@ -125,6 +125,8 @@ export const budgetAllocationMutateSchema = z.object({
   allocated_by: z.string().optional(),
 })
 
+const mainAccountsRequiringSubAccount = new Set(["General Fund", "Trust Fund"])
+
 export const budgetExpenseMutateSchema = z
   .object({
     project: z.string().min(1, "Project is required."),
@@ -142,6 +144,16 @@ export const budgetExpenseMutateSchema = z
         code: "custom",
         path: ["sub_account"],
         message: "Other purpose is required.",
+      })
+    }
+    if (
+      mainAccountsRequiringSubAccount.has(value.main_account) &&
+      !value.sub_account?.trim()
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sub_account"],
+        message: "Sub account is required.",
       })
     }
   })
