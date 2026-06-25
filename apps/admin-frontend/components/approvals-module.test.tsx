@@ -70,6 +70,25 @@ async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: s
   await user.type(screen.getByLabelText(/to date/i), to)
 }
 
+async function submitRequestRevision(
+  user: ReturnType<typeof userEvent.setup>,
+  card: HTMLElement
+) {
+  await user.click(within(card).getByRole("button", { name: /request revision/i }))
+  expect(
+    await screen.findByRole("dialog", { name: /request revision/i })
+  ).toBeInTheDocument()
+  await user.type(
+    await screen.findByLabelText(/reviewing authority name/i),
+    "Provincial Engineer"
+  )
+  await user.type(
+    await screen.findByLabelText(/revision notes/i),
+    "Please upload clearer liquidation docs."
+  )
+  await user.click(screen.getByTestId("confirm-approval-action"))
+}
+
 describe("ApprovalsModule (J5, V5)", () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
@@ -228,10 +247,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       within(card).getByRole("button", { name: /request revision/i })
     ).toBeInTheDocument()
 
-    await user.click(within(card).getByRole("button", { name: /request revision/i }))
-    await user.type(screen.getByLabelText(/reviewing authority name/i), "Provincial Engineer")
-    await user.type(screen.getByLabelText(/revision notes/i), "Please upload clearer liquidation docs.")
-    await user.click(screen.getByTestId("confirm-approval-action"))
+    await submitRequestRevision(user, card)
 
     await waitFor(() => {
       expect(store.actions[0]).toMatchObject({
