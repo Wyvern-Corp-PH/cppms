@@ -5,7 +5,6 @@
  */
 
 const REQUIRED_KEYS = [
-  "DOMAIN",
   "CADDY_HTTP_PORT",
   "CADDY_HTTPS_PORT",
   "POCKETBASE_ENCRYPTION_KEY",
@@ -19,7 +18,7 @@ const REQUIRED_KEYS = [
   "NEXT_PUBLIC_ADMIN_URL",
 ];
 
-const OPTIONAL_KEYS = ["GHCR_REGISTRY", "IMAGE_TAG"];
+const OPTIONAL_KEYS = ["DOMAIN", "GHCR_REGISTRY", "IMAGE_TAG"];
 
 const missing = REQUIRED_KEYS.filter((key) => !process.env[key]?.trim());
 if (missing.length > 0) {
@@ -36,6 +35,10 @@ for (const key of OPTIONAL_KEYS) {
   if (value) {
     values[key] = value;
   }
+}
+
+if (!values.DOMAIN) {
+  values.DOMAIN = ":80";
 }
 
 const publicIp = process.env.EC2_HOST?.trim();

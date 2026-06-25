@@ -151,7 +151,6 @@ jobs:
           EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         run: |
           required=(
-            DOMAIN
             CADDY_HTTP_PORT
             CADDY_HTTPS_PORT
             ORIGINS
@@ -261,9 +260,6 @@ jobs:
               [[ -n \"\$prev\" ]] && printf '%s\\n' \"\$prev\" > '${EC2_APP_DIR}/.deploy/previous-image-tag'
             fi"
 
-      - name: Upload deploy env
-        run: scp -F "${HOME}/.ssh/config" .env "ec2-deploy:${EC2_APP_DIR}/.env"
-
       - name: EC2 bootstrap and GHCR login
         run: |
           SSH_CFG="${HOME}/.ssh/config"
@@ -278,6 +274,9 @@ jobs:
         run: |
           ssh -F "${HOME}/.ssh/config" ec2-deploy \
             "bash '${EC2_APP_DIR}/scripts/pocketbase-backup-remote.sh' '${EC2_APP_DIR}'"
+
+      - name: Upload deploy env
+        run: scp -F "${HOME}/.ssh/config" .env "ec2-deploy:${EC2_APP_DIR}/.env"
 
       - name: Pull and start stack
         id: deploy

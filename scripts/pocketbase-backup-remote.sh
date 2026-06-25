@@ -10,6 +10,15 @@ MAX_WAIT_SEC="${3:-300}"
 
 cd "$APP_DIR"
 
+STATE_DIR=".deploy"
+BACKUP_DIR="${STATE_DIR}/backups"
+mkdir -p "$BACKUP_DIR"
+
+if [[ ! -s "${STATE_DIR}/current-image-tag" && ! -f "${STATE_DIR}/last-backup.txt" && ! -f "$ENV_FILE" ]]; then
+  echo "Fresh deploy — skipping pre-deploy backup (no prior release on this host)."
+  exit 0
+fi
+
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing $ENV_FILE" >&2
   exit 1
@@ -19,10 +28,6 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
-
-STATE_DIR=".deploy"
-BACKUP_DIR="${STATE_DIR}/backups"
-mkdir -p "$BACKUP_DIR"
 
 docker_cmd() {
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then

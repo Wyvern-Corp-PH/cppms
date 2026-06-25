@@ -53,4 +53,38 @@ describe("production deploy workflow", () => {
     expect(workflow).toContain("rsync -az --delete")
     expect(workflow).toContain("scp -F")
   })
+
+  it("backs up the running stack before replacing its remote env", async () => {
+    const workflowPath = path.resolve(
+      import.meta.dirname,
+      "../../../.github/workflows/deploy.yml"
+    )
+    const workflow = await readFile(workflowPath, "utf8")
+
+    expect(workflow.indexOf("Pre-deploy PocketBase backup")).toBeLessThan(
+      workflow.indexOf("Upload deploy env")
+    )
+  })
+
+  it("allows production deploys before a real domain is assigned", async () => {
+    const rootDir = path.resolve(import.meta.dirname, "../../..")
+    const workflow = await readFile(
+      path.join(rootDir, ".github/workflows/deploy.yml"),
+      "utf8"
+    )
+    const envRenderer = await readFile(
+      path.join(rootDir, "scripts/render-deploy-env.mjs"),
+      "utf8"
+    )
+    const caddyfile = await readFile(
+      path.join(rootDir, "docker/caddy/Caddyfile.prod"),
+      "utf8"
+    )
+
+    expect(workflow).not.toMatch(/required=\([\s\S]*\n\s+DOMAIN\n/)
+    expect(envRenderer).toContain("OPTIONAL_KEYS = [\"DOMAIN\"")
+    expect(envRenderer).toContain('values.DOMAIN = ":80"')
+    expect(caddyfile).toContain("{$DOMAIN::80}")
+    expect(caddyfile).not.toMatch(/\n:80\s+\{/)
+  })
 })
