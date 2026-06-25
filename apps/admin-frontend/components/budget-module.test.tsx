@@ -307,8 +307,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
     render(<BudgetModule />)
 
     await waitFor(() => {
-      expect(screen.getAllByText("Amount").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("Amount released").length).toBeGreaterThan(0)
       expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
+      expect(screen.getByText(/Amount released\s+₱25,000/)).toBeInTheDocument()
       expect(screen.queryByText("Spent")).not.toBeInTheDocument()
     })
 

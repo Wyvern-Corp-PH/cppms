@@ -271,8 +271,8 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 **Budget** (`/budget`) — admin (V9,V10,V75–V80,V150,V152,V155–V157,V178,V179,V188–V190)
 
-- Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Amount (₱ + progress bar), Remaining (₱).
-- Breakdown list: per project — name, location, total_budget, allocated, amount, remaining, spend-% progress bar.
+- Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Amount released (₱ + progress bar), Remaining (₱).
+- Breakdown list: per project — name, location, total_budget, allocated, amount released, remaining, spend-% progress bar.
 - Transactions tabs: Allocations | Released Amount; filter dropdowns — project, year, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` ⊥ filter; visible tab/section copy ⊥ "Expenses".
 - Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
 - Released Amount tab: cols project, amount (red/−), year, main_account, sub_account, date, receipt_number; `+ Released Amount` → modal (project, amount, receipt_number, Fund Source section label only, Year dropdown, Main account dropdown, conditional child control per V157/V178/V190, expense date, description).
@@ -334,7 +334,7 @@ V5: Approve action requires `authority_name`; reject requires `reason` + `author
 V6: Progress update requires `site_photo` upload.
 V7: Progress summary Needs Attention = projects w/ progress_pct < 25%.
 V8: Progress summary On Track = projects w/ progress_pct ≥ 50%.
-V9: Budget summary cards aggregate ∀ projects (total, allocated, amount, remaining).
+V9: Budget summary cards aggregate ∀ projects (total, allocated, amount released, remaining).
 V10: Expense amounts display negative/red; allocation amounts positive/green.
 V11: Reports deadline_status: Lapsed=red, Completed=green, On Track=blue, Near Deadline=orange.
 V12: Excel export ⊥ available on public frontend.
@@ -400,8 +400,8 @@ V71: PB list/view API may omit `created`/`updated` on records — `baseRecordSch
 V72: Project list cards show name, municipality/barangay context, free-form location when present, description, category, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
 V73: Project list filters: status, category, municipality, barangay, date range (from/to); search bar matches name (case-insensitive substring); free-form `projects.location` ⊥ filter.
 V74: Admin project card actions: Edit + Delete + status change only for project-mutation roles; Municipality/Barangay scoped users see no project edit/status/delete affordances; public ⊥ create/edit/delete affordances (V2,J3).
-V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), amount (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
-V76: Budget breakdown row: project name, location, total_budget, allocated, amount, remaining, spend-% progress bar.
+V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), amount released (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
+V76: Budget breakdown row: project name, location, total_budget, allocated, amount released, remaining, spend-% progress bar.
 V77: Budget Allocations & Released Amount tabs — filterable by project dropdown, year dropdown, municipality dropdown, barangay dropdown, date range From/To.
 V78: Allocations table cols: project, amount (green positive V10), year, description, date, allocated_by.
 V79: Released Amount table cols: project, amount (red negative V10), Year, Main Account, Sub Account, date, receipt_number; Sub Account blank when none; ⊥ Category/Fund Source/Fund Type cols.

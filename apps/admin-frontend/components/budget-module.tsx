@@ -511,7 +511,7 @@ export function BudgetModule() {
             testId: "budget-allocated",
           },
           {
-            label: "Amount",
+            label: "Amount released",
             value: formatPhp(summary.totalSpent),
             progressPct: spentPct,
             testId: "budget-spent",
@@ -535,7 +535,7 @@ export function BudgetModule() {
                   {row.location ? ` · ${row.location}` : ""}
                 </span>
                 <span className="text-muted-foreground tabular-nums">
-                  Total {formatPhp(row.totalBudget)} · Alloc {formatPhp(row.allocated)} · Amount{" "}
+                  Total {formatPhp(row.totalBudget)} · Alloc {formatPhp(row.allocated)} · Amount released{" "}
                   {formatPhp(row.spent)} · Rem {formatPhp(row.remaining)}
                 </span>
               </div>
