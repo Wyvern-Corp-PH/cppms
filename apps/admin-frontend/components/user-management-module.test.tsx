@@ -290,7 +290,11 @@ describe("UserManagementModule (J6)", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalled()
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emailVisibility: true,
+        })
+      )
     })
     expect(await screen.findByText("New User")).toBeInTheDocument()
     expect(screen.getByText("new@example.test")).toBeInTheDocument()

@@ -228,6 +228,7 @@ export function UserManagementModule() {
         account_status: parsed.data.account_status,
         municipality: parsed.data.municipality,
         barangay: parsed.data.barangay,
+        emailVisibility: true,
         password: parsed.data.password,
         passwordConfirm: parsed.data.password,
       })
