@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import * as XLSX from "xlsx"
 
+import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDate, formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import { projectLocationDisplayParts } from "@workspace/pocketbase/domain/project-filters"
@@ -84,6 +85,10 @@ export function ReportsModule() {
   const [activityLogs, setActivityLogs] = useState<ActivityLogRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
+  const [statusOptions, setStatusOptions] = useState<string[]>([...PROJECT_STATUS])
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([
+    ...PROJECT_CATEGORY,
+  ])
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
   const [activeTab, setActiveTab] = useState<ReportTab>("projects")
   const [loading, setLoading] = useState(true)
@@ -101,6 +106,8 @@ export function ReportsModule() {
       locationRows,
       logRows,
       userRows,
+      nextStatusOptions,
+      nextCategoryOptions,
     ] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
@@ -111,6 +118,18 @@ export function ReportsModule() {
         ? pb.collection("activity_logs").getFullList()
         : Promise.resolve([]),
       pb.collection("users").getFullList().catch(() => []),
+      loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "status", PROJECT_STATUS)
+      ),
+      loadOptionRecordNames(pb, "project_category_options", PROJECT_CATEGORY).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "category", PROJECT_CATEGORY)
+      ),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
@@ -119,6 +138,8 @@ export function ReportsModule() {
     setLocations(parseRecordList(locationRecordSchema, locationRows))
     setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
     setUsers(userRows as UserDisplayRecord[])
+    setStatusOptions(nextStatusOptions)
+    setCategoryOptions(nextCategoryOptions)
     setLoading(false)
   }, [canViewActivityLogs])
 
@@ -206,7 +227,23 @@ export function ReportsModule() {
           progress: project.progress_pct,
         }))
       } else if (tab === "budget") {
-        rows = breakdown.map((row) => ({ ...row }))
+        rows = breakdown.map((row) => {
+          const projectExpenses = filteredExpenses.filter(
+            (expense) => expense.project === row.projectId
+          )
+          const mainAccounts = Array.from(
+            new Set(projectExpenses.map((expense) => expense.main_account).filter(Boolean))
+          )
+          const subAccounts = Array.from(
+            new Set(projectExpenses.map((expense) => expense.sub_account).filter(Boolean))
+          )
+
+          return {
+            ...row,
+            main_accounts: mainAccounts.join(", "),
+            sub_accounts: subAccounts.join(", "),
+          }
+        })
       } else if (tab === "progress") {
         rows = filteredUpdates.map((update) => {
           const project = filteredProjects.find((p) => p.id === update.project)
@@ -278,7 +315,7 @@ export function ReportsModule() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            {PROJECT_STATUS.map((value) => (
+            {statusOptions.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
               </SelectItem>
@@ -299,7 +336,7 @@ export function ReportsModule() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {PROJECT_CATEGORY.map((value) => (
+            {categoryOptions.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
               </SelectItem>

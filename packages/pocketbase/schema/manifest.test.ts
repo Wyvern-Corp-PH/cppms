@@ -77,6 +77,16 @@ const enumRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000013_approval_audit_select_values.js"
 )
+const budgetFundOptionCollectionsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000014_budget_fund_option_collections.js"
+)
+const dropdownOptionCollectionsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000015_dropdown_option_collections.js"
+)
 
 describe("schema manifest (SPEC §I)", () => {
   it("defines auth, module, location, and audit collections", () => {
@@ -85,6 +95,14 @@ describe("schema manifest (SPEC §I)", () => {
       "projects",
       "budget_allocations",
       "budget_expenses",
+      "budget_fund_sources",
+      "budget_funding_years",
+      "budget_fund_main_accounts",
+      "budget_fund_sub_accounts",
+      "project_status_options",
+      "project_category_options",
+      "user_role_options",
+      "user_account_status_options",
       "progress_updates",
       "approval_actions",
       "locations",
@@ -141,6 +159,31 @@ describe("schema manifest (SPEC §I)", () => {
       ])
     )
   })
+
+  it("declares Budget fund dropdown option collections", () => {
+    for (const name of [
+      "budget_fund_sources",
+      "budget_funding_years",
+      "budget_fund_main_accounts",
+      "project_status_options",
+      "project_category_options",
+      "user_role_options",
+      "user_account_status_options",
+    ]) {
+      const collection = COLLECTION_MANIFEST.find(
+        (manifestCollection) => manifestCollection.name === name
+      )
+
+      expect(collection?.fields).toEqual(["name", "active", "sort_order"])
+    }
+
+    expect(
+      COLLECTION_MANIFEST.find(
+        (manifestCollection) =>
+          manifestCollection.name === "budget_fund_sub_accounts"
+      )?.fields
+    ).toEqual(["main_account", "name", "active", "sort_order"])
+  })
 })
 
 describe("pb migration file", () => {
@@ -151,6 +194,8 @@ describe("pb migration file", () => {
     locationHierarchyMigrationPath,
     budgetFundSourceRbacMigrationPath,
     pbacRulesMigrationPath,
+    budgetFundOptionCollectionsMigrationPath,
+    dropdownOptionCollectionsMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -160,8 +205,10 @@ describe("pb migration file", () => {
   })
 
   it("creates every collection from manifest", () => {
+    const allMigrationSource = `${migrationSource}\n${additiveMigrationSource}`
+
     for (const { name } of COLLECTION_MANIFEST) {
-      expect(migrationSource).toContain(`name: "${name}"`)
+      expect(allMigrationSource).toContain(`name: "${name}"`)
     }
   })
 
@@ -222,10 +269,15 @@ describe("collection access rules (V14, T8)", () => {
   })
 
   it("rules migration applies scoped PBAC rules to every collection", () => {
+    const ruleBearingMigrationSource = `${rulesMigrationSource}\n${readFileSync(
+      budgetFundOptionCollectionsMigrationPath,
+      "utf8"
+    )}\n${readFileSync(dropdownOptionCollectionsMigrationPath, "utf8")}`
+
     for (const name of COLLECTION_NAMES) {
       expect(
-        rulesMigrationSource,
-        `${name} missing in ${RULES_MIGRATION_FILE}`
+        ruleBearingMigrationSource,
+        `${name} missing in access-rule migrations`
       ).toContain(`"${name}"`)
     }
 
@@ -293,14 +345,13 @@ describe("collection access rules (V14, T8)", () => {
     const migrationSource = readFileSync(budgetFundSourceRbacMigrationPath, "utf8")
 
     expect(migrationSource).toContain("ensureBudgetExpenseFields")
-    expect(migrationSource).toContain("fund_source")
-    expect(migrationSource).toContain("funding_years")
-    expect(migrationSource).toContain("fund_type")
-    expect(migrationSource).toContain("fund_type_other")
+    expect(migrationSource).toContain("year")
+    expect(migrationSource).toContain("main_account")
+    expect(migrationSource).toContain("sub_account")
     expect(migrationSource).toContain("ROLE_VALUES")
     expect(migrationSource).toContain("Province")
     expect(migrationSource).toContain("Barangay")
-    expect(seedScriptSource).toContain("fund_source: expense.fund_source")
+    expect(seedScriptSource).toContain("main_account: expense.main_account")
   })
 
   it("adds PBAC scope rules and audit actor scope fields for existing collections", () => {
@@ -325,6 +376,42 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("Province")
     expect(migrationSource).toContain("Municipality")
     expect(migrationSource).toContain("Barangay")
+  })
+
+  it("adds editable Budget fund dropdown option collections", () => {
+    const migrationSource = readFileSync(
+      budgetFundOptionCollectionsMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).not.toContain("Client TBD Source")
+    expect(migrationSource).toContain("budget_funding_years")
+    expect(migrationSource).toContain("budget_fund_main_accounts")
+    expect(migrationSource).toContain("budget_fund_sub_accounts")
+    expect(migrationSource).toContain("main_account")
+    expect(migrationSource).toContain("20% DF")
+    expect(migrationSource).toContain("LDRRMF - SA")
+    expect(migrationSource).toContain("General Fund")
+    expect(migrationSource).toContain("Special Education Fund")
+    expect(migrationSource).toContain("Special Health Fund")
+    expect(migrationSource).toContain("Trust Fund")
+    expect(migrationSource).toContain("Other")
+  })
+
+  it("adds editable project and user dropdown option collections", () => {
+    const migrationSource = readFileSync(
+      dropdownOptionCollectionsMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("project_status_options")
+    expect(migrationSource).toContain("project_category_options")
+    expect(migrationSource).toContain("user_role_options")
+    expect(migrationSource).toContain("user_account_status_options")
+    expect(migrationSource).toContain("Planning")
+    expect(migrationSource).toContain("Infrastructure")
+    expect(migrationSource).toContain("Super Admin")
+    expect(migrationSource).toContain("Active")
   })
 })
 

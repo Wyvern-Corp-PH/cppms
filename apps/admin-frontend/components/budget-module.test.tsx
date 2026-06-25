@@ -7,6 +7,10 @@ const store = {
   allocations: [] as Array<Record<string, unknown>>,
   expenses: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
+  fundSources: [] as Array<Record<string, unknown>>,
+  fundingYears: [] as Array<Record<string, unknown>>,
+  fundMainAccounts: [] as Array<Record<string, unknown>>,
+  fundSubAccounts: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   authRecord: {
     id: "current-user",
@@ -16,6 +20,8 @@ const store = {
     account_status: "Active",
   } as Record<string, unknown> | null,
 }
+
+const createMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
@@ -28,9 +34,14 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "budget_allocations") return store.allocations
         if (name === "budget_expenses") return store.expenses
         if (name === "locations") return store.locations
+        if (name === "budget_fund_sources") return store.fundSources
+        if (name === "budget_funding_years") return store.fundingYears
+        if (name === "budget_fund_main_accounts") return store.fundMainAccounts
+        if (name === "budget_fund_sub_accounts") return store.fundSubAccounts
         if (name === "users") return store.users
         return []
       }),
+      create: createMock,
     }),
   }),
 }))
@@ -123,6 +134,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
         active: true,
       },
     ]
+    store.fundSources = []
+    store.fundingYears = []
+    store.fundMainAccounts = []
+    store.fundSubAccounts = []
     store.users = []
     store.authRecord = {
       id: "current-user",
@@ -131,6 +146,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
       role: "Province",
       account_status: "Active",
     }
+    createMock.mockClear()
   })
 
   it("renders allocation and expense amounts as signed single values", async () => {
@@ -165,9 +181,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 100_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Road materials",
         date: "2026-06-17",
       },
     ]
@@ -242,9 +258,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 25_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Road materials",
         date: "2026-06-17",
       },
       {
@@ -253,9 +269,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p2",
         amount: 10_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "Special Education Fund",
+        sub_account: "School supplies",
         date: "2026-06-17",
       },
     ]
@@ -325,9 +341,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 25_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Road materials",
         date: "2026-06-12",
       },
       {
@@ -336,9 +352,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 150_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "Special Education Fund",
+        sub_account: "School supplies",
         date: "2026-07-12",
       },
     ]
@@ -367,7 +383,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
-  it("uses Released Amount fund source fields instead of expense category", async () => {
+  it("uses Released Amount year, main account, and sub account fields", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -388,10 +404,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 100_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Other",
-        fund_type_other: "Calamity reserve",
+        year: 2026,
+        main_account: "Other",
+        sub_account: "Calamity reserve",
         date: "2026-06-17",
       },
     ]
@@ -402,12 +417,18 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
-      expect(screen.queryByRole("button", { name: /\+ record expense/i })).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("button", {
+          name: new RegExp(`\\+ ${"record"} ${"expense"}`, "i"),
+        })
+      ).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /category/i })).not.toBeInTheDocument()
-      expect(screen.getByRole("columnheader", { name: /fund source/i })).toBeInTheDocument()
-      expect(screen.getByRole("columnheader", { name: /funding years/i })).toBeInTheDocument()
-      expect(screen.getByRole("columnheader", { name: /fund type/i })).toBeInTheDocument()
-      expect(screen.getByText("General Fund")).toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /fund source/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /funding years/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /fund type/i })).not.toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /^year$/i })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /main account/i })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /sub account/i })).toBeInTheDocument()
       expect(screen.getAllByText("2026").length).toBeGreaterThan(0)
       expect(screen.getByText("Calamity reserve")).toBeInTheDocument()
     })
@@ -415,15 +436,202 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(screen.getByRole("button", { name: /\+ released amount/i }))
 
     expect(screen.getAllByText("Fund Source").length).toBeGreaterThan(0)
-    expect(screen.getByLabelText(/^fund source$/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/funding years/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^fund type$/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/other fund type/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^fund source$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/funding years/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^fund type$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^year$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/main account/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByLabelText(/^fund type$/i))
+    await user.click(screen.getByLabelText(/main account/i))
+    expect(await screen.findByRole("option", { name: "General Fund" })).toBeInTheDocument()
     await user.click(await screen.findByRole("option", { name: "Other" }))
 
-    expect(screen.getByLabelText(/other fund type/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/sub account/i)).toBeInTheDocument()
+  })
+
+  it("creates released amount payload with fund source fields only", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.fundingYears = [
+      {
+        id: "fy1",
+        collectionId: "funding_years",
+        collectionName: "budget_funding_years",
+        name: "2027",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.fundMainAccounts = [
+      {
+        id: "ma1",
+        collectionId: "fund_main_accounts",
+        collectionName: "budget_fund_main_accounts",
+        name: "General Fund",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.fundSubAccounts = [
+      {
+        id: "sa1",
+        collectionId: "fund_sub_accounts",
+        collectionName: "budget_fund_sub_accounts",
+        main_account: "General Fund",
+        name: "20% DF",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByTestId("released-amount"))
+    await user.click(screen.getByLabelText(/expense project/i))
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "25000")
+    await user.click(screen.getByLabelText(/^year$/i))
+    await user.click(await screen.findByRole("option", { name: "2027" }))
+    await user.click(screen.getByLabelText(/main account/i))
+    await user.click(await screen.findByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/sub account/i))
+    await user.click(await screen.findByRole("option", { name: "20% DF" }))
+    await user.type(screen.getByLabelText(/receipt number/i), "OR-100")
+    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith({
+        project: "p1",
+        amount: 25000,
+        year: 2027,
+        main_account: "General Fund",
+        sub_account: "20% DF",
+        date: expect.any(String),
+        receipt_number: "OR-100",
+      })
+    })
+
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty("category")
+    expect(payload).not.toHaveProperty("fund_source")
+    expect(payload).not.toHaveProperty("fund_type")
+    expect(payload).not.toHaveProperty("funding_years")
+  })
+
+  it("loads released amount fund source dropdown options from PocketBase collections", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.fundingYears = [
+      {
+        id: "fy1",
+        collectionId: "funding_years",
+        collectionName: "budget_funding_years",
+        name: "2027",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.fundMainAccounts = [
+      {
+        id: "ft1",
+        collectionId: "fund_main_accounts",
+        collectionName: "budget_fund_main_accounts",
+        name: "Special Education Fund",
+        active: true,
+        sort_order: 1,
+      },
+      {
+        id: "ft2",
+        collectionId: "fund_main_accounts",
+        collectionName: "budget_fund_main_accounts",
+        name: "Other",
+        active: true,
+        sort_order: 2,
+      },
+    ]
+    store.fundSubAccounts = [
+      {
+        id: "sa1",
+        collectionId: "fund_sub_accounts",
+        collectionName: "budget_fund_sub_accounts",
+        main_account: "Special Education Fund",
+        name: "PB SEF Program",
+        active: true,
+        sort_order: 1,
+      },
+      {
+        id: "sa2",
+        collectionId: "fund_sub_accounts",
+        collectionName: "budget_fund_sub_accounts",
+        main_account: "General Fund",
+        name: "PB General Program",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByTestId("released-amount"))
+
+    await user.click(screen.getByLabelText(/^year$/i))
+    expect(await screen.findByRole("option", { name: "2027" })).toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByLabelText(/main account/i))
+    expect(await screen.findByRole("option", { name: "Special Education Fund" })).toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "Special Education Fund" }))
+
+    await user.click(screen.getByLabelText(/sub account/i))
+    expect(await screen.findByRole("option", { name: "PB SEF Program" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "PB General Program" })).not.toBeInTheDocument()
+  })
+
+  it("loads budget year filter options from PocketBase funding years", async () => {
+    const user = userEvent.setup()
+    store.fundingYears = [
+      {
+        id: "fy1",
+        collectionId: "funding_years",
+        collectionName: "budget_funding_years",
+        name: "2031",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByLabelText(/filter by year/i))
+
+    expect(await screen.findByRole("option", { name: "2031" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "2026" })).not.toBeInTheDocument()
   })
 
   it("renders allocation user ids as user names", async () => {

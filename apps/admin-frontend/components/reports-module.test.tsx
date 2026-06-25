@@ -19,6 +19,8 @@ const store = {
   updates: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
+  projectStatusOptions: [] as Array<Record<string, unknown>>,
+  projectCategoryOptions: [] as Array<Record<string, unknown>>,
   logs: [
     {
       id: "log1",
@@ -45,6 +47,8 @@ vi.mock("xlsx", () => ({
   writeFile: vi.fn(),
 }))
 
+import * as XLSX from "xlsx"
+
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     collection: (name: string) => ({
@@ -56,6 +60,8 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "locations") return store.locations
         if (name === "activity_logs") return store.logs
         if (name === "users") return store.users
+        if (name === "project_status_options") return store.projectStatusOptions
+        if (name === "project_category_options") return store.projectCategoryOptions
         return []
       }),
     }),
@@ -108,6 +114,26 @@ describe("ReportsModule (V12)", () => {
     store.allocations = []
     store.expenses = []
     store.updates = []
+    store.projectStatusOptions = [
+      {
+        id: "status1",
+        collectionId: "project_status_options",
+        collectionName: "project_status_options",
+        name: "PB Report Status",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.projectCategoryOptions = [
+      {
+        id: "category1",
+        collectionId: "project_category_options",
+        collectionName: "project_category_options",
+        name: "PB Report Category",
+        active: true,
+        sort_order: 1,
+      },
+    ]
     store.locations = [
       {
         id: "loc1",
@@ -161,6 +187,9 @@ describe("ReportsModule (V12)", () => {
       },
     ]
     store.users = []
+    vi.mocked(XLSX.utils.json_to_sheet).mockClear()
+    vi.mocked(XLSX.utils.book_append_sheet).mockClear()
+    vi.mocked(XLSX.writeFile).mockClear()
   })
 
   it("exposes admin export buttons and reports subtitle", async () => {
@@ -179,6 +208,28 @@ describe("ReportsModule (V12)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("live-pill")).toHaveTextContent("Live")
     })
+  })
+
+  it("loads report status and category filter options from PocketBase fields", async () => {
+    const user = userEvent.setup()
+    render(<ReportsModule />)
+
+    await user.click(await screen.findByLabelText(/filter by status/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Report Status" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Planning" })
+    ).not.toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByLabelText(/filter by category/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Report Category" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Infrastructure" })
+    ).not.toBeInTheDocument()
   })
 
   it("uses the shared date range picker instead of standalone date inputs", async () => {
@@ -206,6 +257,70 @@ describe("ReportsModule (V12)", () => {
       expect(screen.getByText("Activity Logs")).toBeInTheDocument()
       expect(screen.getByText("projects")).toBeInTheDocument()
     })
+  })
+
+  it("exports budget rows with released amount fund source data", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        total_budget: 200_000,
+        progress_pct: 75,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "20% DF",
+        date: "2026-06-18",
+      },
+    ]
+
+    render(<ReportsModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /^budget/i }))
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: "Bridge",
+        main_accounts: "General Fund",
+        sub_accounts: "20% DF",
+      }),
+    ])
+
+    const rows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(rows[0]).not.toHaveProperty("category_material")
+    expect(rows[0]).not.toHaveProperty("fund_type")
+    expect(rows[0]).not.toHaveProperty("funding_years")
   })
 
   it("renders current-user ids as names when the users list is unavailable", async () => {

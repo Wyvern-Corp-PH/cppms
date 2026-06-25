@@ -25,6 +25,8 @@ Cagayan PPMS — public read-only project monitoring + authenticated admin for t
 - Scene: dense operations desk — official records, calm accountability, product UI clarity (not civic indigo/teal).
 - Fonts: Geist + Geist Mono substitute Linear Display/Text/Mono.
 - Components: `@workspace/ui` shadcn; ⊥ reinvent buttons/forms/modals.
+- Tables: follow shadcn Radix Data Table guide (`@tanstack/react-table` + `@workspace/ui` Table primitives); ⊥ ad hoc data-grid/table vocab.
+- Forms: follow shadcn Radix Field guide (`FieldSet`/`FieldGroup`/`Field`/`FieldLabel`/`FieldDescription`/`FieldError`); ⊥ one-off label/help/error wrappers.
 - ⊥ bans (carry from impeccable + Linear): side-stripe borders, gradient text, glassmorphism default, hero-metric SaaS row, identical icon-card grids, numbered eyebrows 01/02/03, ghost-card (border + shadow blur ≥16px), card radius >16px, lavender section fills, atmospheric gradients, spotlight cards.
 - **Wireframes** (`wireframes/`): layout-shell ASCII — header band, sidebar, card-list containers, split panels, modals, responsive stacks; prod tokens `DESIGN.md` dark Linear; reference img light theme ≠ shipped UI.
 - **Wireframe vs module precedence** (V92): wireframes define chrome & spatial patterns; module field/column/tab/modal requirements (§I UI surfaces, V72–V91) authoritative for data surfaces — where wireframe cols abbreviated, expand to full module spec.
@@ -84,7 +86,7 @@ Cagayan PPMS — public read-only project monitoring + authenticated admin for t
 | status | Planning, Procurement, Ongoing, Completed, Approved, Rejected |
 | category | Infrastructure, Education, Health, Agriculture, Social Services, Scholarship |
 | lgu_level | Municipality, Barangay, District, SK |
-| fund_type | Local, National, Grant, Other |
+| fund_source | General Fund, SEF, SHF, Trust Fund |
 | deadline_status | Lapsed, Completed, On Track, Near Deadline |
 | role | Super Admin, Province, Municipality, Barangay |
 | account_status | Active, Inactive |
@@ -99,6 +101,7 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 **Access**
 
 - RBAC roles: Super Admin, Province, Municipality, Barangay.
+- RBAC is client-critical (Atty. Charo): ~820 barangays require fail-closed, indexed municipality/barangay scoping; UI filters ⊥ widen backend scope.
 - PBAC: code role→policy map + PB rule enforcement by action/resource, evaluated after auth and before UI/API mutate.
 - First Super Admin: promote existing PB auth user/admin manually.
 - Super Admin: user account CRUD, role/status management, password reset trigger, system settings.
@@ -118,6 +121,8 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 | test | `turbo test`; per-package `vitest.config.ts`; `*.test.ts(x)` colocated w/ source |
 | test deps | `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom` or `happy-dom`; MSW ? for PB API |
 | design | `PRODUCT.md`, `DESIGN.md`, `linear.app/DESIGN.md` (getdesign seed) |
+| ui std | shadcn Radix Data Table guide: `https://ui.shadcn.com/docs/components/radix/data-table` |
+| ui std | shadcn Radix Field guide: `https://ui.shadcn.com/docs/components/radix/field` |
 | wireframes | `wireframes/README.md`; `wireframes/shared/theme-realtime.ascii`; per-module ↓ |
 
 **wireframe files** (layout shell; fields/cols → V72–V91)
@@ -204,7 +209,12 @@ projects → id, name, description, category, status, municipality, barangay, lo
 budget_allocations → project, amount, year, description, date, allocated_by,
   moa_file?, resolution_file?, supporting_docs[]
 
-budget_expenses → project, amount, fund_source, funding_years, fund_type, fund_type_other?, date, receipt_number, description
+budget_expenses → project, amount, year, main_account, sub_account?, date, receipt_number, description
+
+budget_funding_years → name, active, sort_order
+budget_fund_main_accounts → name, active, sort_order
+budget_fund_sub_accounts → main_account, name, active, sort_order
+project_status_options / project_category_options / user_role_options / user_account_status_options → name, active, sort_order
 
 progress_updates → project, from_pct, to_pct, notes, site_photo, updated_by, updated_at
   certification_completion, certificate_acceptance, proof_payment_barangay,
@@ -241,26 +251,27 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 | J11 | admin Budget/Progress/Approvals/Reports municipality+barangay filters combine w/ module filters | admin |
 | J12 | dashboard date/location filters update all KPI/widget data | admin |
 | J13 | role-scoped users cannot view/mutate outside assigned barangay/municipality | admin |
+| J14 | admin Projects import template + Excel upload partially imports valid rows and reports row errors | admin |
 
 **UI surfaces** (per module — detail in §V)
 
 - **App shell** (admin): icon sidebar + breadcrumb top bar + theme icon toggle + Sign out; ⊥ global search v1; page header band + optional Live pill; mobile drawer.
 - **Dashboard** (`/dashboard`): page header + alert if approval queue; visible filters — date/date range From/To, municipality, barangay; KPI cards w/ value + trend + footer line + drill chevron; 2×2 widgets — budget split, progress buckets, deadline heatmap (real project data), quick links; all dashboard metrics/widgets obey filters.
 
-**Projects** (`/projects`) — admin (V72–V74,V50)
+**Projects** (`/projects`) — admin (V72–V74,V50,V172–V176)
 
 - List: project cards — name, municipality/barangay, location, description, category, date range (start→target_end), budget_year, total_budget (₱), progress bar, status badge.
 - Filters: status, category, municipality, barangay, date range — visible **From:** / **To:** labels (V101); search bar by name; free-form `location` ⊥ filter.
-- Actions: New project; per-card Edit + Delete; ⋮ Change status via portal popover (V50); ⊥ inline row expand v1.
+- Actions: New project; Import; per-card Edit + Delete; ⋮ Change status via portal popover (V50); ⊥ inline row expand v1.
 - Create/Edit modal fields: name, description (textarea), category, status, municipality, barangay, location (free text), contractor, start_date, target_end_date, budget_year (required), total_budget (PHP); doc uploads — MOA, Resolution, Supporting Project Documents — `DocumentUploadField` drag-drop UI (V102): MOA+Resolution single w/ remove+replace; supporting multi (≤10).
 
-**Budget** (`/budget`) — admin (V9,V10,V75–V80,V150,V152,V155–V157)
+**Budget** (`/budget`) — admin (V9,V10,V75–V80,V150,V152,V155–V157,V178,V179)
 
 - Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Spent (₱ + progress bar), Remaining (₱).
 - Breakdown list: per project — name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
 - Transactions tabs: Allocations | Expenses; filter dropdowns — project, year, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` ⊥ filter.
 - Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
-- Expenses tab: cols project, amount (red/−), fund_source, funding_years, fund_type, date, receipt_number; `+ Released Amount` → modal (project, amount, receipt_number, Fund Source section: fund_source dropdown, funding_years dropdown, fund_type dropdown, Other text input when fund_type=Other, expense date, description).
+- Expenses tab: cols project, amount (red/−), year, main_account, sub_account, date, receipt_number; `+ Released Amount` → modal (project, amount, receipt_number, Fund Source section label only, Year dropdown, Main account dropdown, Sub account dropdown/textbox for Other main account, expense date, description).
 
 **Progress** (`/progress`) — admin (V6,V7,V8,V81–V84,V150,V155)
 
@@ -388,8 +399,8 @@ V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (�
 V76: Budget breakdown row: project name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
 V77: Budget Allocations & Expenses tabs — filterable by project dropdown, year dropdown, municipality dropdown, barangay dropdown, date range From/To.
 V78: Allocations table cols: project, amount (green positive V10), year, description, date, allocated_by.
-V79: Expenses table cols: project, amount (red negative V10), fund_source, funding_years, fund_type, date, receipt_number; ⊥ category col.
-V80: Allocate modal: project, amount, year (default current), description, 3 doc uploads (MOA, Resolution, supporting); Released Amount modal: project, amount, receipt_number, Fund Source section (fund_source, funding_years, fund_type, fund_type_other when Other), expense date, description; ⊥ "Record Expense" label.
+V79: Expenses table cols: project, amount (red negative V10), Year, Main Account, Sub Account, date, receipt_number; Sub Account blank when none; ⊥ Category/Fund Source/Fund Type cols.
+V80: Allocate modal: project, amount, year (default current), description, 3 doc uploads (MOA, Resolution, supporting); Released Amount modal: project, amount, receipt_number, Fund Source section label only, Year dropdown, Main account dropdown (`General Fund`, `Special Education Fund`, `Special Health Fund`, `Trust Fund`, `Other`), Sub account dropdown/textbox for Other main account, expense date, description; ⊥ "Record Expense" label.
 V81: Progress summary = 4 cards: active projects (status ∈ Planning|Procurement|Ongoing), on track (V8), needs attention (V7), updates today (progress_updates dated today).
 V82: Progress list row: status badge, location, lgu_level, progress %, dates, contractor, last_updated; inline preview last 3 updates + "View all N updates" link.
 V83: Progress detail panel: full project context + chronological update history; admin Update Progress CTA at bottom.
@@ -463,10 +474,10 @@ V150: Admin Budget/Progress/Approvals/Reports filters use project municipality+b
 V151: Admin Budget/Progress/Approvals/Reports location filter UI uses visible labels `Municipality` + `Barangay`; copy must not say generic `Locations` for these controls.
 V152: Allocate Budget dialog is viewport/zoom responsive: content uses fluid width + `max-height: calc(100dvh - safe margin)` + internal `overflow-y-auto`; fields/docs/actions reflow on narrow/zoomed viewports; submit/cancel remain reachable without browser-level horizontal scroll.
 V153: Admin ∀ `DialogContent` uses viewport-safe width + max-height + internal `overflow-y-auto`; actions remain reachable at browser zoom / narrow viewports; page-level horizontal scroll ⊥. Small dialogs may keep narrower `sm:max-w-*` but still use mobile `w-[calc(100vw-2rem)]`.
-V154: Admin dashboard filters (date/date range, municipality, barangay) independently combine; default none → all data; filter changes update Active Projects, Total Budget, On Track count/%, Awaiting Approval, Budget Utilization, Deadline Heatmap without full page reload.
-V155: Admin Budget/Progress/Approvals date range filter is visible at top of module; default none → all records; selected range filters all visible records/summaries in that module without full page reload.
+V154: Admin dashboard filters (date/date range, municipality, barangay) independently combine; default none → all data; filter changes update Active Projects (status ∈ Planning|Procurement|Ongoing), Total Budget, On Track count/%, Awaiting Approval, Budget Utilization, Deadline Heatmap without full page reload.
+V155: Admin Budget/Progress/Approvals date range filter is visible at top of module via shared picker UX; default none → all records; selected range filters all visible records/summaries in that module without full page reload.
 V156: Budget module copy uses "Released Amount" everywhere expense-entry action appears; "Record Expense" ⊥ remains in Budget UI/tests.
-V157: Budget Released Amount form replaces Materials/category control with Fund Source section: fund_source dropdown, funding_years dropdown, fund_type dropdown; fund_type=Other shows manual text input, other selections hide/clear it.
+V157: Budget Released Amount form replaces Materials/category control with Fund Source section: Year dropdown from `budget_funding_years`; Main account dropdown from `budget_fund_main_accounts`; Sub account dropdown from `budget_fund_sub_accounts` filtered by selected main account; `Other` main account → Sub account textbox; SEF/SHF no children → sub-account hidden or disabled and stored blank.
 V158: Approval actions (Approve, Reject, Request Revision) available only to Province role; Barangay/Municipality users see status/read-only detail only; backend rejects non-Province approval mutations.
 V159: Barangay submissions (project updates, progress/photos, liquidation docs) route Barangay → Province review before approval or succeeding fund release; Barangay self-approval/bypass impossible in UI and PBAC.
 V160: RBAC data scope: Barangay sees/updates own barangay projects only; Municipality sees all projects in own municipality read-only; Province sees all projects and manages approvals/fund releases; Super Admin manages users/permissions/config; backend enforces every scope.
@@ -476,6 +487,22 @@ V163: PB select field values match manifest enums after migrations: `approval_ac
 V164: Dev seed scoped users persist `municipality`/`barangay` when fixture defines them; scoped Barangay/Municipality users never seed blank scope.
 V165: §T `x` rows citing `J<N>` require matching `apps/admin-frontend/tests/journeys/j<N>-*.test.tsx`; otherwise cite component/source tests only or status `.`.
 V166: `@workspace/ui` Calendar uses only `react-day-picker` v10 `classNames` slots; stale v8/v9 slots like `table` ⊥.
+V167: Approval UI fail-closed: absent/unknown/non-Province actor sees status/read-only detail only; Approve/Reject/Request Revision buttons ⊥.
+V168: Role assignment required before active login: each auth user has exactly one role; Barangay requires municipality+barangay scope; Municipality requires municipality scope; Province/Super Admin scopes optional and ignored for access.
+V169: RBAC matrix exact: Barangay read/update own barangay projects+docs only; Municipality read all own municipality projects only; Province read all + approve/reject/request_revision + fund releases only; Super Admin user/permission/config only unless separately granted by policy.
+V170: RBAC enforcement is backend-first: every non-public list/view/mutate path applies actor role/status/scope in PB rules or shared PBAC before data leaves server; UI nav/buttons/pages mirror policy but are never sole enforcement.
+V171: RBAC tests use TDD red→green and cover both UI restrictions + backend denials, including a fixture with many barangays so municipality/barangay scoping cannot degrade into client-side post-filter only.
+V172: Admin Projects shows `Import` action beside `New project`; opens Excel import UI; accepts `.xlsx`/`.xls` only; public frontend ⊥ import/export affordance.
+V173: Project import template downloads Excel with exact headers: `Project Name`, `Description`, `Location`, `Contractor`, `Total Budget`; dropdown/date/file fields ⊥ template.
+V174: Project import parses rows by exact headers and maps only text-phase fields: `name`, `description`, `location`, `contractor`, `total_budget`; storage-only defaults may fill required out-of-scope fields (`category=Infrastructure`, `status=Planning`, `budget_year=current year`, `progress_pct=0`).
+V175: Project import validates each row independently: missing `Project Name` or invalid/missing numeric `Total Budget` rejects that row with 1-based Excel row number + reason; other valid rows still create records.
+V176: Project import completion shows summary `N of M projects imported successfully` plus failed row list; creates use `projectMutateSchema` + existing PBAC create policy before PB write.
+V177: ∀ dropdown option sets → PocketBase-backed source: relation/lookup rows (`projects`, `locations`, `users`) or option rows (`budget_fund_*`, `project_*_options`, `user_*_options`); local manifest arrays are fallback only when PB option collections are unavailable/empty.
+V178: Budget sub account exact tree: General Fund → `GT - Proper`, `20% DF`, `Hospital Serv.`, `Econ. Enterp.`, `Bayanihan Fund`, `SA - Excise Tax`; Special Education Fund → ∅; Special Health Fund → ∅; Trust Fund → `Trust Fund - Proper`, `LDRRMF - SA`; copy/case must match client values.
+V179: Budget fund source data model stores selected main account separately from selected sub account; records/list/search/export render both columns, never recombine into legacy category/material/fund_type text.
+V180: ∀ tabular data UI (admin/public, reports, budget tx, users, imports, future tables) follows shadcn Radix Data Table guide: `@tanstack/react-table` column defs + state, `@workspace/ui` Table primitives, accessible headers/actions, responsive `overflow-x-auto`; ⊥ hand-rolled data-grid/table markup.
+V181: ∀ form UI follows shadcn Radix Field guide: controls grouped via `FieldSet`/`FieldGroup`/`Field`; labels via `FieldLabel htmlFor`; helper/error via `FieldDescription`/`FieldError`; invalid state sets `data-invalid` + `aria-invalid`; zod errors render as field-level errors.
+V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavior (sort/filter/page/actions where present; submit/validation/errors for forms) with role/label/`data-testid` selectors; ⊥ CSS/nth-child selectors.
 
 ## §T
 
@@ -547,8 +574,8 @@ V166: `@workspace/ui` Calendar uses only `react-day-picker` v10 `classNames` slo
 | T64 | x | make every admin dialog viewport-safe responsive+scrollable; add source/RTL regressions | V16,V19,V98,V153,projects-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx |
 | T65 | x | dashboard date/municipality/barangay filters applied to all KPI/widget data | V16,V19,V154,dashboard-module.test.tsx |
 | T66 | x | Budget/Progress/Approvals top date-range filters, shared UX, no reload | V16,V19,V155,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx |
-| T67 | x | Budget Released Amount rename + Fund Source section + expense table schema/UI update | V16,V34,V79,V80,V156,V157,budget-module.test.tsx |
-| T68 | x | Province-only approval workflow incl Request Revision + barangay status-only submissions | V16,V118,V158,V159,approvals-module.test.tsx |
+| T67 | x | initial Budget Released Amount rename + PB-backed dropdown groundwork | V16,V34,V156,V177,budget-module.test.tsx |
+| T68 | x | Province-only approval workflow incl Request Revision + barangay status-only submissions | V16,V118,V158,V159,V167,approvals-module.test.tsx |
 | T69 | x | four-role RBAC/PBAC scope enforcement for Barangay/Municipality/Province/Super Admin | V16,V115–V121,V160,V161,user-management-module.test.tsx,access-control.test.ts |
 | T70 | x | add Vitest+RTL journey coverage for dashboard filters + role-scoped access | V16,V18,V19,V165,J12,J13,j12-dashboard-filters.test.tsx,j13-role-scope.test.tsx |
 | T71 | x | finish replacing admin visible date inputs with shadcn/Radix range picker on Projects + Reports | V16,V19,V154,V155,V162,projects-module.test.tsx,reports-module.test.tsx |
@@ -558,6 +585,12 @@ V166: `@workspace/ui` Calendar uses only `react-day-picker` v10 `classNames` slo
 | T75 | x | render visible Reports Live pill when subscribed | V67,T33,reports-module.test.tsx |
 | T76 | x | add or remove journey refs for J6–J13 according to actual files | V18,V19,V165,J8,J12,J13 |
 | T77 | x | fix Calendar react-day-picker v10 classNames build failure | V16,V166,calendar.test.ts |
+| T78 | x | harden RBAC role matrix with failing-first Vitest/RTL + PBAC denial tests for Barangay/Municipality/Province/Super Admin | V16,V19,V168–V171,J13,access-control.test.ts,user-management-module.test.tsx |
+| T79 | x | Projects Excel import: template download, `.xlsx/.xls` upload parse, partial bulk create, row-level validation summary | V16,V19,V172–V176,J14,projects-module.test.tsx |
+| T80 | x | make admin/public dropdown option sets PocketBase-backed with failing-first RTL regressions | V16,V19,V177,projects-module.test.tsx,reports-module.test.tsx,user-management-module.test.tsx,budget-module.test.tsx,public-projects.test.tsx |
+| T81 | x | amend Budget Released Amount data/UI: remove Materials/category/fund_type/funding_years, add year/main_account/sub_account Fund Source section, update expense table/export with red-first tests | V16,V19,V79,V80,V156,V157,V178,V179,budget-module.test.tsx,manifest.test.ts |
+| T82 | . | standardize all data tables on shadcn Radix Data Table/TanStack pattern with red-first RTL regressions | V16,V19,V180,V182,reports-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,projects-module.test.tsx |
+| T83 | . | standardize all forms on shadcn Radix Field pattern with zod field errors and red-first RTL regressions | V16,V19,V23,V35,V181,V182,projects-module.test.tsx,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,user-management-module.test.tsx |
 
 ## §B
 
@@ -606,3 +639,5 @@ V166: `@workspace/ui` Calendar uses only `react-day-picker` v10 `classNames` slo
 | B41 | 2026-06-24 | Projects/Reports still show standalone native date inputs after T71 marked complete | finish picker migration or keep T71 open until all admin modules comply | V162,T71 |
 | B42 | 2026-06-24 | §T rows cited J6–J13 as complete journey coverage, but repo only has `j1`–`j5` journey files | add missing journey files or cite existing component/source tests only | V165,T70,T76 |
 | B43 | 2026-06-24 | `Calendar` passed stale `classNames.table` to `react-day-picker@10`, so admin Next build failed typecheck | remove stale slot; add source regression for supported v10 slots | V166,T77 |
+| B44 | 2026-06-25 | approvals UI defaulted missing auth actor to allowed → approval buttons could render without Province actor | fail-closed `canCreateApprovalActions`; add no-actor RTL regression | V167,T68 |
+| B45 | 2026-06-25 | scoped Municipality/Barangay actor with blank scope could be active; blank actor scope could match blank project scope | require scoped role assignments before active policy/scope checks; blank scope values never match | V168,V170,T78 |
