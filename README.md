@@ -2,6 +2,8 @@
 
 > Public read-only project transparency plus authenticated admin tools for tracking, budget, progress, and approvals.
 
+![Cagayan PPMS public home shown in browser](https://raw.githubusercontent.com/bakajieyan/cppms/master/docs/screenshots/public-home.png)
+
 [![Bun](https://img.shields.io/badge/Bun-1.3+-000?style=flat&logo=bun&logoColor=white)](https://bun.sh)
 [![Node](https://img.shields.io/badge/Node-%3E%3D20-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org)
