@@ -25,7 +25,7 @@ export const FUND_TYPE = [
   "Special Education Fund",
   "Special Health Fund",
   "Trust Fund",
-  "Other",
+  "Others",
 ] as const
 
 export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const

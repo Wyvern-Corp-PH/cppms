@@ -195,7 +195,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.queryByText(/\+100,000\s+₱100,000/)).not.toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
 
     await waitFor(() => {
       expect(screen.getByText("-100,000")).toBeInTheDocument()
@@ -252,7 +252,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
       )
     })
 
-    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
     expect(screen.getByRole("table")).toHaveAttribute("data-slot", "table")
     expect(screen.getByRole("columnheader", { name: /main account/i })).toHaveAttribute(
       "data-slot",
@@ -349,7 +349,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
 
     await waitFor(() => {
       expect(screen.getByText("-25,000")).toBeInTheDocument()
@@ -432,7 +432,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.queryByText("+300,000")).not.toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
 
     await waitFor(() => {
       expect(screen.getByText("-25,000")).toBeInTheDocument()
@@ -462,7 +462,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         project: "p1",
         amount: 100_000,
         year: 2026,
-        main_account: "Other",
+        main_account: "Others",
         sub_account: "Calamity reserve",
         date: "2026-06-17",
       },
@@ -470,7 +470,9 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     render(<BudgetModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+
+    expect(screen.queryByRole("tab", { name: /^expenses$/i })).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
@@ -502,9 +504,15 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await user.click(screen.getByLabelText(/main account/i))
     expect(await screen.findByRole("option", { name: "General Fund" })).toBeInTheDocument()
-    await user.click(await screen.findByRole("option", { name: "Other" }))
+    expect(screen.getByRole("option", { name: "Special Education Fund" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Special Health Fund" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Trust Fund" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Others" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /^Other$/ })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "Others" }))
 
-    expect(screen.getByLabelText(/sub account/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/other/i)).toBeInTheDocument()
   })
 
   it("creates released amount payload with fund source fields only", async () => {
@@ -555,7 +563,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     render(<BudgetModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
     await user.click(await screen.findByTestId("released-amount"))
     await user.click(screen.getByLabelText(/expense project/i))
     await user.click(await screen.findByRole("option", { name: "Bridge" }))
@@ -606,7 +614,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     render(<BudgetModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
     await user.click(await screen.findByTestId("released-amount"))
     await user.click(screen.getByRole("button", { name: /^released amount$/i }))
 
@@ -697,7 +705,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     render(<BudgetModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
     await user.click(await screen.findByTestId("released-amount"))
 
     await user.click(screen.getByLabelText(/^year$/i))
@@ -708,9 +716,11 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(await screen.findByRole("option", { name: "Special Education Fund" })).toBeInTheDocument()
     await user.click(await screen.findByRole("option", { name: "Special Education Fund" }))
 
-    await user.click(screen.getByLabelText(/sub account/i))
-    expect(await screen.findByRole("option", { name: "PB SEF Program" })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: "PB General Program" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/main account/i))
+    expect(await screen.findByRole("option", { name: "Others" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /^Other$/ })).not.toBeInTheDocument()
   })
 
   it("loads budget year filter options from PocketBase funding years", async () => {
@@ -878,7 +888,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     const user = userEvent.setup()
     render(<BudgetModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
     await user.click(await screen.findByTestId("released-amount"))
 
     const dialog = await screen.findByRole("dialog")

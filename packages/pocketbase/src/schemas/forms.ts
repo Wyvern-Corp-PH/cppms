@@ -136,11 +136,11 @@ export const budgetExpenseMutateSchema = z
     description: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.main_account === "Other" && !value.sub_account?.trim()) {
+    if (value.main_account === "Others" && !value.sub_account?.trim()) {
       ctx.addIssue({
         code: "custom",
         path: ["sub_account"],
-        message: "Sub account is required.",
+        message: "Other purpose is required.",
       })
     }
   })
@@ -204,6 +204,8 @@ export const userAccountFormSchema = z
     role: roleSchema,
     account_status: accountStatusSchema,
     password: z.string().optional(),
+    municipality: z.string().trim().optional().default(""),
+    barangay: z.string().trim().optional().default(""),
   })
   .superRefine((value, ctx) => {
     if (value.password !== undefined && value.password.trim().length === 0) {
@@ -213,6 +215,32 @@ export const userAccountFormSchema = z
         message: "Initial password is required.",
       })
     }
+    if (
+      (value.role === "Municipality" || value.role === "Barangay") &&
+      !value.municipality
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["municipality"],
+        message: "Municipality is required.",
+      })
+    }
+    if (value.role === "Barangay" && !value.barangay) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["barangay"],
+        message: "Barangay is required.",
+      })
+    }
+  })
+  .transform((value) => {
+    if (value.role === "Super Admin" || value.role === "Province") {
+      return { ...value, municipality: "", barangay: "" }
+    }
+    if (value.role === "Municipality") {
+      return { ...value, barangay: "" }
+    }
+    return value
   })
 
 export type LoginFormInput = z.infer<typeof loginFormSchema>

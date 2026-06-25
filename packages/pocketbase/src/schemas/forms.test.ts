@@ -6,6 +6,7 @@ import {
   loginFormSchema,
   progressUpdateFormSchema,
   projectMutateSchema,
+  userAccountFormSchema,
 } from "./forms"
 import { fieldErrorsFromZod } from "./parse"
 
@@ -122,33 +123,89 @@ describe("budgetExpenseMutateSchema (V34, V157)", () => {
     }
   })
 
-  it("requires sub account text when main account is Other", () => {
+  it("requires other-purpose text when main account is Others", () => {
     const result = budgetExpenseMutateSchema.safeParse({
       project: "p1",
       amount: "25000",
       year: "2026",
-      main_account: "Other",
+      main_account: "Others",
       sub_account: "",
       date: "2026-06-24",
     })
 
     expect(result.success).toBe(false)
     if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).sub_account).toMatch(/required/i)
+      expect(fieldErrorsFromZod(result.error).sub_account).toBe(
+        "Other purpose is required."
+      )
     }
   })
 
-  it("accepts main account values provided by PocketBase option collections", () => {
+  it("accepts Special Education Fund without sub account", () => {
     const result = budgetExpenseMutateSchema.safeParse({
       project: "p1",
       amount: "25000",
       year: "2027",
       main_account: "Special Education Fund",
-      sub_account: "School supplies",
       date: "2026-06-24",
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe("userAccountFormSchema (V115, V168, V195)", () => {
+  const baseInput = {
+    name: "Scoped User",
+    email: "scoped@example.test",
+    account_status: "Active",
+    password: "secret123",
+  }
+
+  it("requires municipality for Municipality role", () => {
+    const result = userAccountFormSchema.safeParse({
+      ...baseInput,
+      role: "Municipality",
+      municipality: "",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).municipality).toBe(
+        "Municipality is required."
+      )
+    }
+  })
+
+  it("requires municipality and barangay for Barangay role", () => {
+    const result = userAccountFormSchema.safeParse({
+      ...baseInput,
+      role: "Barangay",
+      municipality: "Tuguegarao City",
+      barangay: "",
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).barangay).toBe(
+        "Barangay is required."
+      )
+    }
+  })
+
+  it("clears scope fields for Province and Super Admin roles", () => {
+    const result = userAccountFormSchema.safeParse({
+      ...baseInput,
+      role: "Province",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.municipality).toBe("")
+      expect(result.data.barangay).toBe("")
+    }
   })
 })
 

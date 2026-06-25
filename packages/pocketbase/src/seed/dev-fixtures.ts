@@ -70,7 +70,7 @@ export type DevSeedProject = {
       | "Special Education Fund"
       | "Special Health Fund"
       | "Trust Fund"
-      | "Other"
+      | "Others"
     sub_account?: string
     description: string
   }>
@@ -101,12 +101,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 4_200_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "GF - Proper",
         description: "Rebar and concrete",
       },
       {
         amount: 1_800_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "20% DF",
         description: "Crew wages Q1",
       },
     ],
@@ -166,12 +168,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 2_100_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "GF - Proper",
         description: "Seed stock procurement",
       },
       {
         amount: 450_000,
         year: 2026,
         main_account: "Trust Fund",
+        sub_account: "Trust Fund - Proper",
         description: "Warehouse handling",
       },
     ],
@@ -203,6 +207,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 120_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "GF - Proper",
         description: "Environmental clearance",
       },
     ],
@@ -259,6 +264,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 1_350_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "20% DF",
         description: "Precast culverts",
       },
     ],
@@ -297,6 +303,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 900_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "Hospital Serv.",
         description: "Construction labor",
       },
     ],
@@ -326,12 +333,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
         amount: 16_200_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "20% DF",
         description: "Paving works",
       },
       {
         amount: 1_200_000,
         year: 2026,
         main_account: "General Fund",
+        sub_account: "GF - Proper",
         description: "Quality assurance crew",
       },
     ],

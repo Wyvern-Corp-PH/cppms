@@ -85,8 +85,24 @@ const MAIN_ACCOUNT_OPTIONS = [
   "Special Education Fund",
   "Special Health Fund",
   "Trust Fund",
-  "Other",
-]
+  "Others",
+] as const
+
+const SUB_ACCOUNT_OPTIONS: Record<string, readonly string[]> = {
+  "General Fund": [
+    "GF - Proper",
+    "20% DF",
+    "Hospital Serv.",
+    "Econ. Enterp.",
+    "Bayanihan Fund",
+    "SA - Excise Tax",
+  ],
+  "Trust Fund": ["Trust Fund - Proper", "LDRRMF - SA"],
+}
+
+function normalizeMainAccountName(value: string) {
+  return value === "Other" ? "Others" : value
+}
 
 function optionNames(
   records: BudgetFundOptionRecord[],
@@ -266,17 +282,30 @@ export function BudgetModule() {
     [fundingYearOptions]
   )
   const mainAccountNames = useMemo(
-    () => uniqueOptions([...optionNames(fundMainAccountOptions, MAIN_ACCOUNT_OPTIONS), "Other"]),
+    () =>
+      uniqueOptions([
+        ...MAIN_ACCOUNT_OPTIONS,
+        ...optionNames(fundMainAccountOptions, MAIN_ACCOUNT_OPTIONS).map(
+          normalizeMainAccountName
+        ),
+      ]).filter((value) => MAIN_ACCOUNT_OPTIONS.includes(value as (typeof MAIN_ACCOUNT_OPTIONS)[number])),
     [fundMainAccountOptions]
   )
   const subAccountNames = useMemo(
-    () =>
-      fundSubAccountOptions
+    () => {
+      if (!(mainAccount in SUB_ACCOUNT_OPTIONS)) return []
+      const pocketBaseOptions = fundSubAccountOptions
         .filter((record) => record.active && record.main_account === mainAccount)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        .map((record) => record.name),
+        .map((record) => record.name)
+      return pocketBaseOptions.length > 0
+        ? pocketBaseOptions
+        : [...(SUB_ACCOUNT_OPTIONS[mainAccount] ?? [])]
+    },
     [fundSubAccountOptions, mainAccount]
   )
+  const showsSubAccountDropdown = mainAccount in SUB_ACCOUNT_OPTIONS
+  const showsOtherAccountText = mainAccount === "Others"
   const allocatedPct =
     summary.totalBudget > 0
       ? Math.round((summary.totalAllocated / summary.totalBudget) * 100)
@@ -462,7 +491,7 @@ export function BudgetModule() {
     <div className="space-y-6">
       <PageHeaderBand
         title="Budget"
-        context="Allocations and expenses across all projects."
+        context="Allocations and released amounts across all projects."
         live={live}
       />
 
@@ -520,7 +549,7 @@ export function BudgetModule() {
           <div className="-mx-1 overflow-x-auto pb-1">
             <TabsList className="w-max min-w-full">
             <TabsTrigger value="allocations">Allocations</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="expenses">Released Amount</TabsTrigger>
           </TabsList>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -791,18 +820,18 @@ export function BudgetModule() {
                 </Select>
                 <FieldError>{fieldErrors.main_account}</FieldError>
               </Field>
-              {mainAccount === "Other" ? (
+              {showsOtherAccountText ? (
                 <Field data-invalid={!!fieldErrors.sub_account}>
-                  <FieldLabel htmlFor="sub-account">Sub account</FieldLabel>
+                  <FieldLabel htmlFor="other-account-purpose">Other purpose</FieldLabel>
                   <Input
-                    id="sub-account"
+                    id="other-account-purpose"
                     value={subAccount}
                     aria-invalid={!!fieldErrors.sub_account}
                     onChange={(event) => setSubAccount(event.target.value)}
                   />
                   <FieldError>{fieldErrors.sub_account}</FieldError>
                 </Field>
-              ) : subAccountNames.length > 0 ? (
+              ) : showsSubAccountDropdown ? (
                 <Field data-invalid={!!fieldErrors.sub_account}>
                   <FieldLabel htmlFor="sub-account-trigger">Sub account</FieldLabel>
                   <Select value={subAccount} onValueChange={setSubAccount}>

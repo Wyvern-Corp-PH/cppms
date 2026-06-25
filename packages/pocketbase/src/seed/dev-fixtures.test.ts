@@ -19,6 +19,20 @@ const seedScriptSource = readFileSync(
   "utf8"
 )
 
+const GENERAL_FUND_SUB_ACCOUNTS = [
+  "GF - Proper",
+  "20% DF",
+  "Hospital Serv.",
+  "Econ. Enterp.",
+  "Bayanihan Fund",
+  "SA - Excise Tax",
+] as const
+
+const TRUST_FUND_SUB_ACCOUNTS = [
+  "Trust Fund - Proper",
+  "LDRRMF - SA",
+] as const
+
 describe("dev seed fixtures (V70)", () => {
   it("defines demo projects with the shared prefix", () => {
     expect(DEV_SEED_FIXTURES.length).toBeGreaterThanOrEqual(6)
@@ -125,6 +139,28 @@ describe("dev seed fixtures (V70)", () => {
       for (const expense of fixture.expenses) {
         expect(expense.year).toBeTruthy()
         expect(expense.main_account).toBeTruthy()
+        expect(expense.main_account).not.toBe("Other")
+        expect(expense.sub_account).not.toBe("GT - Proper")
+        if (expense.main_account === "General Fund") {
+          expect(GENERAL_FUND_SUB_ACCOUNTS).toContain(
+            expense.sub_account as (typeof GENERAL_FUND_SUB_ACCOUNTS)[number]
+          )
+        }
+        if (expense.main_account === "Trust Fund") {
+          expect(TRUST_FUND_SUB_ACCOUNTS).toContain(
+            expense.sub_account as (typeof TRUST_FUND_SUB_ACCOUNTS)[number]
+          )
+        }
+        if (
+          expense.main_account === "Special Education Fund" ||
+          expense.main_account === "Special Health Fund"
+        ) {
+          expect(expense.sub_account ?? "").toBe("")
+        }
+        if (expense.main_account === "Others") {
+          expect(expense.sub_account?.trim()).toBeTruthy()
+          expect(expense.sub_account).not.toBe("Sub Account")
+        }
       }
     }
     expect(seedScriptSource).toContain("year: expense.year")

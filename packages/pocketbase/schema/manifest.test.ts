@@ -87,6 +87,11 @@ const dropdownOptionCollectionsMigrationPath = resolve(
   "pb_migrations",
   "1740000015_dropdown_option_collections.js"
 )
+const budgetFundOptionValueRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000016_budget_fund_option_value_repair.js"
+)
 
 describe("schema manifest (SPEC §I)", () => {
   it("defines auth, module, location, and audit collections", () => {
@@ -114,7 +119,13 @@ describe("schema manifest (SPEC §I)", () => {
     expect(PROJECT_STATUS).toContain("Completed")
     expect(PROJECT_CATEGORY).toContain("Infrastructure")
     expect(LGU_LEVEL).toContain("Municipality")
-    expect(FUND_TYPE).toContain("Other")
+    expect(FUND_TYPE).toEqual([
+      "General Fund",
+      "Special Education Fund",
+      "Special Health Fund",
+      "Trust Fund",
+      "Others",
+    ])
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
     expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
@@ -196,6 +207,7 @@ describe("pb migration file", () => {
     pbacRulesMigrationPath,
     budgetFundOptionCollectionsMigrationPath,
     dropdownOptionCollectionsMigrationPath,
+    budgetFundOptionValueRepairMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -395,7 +407,22 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("Special Education Fund")
     expect(migrationSource).toContain("Special Health Fund")
     expect(migrationSource).toContain("Trust Fund")
+  })
+
+  it("repairs legacy Budget fund option values without editing applied history", () => {
+    const migrationSource = readFileSync(
+      budgetFundOptionValueRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("budget_fund_sources")
+    expect(migrationSource).toContain("budget_fund_main_accounts")
+    expect(migrationSource).toContain("budget_fund_sub_accounts")
+    expect(migrationSource).toContain("budget_expenses")
+    expect(migrationSource).toContain("Others")
     expect(migrationSource).toContain("Other")
+    expect(migrationSource).toContain("GF - Proper")
+    expect(migrationSource).toContain("GT - Proper")
   })
 
   it("adds editable project and user dropdown option collections", () => {
