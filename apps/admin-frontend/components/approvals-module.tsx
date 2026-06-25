@@ -746,10 +746,10 @@ export function ApprovalsModule() {
             </DialogTitle>
             <DialogDescription>
               {dialog === "approve"
-                ? "Confirm that deliverables and completion documents are ready for approval."
+                ? "Provincial Admin review: confirm that deliverables and completion documents are ready for approval."
                 : dialog === "reject"
-                  ? "Provide a rejection reason so the project team can address it."
-                  : "Send revision notes back to the barangay before provincial approval."}
+                  ? "Provincial Admin review: provide a rejection reason so the project team can address it."
+                  : "Provincial Admin review: send revision notes back to the barangay before provincial approval."}
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>

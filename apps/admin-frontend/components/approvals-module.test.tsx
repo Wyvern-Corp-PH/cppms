@@ -263,6 +263,61 @@ describe("ApprovalsModule (J5, V5)", () => {
     ).not.toBeInTheDocument()
   })
 
+  it("shows Municipality users only own-municipality read-only approval cards", async () => {
+    store.authRecord = {
+      id: "municipality-user",
+      email: "municipality@example.test",
+      name: "Municipal Viewer",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Completed",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByText("City Bridge")).toBeInTheDocument()
+    expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
+    expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /request revision/i })
+    ).not.toBeInTheDocument()
+  })
+
   it("hides approval actions when no authenticated Province actor is present", async () => {
     store.authRecord = null
 
@@ -557,6 +612,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     render(<ApprovalsModule />)
 
     await user.click(await screen.findByRole("button", { name: /^approve$/i }))
+    expect(screen.getByText(/provincial admin review/i)).toBeInTheDocument()
     await user.type(
       screen.getByLabelText(/authority name/i),
       "Provincial Engineer"
