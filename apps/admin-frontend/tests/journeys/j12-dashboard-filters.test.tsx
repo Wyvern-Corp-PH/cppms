@@ -111,9 +111,8 @@ describe("J12 dashboard filter journey", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 25_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         date: "2026-06-10",
       },
     ]
@@ -147,7 +146,7 @@ describe("J12 dashboard filter journey", () => {
     render(<DashboardModule />)
 
     await waitFor(() => {
-      expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("2")
+      expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
       expect(screen.getByTestId("dashboard-budget")).toHaveTextContent("₱400,000")
     })
 

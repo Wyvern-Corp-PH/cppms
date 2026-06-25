@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { filterProjectsForUser } from "@workspace/pocketbase/domain/access-control"
 import { computeBudgetSummary } from "@workspace/pocketbase/domain/budget-summary"
 import { resolveDeadlineStatus, deadlineStatusTone } from "@workspace/pocketbase/domain/deadline-status"
-import { countProgressBuckets } from "@workspace/pocketbase/domain/progress-summary"
+import {
+  countActiveProjects,
+  countProgressBuckets,
+} from "@workspace/pocketbase/domain/progress-summary"
 import { isApprovalEligible } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
@@ -146,6 +149,10 @@ export function DashboardModule() {
     [filteredProjects, filteredAllocations, filteredExpenses]
   )
   const progress = useMemo(() => countProgressBuckets(filteredProjects), [filteredProjects])
+  const activeProjectCount = useMemo(
+    () => countActiveProjects(filteredProjects),
+    [filteredProjects]
+  )
   const awaitingApproval = useMemo(
     () =>
       filteredProjects.filter(
@@ -178,7 +185,7 @@ export function DashboardModule() {
         context="Records as of today"
         live={live}
         kpis={[
-          { label: "Projects", value: String(filteredProjects.length) },
+          { label: "Active", value: String(activeProjectCount) },
           { label: "Budget", value: formatPhp(budget.totalBudget) },
           { label: "Awaiting", value: String(awaitingApproval) },
         ]}
@@ -210,7 +217,11 @@ export function DashboardModule() {
 
       <SummaryCardRow
         cards={[
-          { label: "Active projects", value: String(filteredProjects.length), testId: "dashboard-projects" },
+          {
+            label: "Active projects",
+            value: String(activeProjectCount),
+            testId: "dashboard-projects",
+          },
           { label: "Total budget", value: formatPhp(budget.totalBudget), testId: "dashboard-budget" },
           { label: "On track", value: String(progress.onTrack), testId: "dashboard-on-track" },
           { label: "Awaiting approval", value: String(awaitingApproval), testId: "dashboard-approvals" },

@@ -173,9 +173,8 @@ describe("DashboardModule (V9, V24)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 25_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         date: "2026-06-10",
       },
       {
@@ -184,9 +183,8 @@ describe("DashboardModule (V9, V24)", () => {
         collectionName: "budget_expenses",
         project: "p2",
         amount: 150_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "Trust Fund",
         date: "2026-07-10",
       },
     ]
@@ -194,7 +192,7 @@ describe("DashboardModule (V9, V24)", () => {
     render(<DashboardModule />)
 
     await waitFor(() => {
-      expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("2")
+      expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
       expect(screen.getByTestId("dashboard-budget")).toHaveTextContent("₱400,000")
       expect(screen.getByText("44% spent")).toBeInTheDocument()
     })
