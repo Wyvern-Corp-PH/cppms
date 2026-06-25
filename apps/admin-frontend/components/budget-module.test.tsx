@@ -325,6 +325,41 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it("shows the canonical sub account for legacy General Fund releases with a blank child value", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+
+    expect(await screen.findByText("GF - Proper")).toBeInTheDocument()
+  })
+
   it("keeps released amount records visible when auxiliary lookups are denied", async () => {
     const user = userEvent.setup()
     store.deniedCollections = [

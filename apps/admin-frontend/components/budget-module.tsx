@@ -100,8 +100,19 @@ const SUB_ACCOUNT_OPTIONS: Record<string, readonly string[]> = {
   "Trust Fund": ["Trust Fund - Proper", "LDRRMF - SA"],
 }
 
+const DEFAULT_SUB_ACCOUNT_BY_MAIN_ACCOUNT: Record<string, string> = {
+  "General Fund": "GF - Proper",
+  "Trust Fund": "Trust Fund - Proper",
+}
+
 function normalizeMainAccountName(value: string) {
   return value === "Other" ? "Others" : value
+}
+
+function displaySubAccount(record: BudgetExpenseRecord) {
+  const value = record.sub_account?.trim()
+  if (value) return value
+  return DEFAULT_SUB_ACCOUNT_BY_MAIN_ACCOUNT[record.main_account] ?? "—"
 }
 
 function optionNames(
@@ -400,7 +411,7 @@ export function BudgetModule() {
     {
       accessorKey: "sub_account",
       header: "Sub Account",
-      cell: ({ row }) => row.original.sub_account ?? "—",
+      cell: ({ row }) => displaySubAccount(row.original),
     },
     {
       accessorKey: "date",
