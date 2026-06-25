@@ -276,6 +276,49 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it("shows released amount values in the summary and table", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: "25,000",
+        year: "2026",
+        main_account: "General Fund",
+        sub_account: "20% DF",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Amount").length).toBeGreaterThan(0)
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
+      expect(screen.queryByText("Spent")).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("-25,000")).toBeInTheDocument()
+    })
+  })
+
   it("renders budget transaction tables through the shared table primitive", async () => {
     const user = userEvent.setup()
     store.projects = [

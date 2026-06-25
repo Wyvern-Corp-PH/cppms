@@ -207,6 +207,26 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
+  it("coerces legacy numeric strings from budget records", () => {
+    const result = budgetExpenseRecordSchema.safeParse({
+      id: "o9jfia8svz2j0rj",
+      collectionId: "pbc_2635419501",
+      collectionName: "budget_expenses",
+      project: "p1",
+      amount: "25,000",
+      year: "2026",
+      main_account: "General Fund",
+      sub_account: "20% DF",
+      date: "2026-06-15 00:00:00.000Z",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.amount).toBe(25_000)
+      expect(result.data.year).toBe(2026)
+    }
+  })
+
   it("parses Budget fund dropdown option records", () => {
     const result = budgetFundOptionRecordSchema.safeParse({
       id: "fs1",

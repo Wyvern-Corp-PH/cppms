@@ -28,6 +28,12 @@ const pbFileList = z.preprocess(
   z.array(z.string())
 )
 
+const pbNumber = z.preprocess((value) => {
+  if (typeof value !== "string") return value
+  const normalized = value.replace(/,/g, "").trim()
+  return normalized === "" ? value : normalized
+}, z.coerce.number())
+
 export const baseRecordSchema = z.object({
   id: z.string(),
   collectionId: z.string(),
@@ -49,13 +55,15 @@ export const projectRecordSchema = baseRecordSchema.extend({
   contractor: z.string().optional(),
   start_date: z.string().optional(),
   target_end_date: z.string().optional(),
-  budget_year: z.number(),
-  total_budget: z.number().optional(),
-  number_of_students: pbZeroAsUndefined(z.number().int().positive().optional()),
+  budget_year: pbNumber,
+  total_budget: pbNumber.optional(),
+  number_of_students: pbZeroAsUndefined(
+    pbNumber.pipe(z.number().int().positive()).optional()
+  ),
   moa_file: z.string().optional(),
   resolution_file: z.string().optional(),
   supporting_docs: z.array(z.string()).optional(),
-  progress_pct: z.number().min(0).max(100).optional(),
+  progress_pct: pbNumber.pipe(z.number().min(0).max(100)).optional(),
   approval_status: pbEmptyAsUndefined(approvalStatusSchema.optional()),
   approved_at: z.string().optional(),
   approved_by: pbEmptyAsUndefined(z.string().optional()),
@@ -65,8 +73,8 @@ export const projectRecordSchema = baseRecordSchema.extend({
 export const budgetAllocationRecordSchema = baseRecordSchema.extend({
   collectionName: z.literal("budget_allocations").optional(),
   project: z.string(),
-  amount: z.number(),
-  year: z.number(),
+  amount: pbNumber,
+  year: pbNumber,
   description: z.string().optional(),
   date: z.string(),
   allocated_by: pbEmptyAsUndefined(z.string().optional()),
@@ -78,8 +86,8 @@ export const budgetAllocationRecordSchema = baseRecordSchema.extend({
 export const budgetExpenseRecordSchema = baseRecordSchema.extend({
   collectionName: z.literal("budget_expenses").optional(),
   project: z.string(),
-  amount: z.number(),
-  year: z.number(),
+  amount: pbNumber,
+  year: pbNumber,
   main_account: z.string().trim().min(1),
   sub_account: pbEmptyAsUndefined(z.string().optional()),
   date: z.string(),
