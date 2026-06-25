@@ -528,6 +528,8 @@ V199: Completion review transition: Municipality/Barangay 100% scoped progress s
 V200: Budget option PB collections are repaired as a complete set after applied-history drift: `budget_fund_sources`, `budget_funding_years`, `budget_fund_main_accounts`, `budget_fund_sub_accounts`; repair seeds canonical V178/V189 values, resets auth read/write rules, and must tolerate any existing subset.
 V201: Released Amount rows returned by PB with missing legacy/drifted `year` derive display/filter year from `date`; valid saved `budget_expenses` rows must still count in Budget summary/breakdown/table instead of being dropped by `parseRecordList`.
 V202: Released Amount create requires `sub_account` when `main_account` is `General Fund` or `Trust Fund`; blank child account create is blocked with `Sub account is required.`; Special Education Fund/Special Health Fund keep blank child value; Others still requires purpose copy per V192.
+V203: Legacy Released Amount rows with blank `sub_account` for General Fund/Trust Fund render and repair to canonical defaults (`GF - Proper`, `Trust Fund - Proper`) instead of showing `—`; repair also reasserts current `budget_expenses` fields and removes legacy fund fields.
+V204: Live PB schema audit via `/v1` shows every manifest collection has all §I fields, no id-only option records, and no legacy `agreement_file`; option repairs use `fields.addMarshaledJSON` + reseed after applied-history drift.
 
 ## §T
 
@@ -634,6 +636,8 @@ V202: Released Amount create requires `sub_account` when `main_account` is `Gene
 | T99 | x | repair missing Budget option PB collections after applied migration drift | V16,V133,V134,V177,V178,V189,V200,manifest.test.ts |
 | T100 | x | keep Released Amount rows visible after PB schema/rule drift | V16,V33,V75–V80,V134,V200,V201,budget-module.test.tsx,records.test.ts,manifest.test.ts |
 | T101 | x | require General Fund/Trust Fund sub-account on Released Amount create | V16,V19,V34,V157,V190,V202,budget-module.test.tsx,forms.test.ts |
+| T102 | x | repair/display legacy blank GF/Trust Fund Released Amount sub-account rows | V16,V19,V178,V190,V197,V203,budget-module.test.tsx |
+| T103 | x | repair id-only option records and live PB collection field-shape drift | V16,V17,V133,V134,V177,V204,manifest.test.ts |
 
 ## §B
 
@@ -704,3 +708,5 @@ V202: Released Amount create requires `sub_account` when `main_account` is `Gene
 | B63 | 2026-06-26 | saved `budget_expenses` rows can return without current `year` after applied schema drift; strict zod parse drops rows → Released Amount summary/table stays ₱0 despite PB records | derive missing expense year from `date` before record parse; RTL regression covers denied aux lookups + missing year row | V201,T100 |
 | B64 | 2026-06-26 | existing Budget option collections can keep superuser-only rules because collection repair only sets rules when creating missing collections | add later rules repair migration resetting `budget_fund_*` list/view/mutate rules to authenticated access | V200,T100 |
 | B65 | 2026-06-26 | `budgetExpenseMutateSchema` required Others purpose only, so General Fund/Trust Fund releases could save `sub_account` blank and table rendered `—` | require sub-account for dropdown-bearing main accounts; RTL/schema regressions block blank create | V202,T101 |
+| B66 | 2026-06-26 | existing General Fund/Trust Fund Released Amount rows saved before V202 can still have blank `sub_account`, so table shows `—` despite the current option tree | display canonical defaults for legacy rows and add idempotent PB migration backfilling blank child accounts/current fields | V203,T102 |
+| B67 | 2026-06-26 | live `/v1` PB audit found option collections whose schema contained only `id`, creating id-only option records; projects/budget_allocations/progress_updates also missed current manifest fields after applied migrations | add later field-shape repair migrations using `addMarshaledJSON`, delete unusable id-only option rows, reseed canonical options, and re-audit `/v1` clean | V204,T103 |
