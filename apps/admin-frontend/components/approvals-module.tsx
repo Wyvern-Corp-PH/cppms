@@ -43,8 +43,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
 import {
   Tabs,
@@ -216,7 +221,7 @@ export function ApprovalsModule() {
   const actor = getPocketBase().authStore?.record
   const canCreateApprovalActions = actor
     ? canAccess(actor, "approval_actions.create")
-    : true
+    : false
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -747,7 +752,7 @@ export function ApprovalsModule() {
                   : "Send revision notes back to the barangay before provincial approval."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <FieldGroup>
             {completionDocError && selected ? (
               <div
                 className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm"
@@ -763,41 +768,35 @@ export function ApprovalsModule() {
                 </ul>
               </div>
             ) : null}
-            <Label htmlFor="authority-name">
-              {dialog === "approve"
-                ? "Approving authority name"
-                : "Reviewing authority name"}
-            </Label>
-            <Input
-              id="authority-name"
-              value={authorityName}
-              aria-invalid={Boolean(fieldErrors.authority_name)}
-              onChange={(e) => setAuthorityName(e.target.value)}
-            />
-            {fieldErrors.authority_name ? (
-              <p className="text-sm text-destructive" role="alert">
-                {fieldErrors.authority_name}
-              </p>
-            ) : null}
+            <Field data-invalid={!!fieldErrors.authority_name}>
+              <FieldLabel htmlFor="authority-name">
+                {dialog === "approve"
+                  ? "Approving authority name"
+                  : "Reviewing authority name"}
+              </FieldLabel>
+              <Input
+                id="authority-name"
+                value={authorityName}
+                aria-invalid={Boolean(fieldErrors.authority_name)}
+                onChange={(e) => setAuthorityName(e.target.value)}
+              />
+              <FieldError>{fieldErrors.authority_name}</FieldError>
+            </Field>
             {dialog === "reject" || dialog === "request_revision" ? (
-              <>
-                <Label htmlFor="reject-reason">
+              <Field data-invalid={!!fieldErrors.reason}>
+                <FieldLabel htmlFor="reject-reason">
                   {dialog === "reject" ? "Reason for rejection" : "Revision notes"}
-                </Label>
+                </FieldLabel>
                 <Textarea
                   id="reject-reason"
                   value={reason}
                   aria-invalid={Boolean(fieldErrors.reason)}
                   onChange={(e) => setReason(e.target.value)}
                 />
-                {fieldErrors.reason ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    {fieldErrors.reason}
-                  </p>
-                ) : null}
-              </>
+                <FieldError>{fieldErrors.reason}</FieldError>
+              </Field>
             ) : null}
-          </div>
+          </FieldGroup>
           <DialogFooter>
             <Button
               type="button"

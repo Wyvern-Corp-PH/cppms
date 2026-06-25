@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import * as XLSX from "xlsx"
 
+import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import {
@@ -42,8 +44,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import {
+  FieldGroup,
+  FieldLabel as Label,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import {
   Popover,
   PopoverContent,
@@ -79,6 +84,36 @@ type ProjectFormState = {
   budget_year: string
   total_budget: string
   number_of_students: string
+}
+
+type ProjectImportResult = {
+  imported: number
+  total: number
+  errors: string[]
+}
+
+const PROJECT_IMPORT_HEADERS = [
+  "Project Name",
+  "Description",
+  "Location",
+  "Contractor",
+  "Total Budget",
+] as const
+
+function importCellText(row: Record<string, unknown>, header: string) {
+  const value = row[header]
+  return value === undefined || value === null ? "" : String(value).trim()
+}
+
+function parseImportBudget(value: string) {
+  const normalized = value.replace(/[₱,\s]/g, "")
+  const amount = Number(normalized)
+  return Number.isFinite(amount) && amount >= 0 ? amount : null
+}
+
+function formatImportSummary(result: ProjectImportResult) {
+  const errorLabel = result.errors.length === 1 ? "row had errors" : "rows had errors"
+  return `${result.imported} of ${result.total} projects imported successfully. ${result.errors.length} ${errorLabel}.`
 }
 
 const emptyForm = (): ProjectFormState => ({
@@ -320,6 +355,10 @@ function ProjectCard({
 export function ProjectsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
+  const [statusOptions, setStatusOptions] = useState<string[]>([...PROJECT_STATUS])
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([
+    ...PROJECT_CATEGORY,
+  ])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
@@ -338,6 +377,12 @@ export function ProjectsModule() {
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importResult, setImportResult] = useState<ProjectImportResult | null>(
+    null
+  )
+  const [importing, setImporting] = useState(false)
   const actor = getPocketBase().authStore?.record
   const canCreateProjects = actor ? canAccess(actor, "projects.create") : true
   const canUpdateProjects = actor ? canAccess(actor, "projects.update") : true
@@ -352,8 +397,24 @@ export function ProjectsModule() {
   const loadProjects = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const rows = await pb.collection("projects").getFullList()
+    const [rows, nextStatusOptions, nextCategoryOptions] = await Promise.all([
+      pb.collection("projects").getFullList(),
+      loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "status", PROJECT_STATUS)
+      ),
+      loadOptionRecordNames(pb, "project_category_options", PROJECT_CATEGORY).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "category", PROJECT_CATEGORY)
+      ),
+    ])
     setProjects(parseRecordList(projectRecordSchema, rows))
+    setStatusOptions(nextStatusOptions)
+    setCategoryOptions(nextCategoryOptions)
     try {
       const locationRows = await pb.collection("locations").getFullList()
       setLocations(
@@ -418,6 +479,22 @@ export function ProjectsModule() {
     setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
+  }
+
+  function openImport() {
+    if (!canCreateProjects) {
+      return
+    }
+    setImportFile(null)
+    setImportResult(null)
+    setImportOpen(true)
+  }
+
+  function downloadImportTemplate() {
+    const book = XLSX.utils.book_new()
+    const sheet = XLSX.utils.aoa_to_sheet([Array.from(PROJECT_IMPORT_HEADERS)])
+    XLSX.utils.book_append_sheet(book, sheet, "Projects")
+    XLSX.writeFile(book, "cppms-project-import-template.xlsx")
   }
 
   function openEdit(project: ProjectRecord) {
@@ -510,6 +587,96 @@ export function ProjectsModule() {
 
     setDialogOpen(false)
     await loadProjects()
+  }
+
+  async function handleImportProjects() {
+    if (!canCreateProjects || importing) {
+      return
+    }
+
+    if (!importFile) {
+      setImportResult({
+        imported: 0,
+        total: 0,
+        errors: ["Choose an Excel file before importing."],
+      })
+      return
+    }
+
+    if (!/\.(xlsx|xls)$/i.test(importFile.name)) {
+      setImportResult({
+        imported: 0,
+        total: 0,
+        errors: ["File must be an .xlsx or .xls workbook."],
+      })
+      return
+    }
+
+    setImporting(true)
+    const errors: string[] = []
+    let imported = 0
+
+    try {
+      const workbook = XLSX.read(await importFile.arrayBuffer(), {
+        type: "array",
+      })
+      const firstSheetName = workbook.SheetNames[0]
+      const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined
+      const rows = sheet
+        ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+            defval: "",
+          })
+        : []
+      const pb = getPocketBase()
+
+      for (const [index, row] of rows.entries()) {
+        const rowNumber = index + 2
+        const name = importCellText(row, "Project Name")
+        const budgetValue = importCellText(row, "Total Budget")
+        const totalBudget = parseImportBudget(budgetValue)
+
+        if (!name) {
+          errors.push(`Row ${rowNumber}: Project Name is required.`)
+          continue
+        }
+        if (!budgetValue || totalBudget === null) {
+          errors.push(`Row ${rowNumber}: Total Budget must be a valid amount.`)
+          continue
+        }
+
+        const parsed = projectMutateSchema.safeParse({
+          name,
+          description: importCellText(row, "Description") || undefined,
+          location: importCellText(row, "Location") || undefined,
+          contractor: importCellText(row, "Contractor") || undefined,
+          total_budget: totalBudget,
+          category: "Infrastructure",
+          status: "Planning",
+          budget_year: new Date().getFullYear(),
+          progress_pct: 0,
+        })
+
+        if (!parsed.success) {
+          const message = parsed.error.issues[0]?.message ?? "Invalid row data."
+          errors.push(`Row ${rowNumber}: ${message}`)
+          continue
+        }
+
+        try {
+          await pb.collection("projects").create(parsed.data)
+          imported += 1
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Project create failed."
+          errors.push(`Row ${rowNumber}: ${message}`)
+        }
+      }
+
+      setImportResult({ imported, total: rows.length, errors })
+      await loadProjects()
+    } finally {
+      setImporting(false)
+    }
   }
 
   async function handleStatusChange(
@@ -657,7 +824,7 @@ export function ProjectsModule() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {PROJECT_STATUS.map((value) => (
+              {statusOptions.map((value) => (
                 <SelectItem key={value} value={value}>
                   {value}
                 </SelectItem>
@@ -670,7 +837,7 @@ export function ProjectsModule() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
-              {PROJECT_CATEGORY.map((value) => (
+              {categoryOptions.map((value) => (
                 <SelectItem key={value} value={value}>
                   {value}
                 </SelectItem>
@@ -722,7 +889,10 @@ export function ProjectsModule() {
           />
         </div>
         {canCreateProjects ? (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={openImport}>
+              Import
+            </Button>
             <Button
               type="button"
               onClick={openCreate}
@@ -765,6 +935,72 @@ export function ProjectsModule() {
       )}
 
       <Dialog
+        open={importOpen}
+        onOpenChange={(open) => {
+          setImportOpen(open)
+          if (!open) {
+            setImportFile(null)
+            setImportResult(null)
+          }
+        }}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import projects</DialogTitle>
+            <DialogDescription>
+              Upload an Excel workbook with the project text fields for this
+              import phase.
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+              Required headers: {PROJECT_IMPORT_HEADERS.join(", ")}.
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="project-import-file">Excel file</Label>
+              <Input
+                id="project-import-file"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(event) => {
+                  setImportFile(event.target.files?.[0] ?? null)
+                  setImportResult(null)
+                }}
+              />
+            </div>
+            {importResult ? (
+              <div className="rounded-lg border p-3 text-sm" role="status">
+                <p className="font-medium">{formatImportSummary(importResult)}</p>
+                {importResult.errors.length > 0 ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-destructive">
+                    {importResult.errors.map((error) => (
+                      <li key={error}>{error}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={downloadImportTemplate}
+            >
+              Download template
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleImportProjects()}
+              disabled={importing}
+            >
+              {importing ? "Importing..." : "Import projects"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
@@ -785,7 +1021,7 @@ export function ProjectsModule() {
               documents.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <FieldGroup>
             <div className="space-y-1">
               <Label htmlFor="project-name">Project name</Label>
               <Input
@@ -833,7 +1069,7 @@ export function ProjectsModule() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PROJECT_CATEGORY.map((value) => (
+                    {categoryOptions.map((value) => (
                       <SelectItem key={value} value={value}>
                         {value}
                       </SelectItem>
@@ -856,7 +1092,7 @@ export function ProjectsModule() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PROJECT_STATUS.map((value) => (
+                    {statusOptions.map((value) => (
                       <SelectItem key={value} value={value}>
                         {value}
                       </SelectItem>
@@ -1028,7 +1264,7 @@ export function ProjectsModule() {
                 onChange={setSupportingFiles}
               />
             </div>
-          </div>
+          </FieldGroup>
           <DialogFooter>
             <Button
               type="button"
@@ -1058,14 +1294,17 @@ export function ProjectsModule() {
             </DialogDescription>
           </DialogHeader>
           <ul className="space-y-1">
-            {PROJECT_STATUS.map((value) => (
+            {statusOptions.map((value) => (
               <li key={value}>
                 <button
                   type="button"
                   className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                   onClick={() => {
                     if (statusTarget)
-                      void handleStatusChange(statusTarget, value)
+                      void handleStatusChange(
+                        statusTarget,
+                        value as ProjectRecord["status"]
+                      )
                     setStatusTarget(null)
                   }}
                 >

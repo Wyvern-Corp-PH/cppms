@@ -590,7 +590,7 @@ V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavi
 | T80 | x | make admin/public dropdown option sets PocketBase-backed with failing-first RTL regressions | V16,V19,V177,projects-module.test.tsx,reports-module.test.tsx,user-management-module.test.tsx,budget-module.test.tsx,public-projects.test.tsx |
 | T81 | x | amend Budget Released Amount data/UI: remove Materials/category/fund_type/funding_years, add year/main_account/sub_account Fund Source section, update expense table/export with red-first tests | V16,V19,V79,V80,V156,V157,V178,V179,budget-module.test.tsx,manifest.test.ts |
 | T82 | x | standardize all data tables on shadcn Radix Data Table/TanStack pattern with red-first RTL regressions | V16,V19,V180,V182,reports-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,projects-module.test.tsx |
-| T83 | . | standardize all forms on shadcn Radix Field pattern with zod field errors and red-first RTL regressions | V16,V19,V23,V35,V181,V182,projects-module.test.tsx,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,user-management-module.test.tsx |
+| T83 | x | standardize all forms on shadcn Radix Field pattern with zod field errors and red-first RTL regressions | V16,V19,V23,V35,V181,V182,projects-module.test.tsx,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,user-management-module.test.tsx |
 
 ## §B
 

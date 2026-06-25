@@ -22,6 +22,7 @@ const store = {
 
 const updateMock = vi.fn()
 const deleteMock = vi.fn()
+const createMock = vi.fn()
 const requestPasswordResetMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
@@ -40,6 +41,7 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "user_account_status_options") return store.userAccountStatusOptions
         return []
       }),
+      create: createMock,
       update: updateMock,
       delete: deleteMock,
       requestPasswordReset: requestPasswordResetMock,
@@ -96,6 +98,7 @@ describe("UserManagementModule (J6)", () => {
     ]
     updateMock.mockClear()
     deleteMock.mockClear()
+    createMock.mockClear()
     requestPasswordResetMock.mockClear()
   })
 
@@ -162,6 +165,32 @@ describe("UserManagementModule (J6)", () => {
     expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
     expect(dialog).toHaveClass("overflow-y-auto")
     expect(dialog).toHaveClass("sm:max-w-lg")
+  })
+
+  it("renders create account validation with Field primitives", async () => {
+    const user = userEvent.setup()
+    render(<UserManagementModule />)
+
+    await user.click(await screen.findByRole("button", { name: /create account/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    expect(await screen.findByText("Name is required.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByText("Enter a valid email address.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByText("Initial password is required.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByLabelText(/email/i)).toHaveAttribute("aria-invalid", "true")
+    expect(screen.getAllByRole("group").some((node) => node.getAttribute("data-slot") === "field")).toBe(
+      true
+    )
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("loads role and account status dropdown options from PocketBase fields", async () => {

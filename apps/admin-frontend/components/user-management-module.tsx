@@ -5,7 +5,12 @@ import { useCallback, useEffect, useState } from "react"
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { ACCOUNT_STATUS, ROLE } from "@workspace/pocketbase/schema"
-import { parseRecordList, userRecordSchema } from "@workspace/pocketbase/schemas"
+import {
+  fieldErrorsFromZod,
+  parseRecordList,
+  userAccountFormSchema,
+  userRecordSchema,
+} from "@workspace/pocketbase/schemas"
 import type { UserRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -17,8 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import {
   Select,
   SelectContent,
@@ -57,6 +67,7 @@ export function UserManagementModule() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm())
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const actor = getPocketBase().authStore?.record
   const canManageUsers = actor ? canAccess(actor, "users.update") : true
   const canDeleteUsers = actor ? canAccess(actor, "users.delete") : true
@@ -97,6 +108,7 @@ export function UserManagementModule() {
   function openCreate() {
     setEditing(null)
     setForm(emptyForm())
+    setFieldErrors({})
     setDialogOpen(true)
   }
 
@@ -109,6 +121,7 @@ export function UserManagementModule() {
       account_status: user.account_status,
       password: "",
     })
+    setFieldErrors({})
     setDialogOpen(true)
   }
 
@@ -118,21 +131,36 @@ export function UserManagementModule() {
       return
     }
 
+    const parsed = userAccountFormSchema.safeParse({
+      name: form.name,
+      email: form.email,
+      role: form.role,
+      account_status: form.account_status,
+      password: editing ? undefined : form.password,
+    })
+
+    if (!parsed.success) {
+      setFieldErrors(fieldErrorsFromZod(parsed.error))
+      return
+    }
+
+    setFieldErrors({})
+
     if (editing) {
       await pb.collection("users").update(editing.id, {
-        name: form.name,
-        email: form.email,
-        role: form.role,
-        account_status: form.account_status,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        role: parsed.data.role,
+        account_status: parsed.data.account_status,
       })
     } else {
       await pb.collection("users").create({
-        name: form.name,
-        email: form.email,
-        role: form.role,
-        account_status: form.account_status,
-        password: form.password,
-        passwordConfirm: form.password,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        role: parsed.data.role,
+        account_status: parsed.data.account_status,
+        password: parsed.data.password,
+        passwordConfirm: parsed.data.password,
       })
     }
 
@@ -268,47 +296,53 @@ export function UserManagementModule() {
               Manage account identity, role, and status.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="user-name">Name</Label>
+          <FieldGroup>
+            <Field data-invalid={!!fieldErrors.name}>
+              <FieldLabel htmlFor="user-name">Name</FieldLabel>
               <Input
                 id="user-name"
                 value={form.name}
+                aria-invalid={!!fieldErrors.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="user-email">Email</Label>
+              <FieldError>{fieldErrors.name}</FieldError>
+            </Field>
+            <Field data-invalid={!!fieldErrors.email}>
+              <FieldLabel htmlFor="user-email">Email</FieldLabel>
               <Input
                 id="user-email"
                 type="email"
                 value={form.email}
+                aria-invalid={!!fieldErrors.email}
                 onChange={(event) => setForm({ ...form, email: event.target.value })}
               />
-            </div>
+              <FieldError>{fieldErrors.email}</FieldError>
+            </Field>
             {!editing ? (
-              <div className="space-y-1">
-                <Label htmlFor="user-password">Initial password</Label>
+              <Field data-invalid={!!fieldErrors.password}>
+                <FieldLabel htmlFor="user-password">Initial password</FieldLabel>
                 <Input
                   id="user-password"
                   type="password"
                   value={form.password}
+                  aria-invalid={!!fieldErrors.password}
                   onChange={(event) =>
                     setForm({ ...form, password: event.target.value })
                   }
                 />
-              </div>
+                <FieldError>{fieldErrors.password}</FieldError>
+              </Field>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Role</Label>
+              <Field data-invalid={!!fieldErrors.role}>
+                <FieldLabel>Role</FieldLabel>
                 <Select
                   value={form.role}
                   onValueChange={(value) =>
                     setForm({ ...form, role: value as UserRecord["role"] })
                   }
                 >
-                  <SelectTrigger aria-label="Role">
+                  <SelectTrigger aria-label="Role" aria-invalid={!!fieldErrors.role}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -319,9 +353,10 @@ export function UserManagementModule() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Status</Label>
+                <FieldError>{fieldErrors.role}</FieldError>
+              </Field>
+              <Field data-invalid={!!fieldErrors.account_status}>
+                <FieldLabel>Status</FieldLabel>
                 <Select
                   value={form.account_status}
                   onValueChange={(value) =>
@@ -331,7 +366,10 @@ export function UserManagementModule() {
                     })
                   }
                 >
-                  <SelectTrigger aria-label="Status">
+                  <SelectTrigger
+                    aria-label="Status"
+                    aria-invalid={!!fieldErrors.account_status}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,9 +380,10 @@ export function UserManagementModule() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+                <FieldError>{fieldErrors.account_status}</FieldError>
+              </Field>
             </div>
-          </div>
+          </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel

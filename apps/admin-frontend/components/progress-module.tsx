@@ -43,7 +43,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import { Label } from "@workspace/ui/components/label"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Progress } from "@workspace/ui/components/progress"
 import { Slider } from "@workspace/ui/components/slider"
 import { Textarea } from "@workspace/ui/components/textarea"
@@ -700,7 +704,7 @@ export function ProgressModule() {
                 documents.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4">
+            <FieldGroup>
               {formError ? (
                 <p className="text-destructive text-sm" role="alert">
                   {formError}
@@ -709,8 +713,8 @@ export function ProgressModule() {
               <p className="text-sm">
                 {dialogProject?.name} — current {dialogProgress}%
               </p>
-              <div>
-                <Label>Progress: {toPct}%</Label>
+              <Field>
+                <FieldLabel>Progress: {toPct}%</FieldLabel>
                 <Slider
                   value={[toPct]}
                   onValueChange={(value) => setToPct(value[0] ?? 0)}
@@ -722,15 +726,15 @@ export function ProgressModule() {
                     <span key={marker}>{marker}%</span>
                   ))}
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="update-notes">Update notes</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
                 <Textarea
                   id="update-notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
-              </div>
+              </Field>
               <DocumentUploadField
                 id="site-photo"
                 label="Site photo (required)"
@@ -771,7 +775,7 @@ export function ProgressModule() {
                   })}
                 </div>
               ) : null}
-            </div>
+            </FieldGroup>
             <DialogFooter>
               <Button
                 type="button"

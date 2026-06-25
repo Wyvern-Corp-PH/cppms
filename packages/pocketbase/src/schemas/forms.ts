@@ -1,12 +1,13 @@
 import { z } from "zod"
 
 import {
+  accountStatusSchema,
   approvalActionSchema,
-  fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
-} from "./enums"
+  roleSchema,
+} from "./enums.js"
 
 const uploadedFileSchema = z
   .custom<File>((value) => value instanceof File, "File is required.")
@@ -127,20 +128,19 @@ export const budgetExpenseMutateSchema = z
   .object({
     project: z.string().min(1, "Project is required."),
     amount: z.coerce.number().positive("Amount must be greater than zero."),
-    fund_source: z.string().trim().min(1, "Fund source is required."),
-    funding_years: z.string().trim().min(1, "Funding year is required."),
-    fund_type: fundTypeSchema,
-    fund_type_other: z.string().optional(),
+    year: z.coerce.number().int().min(2000).max(2100),
+    main_account: z.string().trim().min(1, "Main account is required."),
+    sub_account: z.string().optional(),
     date: z.string().min(1),
     receipt_number: z.string().optional(),
     description: z.string().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.fund_type === "Other" && !value.fund_type_other?.trim()) {
+    if (value.main_account === "Other" && !value.sub_account?.trim()) {
       ctx.addIssue({
         code: "custom",
-        path: ["fund_type_other"],
-        message: "Other fund type is required.",
+        path: ["sub_account"],
+        message: "Sub account is required.",
       })
     }
   })
@@ -197,6 +197,24 @@ export const approvalFormSchema = z
     }
   })
 
+export const userAccountFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required."),
+    email: z.email("Enter a valid email address."),
+    role: roleSchema,
+    account_status: accountStatusSchema,
+    password: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.password !== undefined && value.password.trim().length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "Initial password is required.",
+      })
+    }
+  })
+
 export type LoginFormInput = z.infer<typeof loginFormSchema>
 export type ProjectMutateInput = z.infer<typeof projectMutateSchema>
 export type BudgetAllocationMutateInput = z.infer<
@@ -205,3 +223,4 @@ export type BudgetAllocationMutateInput = z.infer<
 export type BudgetExpenseMutateInput = z.infer<typeof budgetExpenseMutateSchema>
 export type ProgressUpdateFormInput = z.infer<typeof progressUpdateFormSchema>
 export type ApprovalFormInput = z.infer<typeof approvalFormSchema>
+export type UserAccountFormInput = z.infer<typeof userAccountFormSchema>

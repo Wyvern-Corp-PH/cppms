@@ -46,8 +46,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
 import {
   Select,
@@ -147,7 +153,7 @@ export function BudgetModule() {
   const [moaFile, setMoaFile] = useState<File | null>(null)
   const [resolutionFile, setResolutionFile] = useState<File | null>(null)
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
-  const [, setFieldErrors] = useState<Record<string, string>>({})
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const actor = getPocketBase().authStore?.record
   const canCreateAllocations = actor
     ? canAccess(actor, "budget_allocations.create")
@@ -615,37 +621,57 @@ export function BudgetModule() {
               Record an allocation and attach the required budget documents.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <Label>Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label htmlFor="allocation-amount">Total allocated budget amount</Label>
-            <Input id="allocation-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <Label>Year</Label>
-            <Select value={allocationYear} onValueChange={setAllocationYear}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {fundingYearNames.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label htmlFor="allocation-description">Description</Label>
-            <Textarea id="allocation-description" value={allocationDescription} onChange={(e) => setAllocationDescription(e.target.value)} />
+          <FieldGroup>
+            <Field data-invalid={!!fieldErrors.project}>
+              <FieldLabel>Project</FieldLabel>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger aria-invalid={!!fieldErrors.project}>
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError>{fieldErrors.project}</FieldError>
+            </Field>
+            <Field data-invalid={!!fieldErrors.amount}>
+              <FieldLabel htmlFor="allocation-amount">Total allocated budget amount</FieldLabel>
+              <Input
+                id="allocation-amount"
+                type="number"
+                value={amount}
+                aria-invalid={!!fieldErrors.amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <FieldError>{fieldErrors.amount}</FieldError>
+            </Field>
+            <Field>
+              <FieldLabel>Year</FieldLabel>
+              <Select value={allocationYear} onValueChange={setAllocationYear}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {fundingYearNames.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="allocation-description">Description</FieldLabel>
+              <Textarea
+                id="allocation-description"
+                value={allocationDescription}
+                onChange={(e) => setAllocationDescription(e.target.value)}
+              />
+            </Field>
             <div className="space-y-2 border-t pt-3">
               <p className="text-sm font-medium">Required documents</p>
               <DocumentUploadField
@@ -668,7 +694,7 @@ export function BudgetModule() {
                 onChange={setSupportingFiles}
               />
             </div>
-          </div>
+          </FieldGroup>
           <DialogFooter>
             <Button type="button" onClick={() => void saveAllocation()}>Allocate budget</Button>
           </DialogFooter>
@@ -683,71 +709,108 @@ export function BudgetModule() {
               Log a released amount against a project fund source.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger aria-label="Expense project">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label htmlFor="expense-amount">Amount (PHP)</Label>
-            <Input id="expense-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <Label htmlFor="receipt-number">Receipt number</Label>
-            <Input id="receipt-number" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} />
-            <div className="space-y-3 rounded-md border p-3">
+          <FieldGroup>
+            <Field data-invalid={!!fieldErrors.project}>
+              <FieldLabel>Project</FieldLabel>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger
+                  aria-label="Expense project"
+                  aria-invalid={!!fieldErrors.project}
+                >
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError>{fieldErrors.project}</FieldError>
+            </Field>
+            <Field data-invalid={!!fieldErrors.amount}>
+              <FieldLabel htmlFor="expense-amount">Amount (PHP)</FieldLabel>
+              <Input
+                id="expense-amount"
+                type="number"
+                value={amount}
+                aria-invalid={!!fieldErrors.amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <FieldError>{fieldErrors.amount}</FieldError>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="receipt-number">Receipt number</FieldLabel>
+              <Input
+                id="receipt-number"
+                value={receiptNumber}
+                onChange={(e) => setReceiptNumber(e.target.value)}
+              />
+            </Field>
+            <FieldSet className="space-y-3 rounded-md border p-3">
               <p className="text-sm font-medium">Fund Source</p>
-              <Label htmlFor="release-year-trigger">Year</Label>
-              <Select value={releaseYear} onValueChange={setReleaseYear}>
-                <SelectTrigger id="release-year-trigger" aria-label="Year">
-                  <SelectValue placeholder="Select year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fundingYearNames.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label htmlFor="main-account-trigger">Main account</Label>
-              <Select
-                value={mainAccount}
-                onValueChange={(value) => {
-                  setMainAccount(value)
-                  setSubAccount("")
-                }}
-              >
-                <SelectTrigger id="main-account-trigger" aria-label="Main account">
-                  <SelectValue placeholder="Select main account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {mainAccountNames.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Field>
+                <FieldLabel htmlFor="release-year-trigger">Year</FieldLabel>
+                <Select value={releaseYear} onValueChange={setReleaseYear}>
+                  <SelectTrigger id="release-year-trigger" aria-label="Year">
+                    <SelectValue placeholder="Select year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fundingYearNames.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field data-invalid={!!fieldErrors.main_account}>
+                <FieldLabel htmlFor="main-account-trigger">Main account</FieldLabel>
+                <Select
+                  value={mainAccount}
+                  onValueChange={(value) => {
+                    setMainAccount(value)
+                    setSubAccount("")
+                  }}
+                >
+                  <SelectTrigger
+                    id="main-account-trigger"
+                    aria-label="Main account"
+                    aria-invalid={!!fieldErrors.main_account}
+                  >
+                    <SelectValue placeholder="Select main account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mainAccountNames.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError>{fieldErrors.main_account}</FieldError>
+              </Field>
               {mainAccount === "Other" ? (
-                <>
-                  <Label htmlFor="sub-account">Sub account</Label>
+                <Field data-invalid={!!fieldErrors.sub_account}>
+                  <FieldLabel htmlFor="sub-account">Sub account</FieldLabel>
                   <Input
                     id="sub-account"
                     value={subAccount}
+                    aria-invalid={!!fieldErrors.sub_account}
                     onChange={(event) => setSubAccount(event.target.value)}
                   />
-                </>
+                  <FieldError>{fieldErrors.sub_account}</FieldError>
+                </Field>
               ) : subAccountNames.length > 0 ? (
-                <>
-                  <Label htmlFor="sub-account-trigger">Sub account</Label>
+                <Field data-invalid={!!fieldErrors.sub_account}>
+                  <FieldLabel htmlFor="sub-account-trigger">Sub account</FieldLabel>
                   <Select value={subAccount} onValueChange={setSubAccount}>
-                    <SelectTrigger id="sub-account-trigger" aria-label="Sub account">
+                    <SelectTrigger
+                      id="sub-account-trigger"
+                      aria-label="Sub account"
+                      aria-invalid={!!fieldErrors.sub_account}
+                    >
                       <SelectValue placeholder="Select sub account" />
                     </SelectTrigger>
                     <SelectContent>
@@ -758,14 +821,28 @@ export function BudgetModule() {
                       ))}
                     </SelectContent>
                   </Select>
-                </>
+                  <FieldError>{fieldErrors.sub_account}</FieldError>
+                </Field>
               ) : null}
-            </div>
-            <Label htmlFor="expense-date">Expense date</Label>
-            <Input id="expense-date" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
-            <Label htmlFor="expense-description">Description</Label>
-            <Textarea id="expense-description" value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} />
-          </div>
+            </FieldSet>
+            <Field>
+              <FieldLabel htmlFor="expense-date">Expense date</FieldLabel>
+              <Input
+                id="expense-date"
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="expense-description">Description</FieldLabel>
+              <Textarea
+                id="expense-description"
+                value={expenseDescription}
+                onChange={(e) => setExpenseDescription(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
           <DialogFooter>
             <Button type="button" onClick={() => void saveExpense()}>Released Amount</Button>
           </DialogFooter>

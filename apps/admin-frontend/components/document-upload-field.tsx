@@ -4,7 +4,12 @@ import { FileUp, X } from "lucide-react"
 import { useId, useRef, useState, type DragEvent } from "react"
 
 import { Button } from "@workspace/ui/components/button"
-import { Label } from "@workspace/ui/components/label"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { cn } from "@workspace/ui/lib/utils"
 
 export const DOCUMENT_UPLOAD_ACCEPT =
@@ -83,10 +88,10 @@ export function DocumentUploadField({
     .join(" ")
 
   return (
-    <div className="space-y-1">
-      <Label id={labelId} htmlFor={id}>
+    <Field data-invalid={!!error}>
+      <FieldLabel id={labelId} htmlFor={id}>
         {label}
-      </Label>
+      </FieldLabel>
       {existingNames.length > 0 ? (
         <ul className="text-muted-foreground space-y-0.5 text-xs">
           {existingNames.map((name) => (
@@ -99,6 +104,7 @@ export function DocumentUploadField({
         tabIndex={0}
         aria-labelledby={labelId}
         aria-describedby={describedBy || undefined}
+        aria-invalid={!!error}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -164,16 +170,13 @@ export function DocumentUploadField({
           })}
         </ul>
       ) : null}
+      <FieldDescription>{helperText}</FieldDescription>
       {limitMessage ? (
-        <p id={limitMessageId} className="text-destructive text-sm" role="alert">
+        <FieldError id={limitMessageId}>
           {limitMessage}
-        </p>
+        </FieldError>
       ) : null}
-      {error ? (
-        <p id={`${id}-error`} className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
+      <FieldError id={`${id}-error`}>{error}</FieldError>
+    </Field>
   )
 }

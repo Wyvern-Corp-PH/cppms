@@ -589,6 +589,49 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(payload).not.toHaveProperty("funding_years")
   })
 
+  it("renders released amount validation with Field primitives", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /expenses/i }))
+    await user.click(await screen.findByTestId("released-amount"))
+    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
+
+    expect(await screen.findByText("Project is required.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByText("Amount must be greater than zero.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByText("Main account is required.")).toHaveAttribute(
+      "data-slot",
+      "field-error"
+    )
+    expect(screen.getByLabelText(/^amount \(php\)$/i)).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
+    expect(screen.getAllByRole("group").some((node) => node.getAttribute("data-slot") === "field")).toBe(
+      true
+    )
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
   it("loads released amount fund source dropdown options from PocketBase collections", async () => {
     const user = userEvent.setup()
     store.projects = [
