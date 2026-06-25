@@ -107,8 +107,8 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 - First Super Admin: promote existing PB auth user/admin manually.
 - Super Admin: user account CRUD, role/status management, password reset trigger, system settings.
 - Province / Provincial Admin: view all projects; approve/reject/request revision; process fund releases; ⊥ manage users/settings.
-- Municipality: view all projects in assigned municipality; ⊥ edit; ⊥ outside municipality.
-- Barangay: view/update own barangay projects; upload progress/photos/liquidation docs; ⊥ approve; ⊥ outside barangay.
+- Municipality: view all projects in assigned municipality; update scoped project progress/photos/docs; ⊥ project edit/status/delete; ⊥ outside municipality.
+- Barangay: view own barangay projects; update scoped project progress/photos/liquidation docs; ⊥ project edit/status/delete; ⊥ approve; ⊥ outside barangay.
 - Auth users carry one role + account_status + scope fields (`municipality?`, `barangay?`; required by scoped role) for PBAC scoping.
 - Audit logs PB-owned: `pb_hooks` emits one structured wide event per completed mutate/approval/reset; client ⊥ writes `activity_logs`.
 
@@ -271,8 +271,8 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 **Budget** (`/budget`) — admin (V9,V10,V75–V80,V150,V152,V155–V157,V178,V179,V188–V190)
 
-- Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Spent (₱ + progress bar), Remaining (₱).
-- Breakdown list: per project — name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
+- Summary: 4 cards — Total Budget (₱ + project count), Allocated (₱ + progress bar), Amount (₱ + progress bar), Remaining (₱).
+- Breakdown list: per project — name, location, total_budget, allocated, amount, remaining, spend-% progress bar.
 - Transactions tabs: Allocations | Released Amount; filter dropdowns — project, year, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` ⊥ filter; visible tab/section copy ⊥ "Expenses".
 - Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
 - Released Amount tab: cols project, amount (red/−), year, main_account, sub_account, date, receipt_number; `+ Released Amount` → modal (project, amount, receipt_number, Fund Source section label only, Year dropdown, Main account dropdown, conditional child control per V157/V178/V190, expense date, description).
@@ -281,7 +281,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 - Summary: 4 cards — Active Projects, On Track (≥50%), Needs Attention (<25%), Updates Today.
 - Filters: status, category, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` + `lgu_level` ⊥ filter.
-- List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress when actor may update project progress (Barangay own Planning/Procurement/Ongoing/Completed/For Revision; admin where policy allows); Approved/Rejected read-only.
+- List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress when actor may update scoped progress (Municipality own municipality or Barangay own barangay for Planning/Procurement/Ongoing/For Revision; admin where policy allows); Completed/Approved/Rejected read-only.
 - Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by display name; latest revision note shown when status For Revision; Update Progress CTA bottom when actor may update per V199.
 - Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 single-file upload w/ remove+replace; notes textarea; if target progress = 100%, completion docs V110 required before Save; Save + Cancel. Saving a project at 100% with required docs sets status Ready for Review for Province review.
 
@@ -334,7 +334,7 @@ V5: Approve action requires `authority_name`; reject requires `reason` + `author
 V6: Progress update requires `site_photo` upload.
 V7: Progress summary Needs Attention = projects w/ progress_pct < 25%.
 V8: Progress summary On Track = projects w/ progress_pct ≥ 50%.
-V9: Budget summary cards aggregate ∀ projects (total, allocated, spent, remaining).
+V9: Budget summary cards aggregate ∀ projects (total, allocated, amount, remaining).
 V10: Expense amounts display negative/red; allocation amounts positive/green.
 V11: Reports deadline_status: Lapsed=red, Completed=green, On Track=blue, Near Deadline=orange.
 V12: Excel export ⊥ available on public frontend.
@@ -399,9 +399,9 @@ V70: `bun run seed:dev` inserts `Demo:`-prefixed projects + budget/progress rows
 V71: PB list/view API may omit `created`/`updated` on records — `baseRecordSchema` treats both optional; `parseRecordList` must not drop rows solely for missing timestamps (V33).
 V72: Project list cards show name, municipality/barangay context, free-form location when present, description, category, date range (start_date→target_end_date), budget_year, total_budget, progress bar, status badge.
 V73: Project list filters: status, category, municipality, barangay, date range (from/to); search bar matches name (case-insensitive substring); free-form `projects.location` ⊥ filter.
-V74: Admin project card actions: Edit + Delete; public ⊥ create/edit/delete affordances (V2,J3).
-V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), spent (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
-V76: Budget breakdown row: project name, location, total_budget, allocated, spent, remaining, spend-% progress bar.
+V74: Admin project card actions: Edit + Delete + status change only for project-mutation roles; Municipality/Barangay scoped users see no project edit/status/delete affordances; public ⊥ create/edit/delete affordances (V2,J3).
+V75: Budget summary = 4 cards: total budget (₱ + project count), allocated (₱ + progress bar), amount (₱ + progress bar), remaining (₱); aggregates ∀ projects (V9).
+V76: Budget breakdown row: project name, location, total_budget, allocated, amount, remaining, spend-% progress bar.
 V77: Budget Allocations & Released Amount tabs — filterable by project dropdown, year dropdown, municipality dropdown, barangay dropdown, date range From/To.
 V78: Allocations table cols: project, amount (green positive V10), year, description, date, allocated_by.
 V79: Released Amount table cols: project, amount (red negative V10), Year, Main Account, Sub Account, date, receipt_number; Sub Account blank when none; ⊥ Category/Fund Source/Fund Type cols.
@@ -484,8 +484,8 @@ V155: Admin Budget/Progress/Approvals date range filter is visible at top of mod
 V156: Budget module copy uses "Released Amount" everywhere expense-entry action/tab/section appears; visible "Expenses" copy ⊥ in Budget UI/tests.
 V157: Budget Released Amount form replaces Materials/category control with Fund Source section: Year dropdown from `budget_funding_years`; Main account dropdown from `budget_fund_main_accounts`; Sub account control conditional — General Fund/Trust Fund → dropdown; Special Education Fund/Special Health Fund → no field; Others → free-text field with label/copy ≠ "Sub Account"; hidden children store blank.
 V158: Approval actions (Approve, Reject, Request Revision) available only to Province/Provincial Admin role; Barangay/Municipality users see status/read-only detail only; backend rejects non-Province approval mutations.
-V159: Barangay submissions (project updates, progress/photos, liquidation docs) route Barangay → Province review before approval or succeeding fund release; Barangay self-approval/bypass impossible in UI and PBAC.
-V160: RBAC data scope: Barangay sees/updates own barangay projects only; Municipality sees all projects in own municipality read-only; Province sees all projects and manages approvals/fund releases; Super Admin manages users/permissions/config; backend enforces every scope.
+V159: Barangay submissions (progress/photos, liquidation docs) route Barangay → Province review before approval or succeeding fund release; Barangay self-approval/bypass impossible in UI and PBAC.
+V160: RBAC data scope: Barangay sees own barangay projects and updates scoped progress/docs only; Municipality sees all projects in own municipality and updates scoped progress/docs only; Province sees all projects and manages approvals/fund releases/project mutations; Super Admin manages users/permissions/config; backend enforces every scope.
 V161: Structured audit wide events include actor_role + actor scope (`municipality?`, `barangay?`) for denied/approved approval and fund-release actions; ⊥ unstructured console logs.
 V162: Admin date/date-range filters use shadcn/Radix Date Picker composition (`Popover` trigger + `Calendar`; range mode for date ranges) plus date input fields inside picker content; standalone always-visible native date inputs ⊥.
 V163: PB select field values match manifest enums after migrations: `approval_actions.action` includes `request_revision`; `activity_logs.actor_role` = §C roles; `activity_logs.action` includes §C `audit_action`.
@@ -494,7 +494,7 @@ V165: §T `x` rows citing `J<N>` require matching `apps/admin-frontend/tests/jou
 V166: `@workspace/ui` Calendar uses only `react-day-picker` v10 `classNames` slots; stale v8/v9 slots like `table` ⊥.
 V167: Approval UI fail-closed: absent/unknown/non-Province actor sees status/read-only detail only; Approve/Reject/Request Revision buttons ⊥.
 V168: Role assignment required before active login: each auth user has exactly one role; Barangay requires municipality+barangay scope; Municipality requires municipality scope; Province/Super Admin scopes optional and ignored for access.
-V169: RBAC matrix exact: Barangay read/update own barangay projects+docs only; Municipality read all own municipality projects only; Province read all + approve/reject/request_revision + fund releases only; Super Admin user/permission/config only unless separately granted by policy.
+V169: RBAC matrix exact: Barangay read own barangay projects + update scoped progress/docs only; Municipality read all own municipality projects + update scoped progress/docs only; Province read all + project mutation + approve/reject/request_revision + fund releases only; Super Admin user/permission/config only unless separately granted by policy.
 V170: RBAC enforcement is backend-first: every non-public list/view/mutate path applies actor role/status/scope in PB rules or shared PBAC before data leaves server; UI nav/buttons/pages mirror policy but are never sole enforcement.
 V171: RBAC tests use TDD red→green and cover both UI restrictions + backend denials, including a fixture with many barangays so municipality/barangay scoping cannot degrade into client-side post-filter only.
 V172: Admin Projects shows `Import` action beside `New project`; opens Excel import UI; accepts one or more `.xlsx`/`.xls` files only; public frontend ⊥ import/export affordance.
@@ -524,7 +524,7 @@ V195: User create/edit dialog persists RBAC scope fields: Municipality role requ
 V196: Budget allocation create writes current auth user id to `budget_allocations.allocated_by` for JSON and FormData/doc-upload paths; Allocations table resolves it via V149 and must not show blank for new attributed rows.
 V197: Applied PB schema for `budget_expenses` contains only current Released Amount fields (`project`, `amount`, `year`, `main_account`, `sub_account`, `date`, `receipt_number`, `description`); legacy `category`, `fund_source`, `funding_years`, `fund_type`, `fund_type_other` fields are absent or non-required before create.
 V198: Project import `Location` header maps only to free-text `projects.location`; import/edit never derives `municipality` or `barangay` from that value. Structured municipality/barangay fields display only persisted `projects.municipality`/`projects.barangay`.
-V199: Completion review transition: Barangay 100% progress save with V110 docs sets status Ready for Review; Province action on Ready for Review project writes `approval_actions.action=request_revision` with required reason and sets `projects.status="For Revision"` or approve sets `projects.status="Completed"`; Barangay-scoped actor can Update Progress/details/docs for own For Revision project; Completed/Rejected remain read-only; saving For Revision at 100% with V110 docs sets status back to Ready for Review.
+V199: Completion review transition: Municipality/Barangay 100% scoped progress save with V110 docs sets status Ready for Review; Province action on Ready for Review project writes `approval_actions.action=request_revision` with required reason and sets `projects.status="For Revision"` or approve sets `projects.status="Completed"`; scoped Municipality/Barangay actor can Update Progress/details/docs for own For Revision project; Completed/Rejected remain read-only; saving For Revision at 100% with V110 docs sets status back to Ready for Review.
 
 ## §T
 
