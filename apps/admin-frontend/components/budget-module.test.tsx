@@ -12,6 +12,7 @@ const store = {
   fundMainAccounts: [] as Array<Record<string, unknown>>,
   fundSubAccounts: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
+  deniedCollections: [] as string[],
   authRecord: {
     id: "current-user",
     email: "current@example.test",
@@ -30,6 +31,9 @@ vi.mock("@/lib/pocketbase", () => ({
     },
     collection: (name: string) => ({
       getFullList: vi.fn(async () => {
+        if (store.deniedCollections.includes(name)) {
+          throw new Error("Only superusers can perform this action.")
+        }
         if (name === "projects") return store.projects
         if (name === "budget_allocations") return store.allocations
         if (name === "budget_expenses") return store.expenses
@@ -139,6 +143,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     store.fundMainAccounts = []
     store.fundSubAccounts = []
     store.users = []
+    store.deniedCollections = []
     store.authRecord = {
       id: "current-user",
       email: "current@example.test",
@@ -311,6 +316,53 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
       expect(screen.getByText(/Amount released\s+₱25,000/)).toBeInTheDocument()
       expect(screen.queryByText("Spent")).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("-25,000")).toBeInTheDocument()
+    })
+  })
+
+  it("keeps released amount records visible when auxiliary lookups are denied", async () => {
+    const user = userEvent.setup()
+    store.deniedCollections = [
+      "budget_funding_years",
+      "budget_fund_main_accounts",
+      "budget_fund_sub_accounts",
+      "users",
+    ]
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        main_account: "General Fund",
+        sub_account: "20% DF",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
+      expect(screen.getByText(/Amount released\s+₱25,000/)).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole("tab", { name: /released amount/i }))

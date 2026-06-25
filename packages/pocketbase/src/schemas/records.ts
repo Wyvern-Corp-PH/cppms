@@ -34,6 +34,18 @@ const pbNumber = z.preprocess((value) => {
   return normalized === "" ? value : normalized
 }, z.coerce.number())
 
+function deriveBudgetExpenseYear(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  if (record.year !== undefined && record.year !== null && record.year !== "") {
+    return value
+  }
+  if (typeof record.date !== "string") return value
+
+  const year = Number(record.date.slice(0, 4))
+  return Number.isInteger(year) ? { ...record, year } : value
+}
+
 export const baseRecordSchema = z.object({
   id: z.string(),
   collectionId: z.string(),
@@ -83,17 +95,20 @@ export const budgetAllocationRecordSchema = baseRecordSchema.extend({
   supporting_docs: z.array(z.string()).optional(),
 })
 
-export const budgetExpenseRecordSchema = baseRecordSchema.extend({
-  collectionName: z.literal("budget_expenses").optional(),
-  project: z.string(),
-  amount: pbNumber,
-  year: pbNumber,
-  main_account: z.string().trim().min(1),
-  sub_account: pbEmptyAsUndefined(z.string().optional()),
-  date: z.string(),
-  receipt_number: pbEmptyAsUndefined(z.string().optional()),
-  description: z.string().optional(),
-})
+export const budgetExpenseRecordSchema = z.preprocess(
+  deriveBudgetExpenseYear,
+  baseRecordSchema.extend({
+    collectionName: z.literal("budget_expenses").optional(),
+    project: z.string(),
+    amount: pbNumber,
+    year: pbNumber,
+    main_account: z.string().trim().min(1),
+    sub_account: pbEmptyAsUndefined(z.string().optional()),
+    date: z.string(),
+    receipt_number: pbEmptyAsUndefined(z.string().optional()),
+    description: z.string().optional(),
+  })
+)
 
 export const budgetFundOptionCollectionNameSchema = z.enum([
   "budget_fund_sources",
