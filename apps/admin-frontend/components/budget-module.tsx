@@ -24,6 +24,7 @@ import {
   budgetAllocationRecordSchema,
   budgetExpenseMutateSchema,
   budgetExpenseRecordSchema,
+  budgetFundOptionRecordSchema,
   fieldErrorsFromZod,
   locationRecordSchema,
   parseRecordList,
@@ -32,10 +33,10 @@ import {
 import type {
   BudgetAllocationRecord,
   BudgetExpenseRecord,
+  BudgetFundOptionRecord,
   LocationRecord,
   ProjectRecord,
 } from "@workspace/pocketbase/types"
-import { FUND_TYPE } from "@workspace/pocketbase/schema"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -59,6 +60,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/componen
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { DateRangeFilter } from "@/components/date-range-filter"
+import { DataTable, type ColumnDef } from "@/components/data-table"
 import { DocumentUploadField } from "@/components/document-upload-field"
 import {
   LocationFilterControls,
@@ -71,8 +73,30 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() - index)
-const FUND_SOURCE_OPTIONS = ["General Fund", "National Grant", "Trust Fund"]
 const FUNDING_YEAR_OPTIONS = YEAR_OPTIONS.map(String)
+const MAIN_ACCOUNT_OPTIONS = [
+  "General Fund",
+  "Special Education Fund",
+  "Special Health Fund",
+  "Trust Fund",
+  "Other",
+]
+
+function optionNames(
+  records: BudgetFundOptionRecord[],
+  fallback: readonly string[]
+) {
+  const activeOptions = records
+    .filter((record) => record.active)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((record) => record.name)
+
+  return activeOptions.length > 0 ? activeOptions : [...fallback]
+}
+
+function uniqueOptions(values: readonly string[]) {
+  return Array.from(new Set(values.filter(Boolean)))
+}
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
@@ -95,6 +119,9 @@ export function BudgetModule() {
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
+  const [fundingYearOptions, setFundingYearOptions] = useState<BudgetFundOptionRecord[]>([])
+  const [fundMainAccountOptions, setFundMainAccountOptions] = useState<BudgetFundOptionRecord[]>([])
+  const [fundSubAccountOptions, setFundSubAccountOptions] = useState<BudgetFundOptionRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [tabProjectFilter, setTabProjectFilter] = useState("all")
@@ -111,17 +138,16 @@ export function BudgetModule() {
   const [amount, setAmount] = useState("")
   const [allocationYear, setAllocationYear] = useState(String(new Date().getFullYear()))
   const [allocationDescription, setAllocationDescription] = useState("")
-  const [fundSource, setFundSource] = useState("")
-  const [fundingYears, setFundingYears] = useState(String(new Date().getFullYear()))
-  const [fundType, setFundType] = useState<BudgetExpenseRecord["fund_type"]>("Local")
-  const [fundTypeOther, setFundTypeOther] = useState("")
+  const [releaseYear, setReleaseYear] = useState(String(new Date().getFullYear()))
+  const [mainAccount, setMainAccount] = useState("")
+  const [subAccount, setSubAccount] = useState("")
   const [receiptNumber, setReceiptNumber] = useState("")
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [expenseDescription, setExpenseDescription] = useState("")
   const [moaFile, setMoaFile] = useState<File | null>(null)
   const [resolutionFile, setResolutionFile] = useState<File | null>(null)
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [, setFieldErrors] = useState<Record<string, string>>({})
   const actor = getPocketBase().authStore?.record
   const canCreateAllocations = actor
     ? canAccess(actor, "budget_allocations.create")
@@ -139,17 +165,32 @@ export function BudgetModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, allocationRows, expenseRows, locationRows, userRows] = await Promise.all([
+    const [
+      projectRows,
+      allocationRows,
+      expenseRows,
+      locationRows,
+      fundingYearRows,
+      fundMainAccountRows,
+      fundSubAccountRows,
+      userRows,
+    ] = await Promise.all([
       pb.collection("projects").getFullList(),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
       pb.collection("locations").getFullList().catch(() => []),
+      pb.collection("budget_funding_years").getFullList().catch(() => []),
+      pb.collection("budget_fund_main_accounts").getFullList().catch(() => []),
+      pb.collection("budget_fund_sub_accounts").getFullList().catch(() => []),
       pb.collection("users").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
     setExpenses(parseRecordList(budgetExpenseRecordSchema, expenseRows))
     setLocations(parseRecordList(locationRecordSchema, locationRows))
+    setFundingYearOptions(parseRecordList(budgetFundOptionRecordSchema, fundingYearRows))
+    setFundMainAccountOptions(parseRecordList(budgetFundOptionRecordSchema, fundMainAccountRows))
+    setFundSubAccountOptions(parseRecordList(budgetFundOptionRecordSchema, fundSubAccountRows))
     setUsers(userRows as UserDisplayRecord[])
     setLoading(false)
   }, [])
@@ -214,6 +255,22 @@ export function BudgetModule() {
     () => buildUserDisplayMap(users, actor ? [actor] : []),
     [actor, users]
   )
+  const fundingYearNames = useMemo(
+    () => optionNames(fundingYearOptions, FUNDING_YEAR_OPTIONS),
+    [fundingYearOptions]
+  )
+  const mainAccountNames = useMemo(
+    () => uniqueOptions([...optionNames(fundMainAccountOptions, MAIN_ACCOUNT_OPTIONS), "Other"]),
+    [fundMainAccountOptions]
+  )
+  const subAccountNames = useMemo(
+    () =>
+      fundSubAccountOptions
+        .filter((record) => record.active && record.main_account === mainAccount)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((record) => record.name),
+    [fundSubAccountOptions, mainAccount]
+  )
   const allocatedPct =
     summary.totalBudget > 0
       ? Math.round((summary.totalAllocated / summary.totalBudget) * 100)
@@ -237,7 +294,7 @@ export function BudgetModule() {
     () =>
       dateFilteredExpenses.filter((row) => {
         if (tabProjectFilter !== "all" && row.project !== tabProjectFilter) return false
-        if (tabYearFilter !== "all" && !row.date.startsWith(tabYearFilter)) return false
+        if (tabYearFilter !== "all" && String(row.year) !== tabYearFilter) return false
         return true
       }),
     [dateFilteredExpenses, tabProjectFilter, tabYearFilter]
@@ -245,6 +302,82 @@ export function BudgetModule() {
 
   const projectName = (id: string) =>
     projects.find((project) => project.id === id)?.name ?? id
+
+  const allocationColumns: ColumnDef<BudgetAllocationRecord>[] = [
+    {
+      accessorKey: "project",
+      header: "Project",
+      cell: ({ row }) => projectName(row.original.project),
+    },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ row }) => (
+        <span className="text-green-600">
+          {formatAllocationAmount(row.original.amount)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "year",
+      header: "Year",
+    },
+    {
+      accessorKey: "description",
+      header: "Description",
+      cell: ({ row }) => row.original.description ?? "—",
+    },
+    {
+      accessorKey: "date",
+      header: "Date",
+      cell: ({ row }) => formatDisplayDate(row.original.date),
+    },
+    {
+      accessorKey: "allocated_by",
+      header: "Allocated by",
+      cell: ({ row }) => displayUserRef(row.original.allocated_by, userDisplay),
+    },
+  ]
+
+  const expenseColumns: ColumnDef<BudgetExpenseRecord>[] = [
+    {
+      accessorKey: "project",
+      header: "Project",
+      cell: ({ row }) => projectName(row.original.project),
+    },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ row }) => (
+        <span className="text-destructive">
+          {formatExpenseAmount(row.original.amount)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "year",
+      header: "Year",
+    },
+    {
+      accessorKey: "main_account",
+      header: "Main Account",
+    },
+    {
+      accessorKey: "sub_account",
+      header: "Sub Account",
+      cell: ({ row }) => row.original.sub_account ?? "—",
+    },
+    {
+      accessorKey: "date",
+      header: "Date",
+      cell: ({ row }) => formatDisplayDate(row.original.date),
+    },
+    {
+      accessorKey: "receipt_number",
+      header: "Receipt #",
+      cell: ({ row }) => row.original.receipt_number ?? "—",
+    },
+  ]
 
   async function saveAllocation() {
     if (!canCreateAllocations) {
@@ -295,10 +428,9 @@ export function BudgetModule() {
     const parsed = budgetExpenseMutateSchema.safeParse({
       project: projectId,
       amount,
-      fund_source: fundSource,
-      funding_years: fundingYears,
-      fund_type: fundType,
-      fund_type_other: fundType === "Other" ? fundTypeOther : undefined,
+      year: releaseYear,
+      main_account: mainAccount,
+      sub_account: subAccount || undefined,
       date: expenseDate,
       receipt_number: receiptNumber || undefined,
       description: expenseDescription || undefined,
@@ -405,8 +537,8 @@ export function BudgetModule() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All years</SelectItem>
-                {YEAR_OPTIONS.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
+                {fundingYearNames.map((year) => (
+                  <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
                 ))}
@@ -441,36 +573,11 @@ export function BudgetModule() {
               + Allocate
             </Button>
           ) : null}
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Amount</th>
-                  <th className="px-4 py-2 text-left">Year</th>
-                  <th className="px-4 py-2 text-left">Description</th>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Allocated by</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAllocations.map((row) => (
-                  <tr key={row.id} className="border-b last:border-b-0">
-                    <td className="px-4 py-2">{projectName(row.project)}</td>
-                    <td className="px-4 py-2 text-green-600">
-                      {formatAllocationAmount(row.amount)}
-                    </td>
-                    <td className="px-4 py-2">{row.year}</td>
-                    <td className="px-4 py-2">{row.description ?? "—"}</td>
-                    <td className="px-4 py-2">{formatDisplayDate(row.date)}</td>
-                    <td className="px-4 py-2">
-                      {displayUserRef(row.allocated_by, userDisplay)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={allocationColumns}
+            data={filteredAllocations}
+            getRowId={(row) => row.id}
+          />
         </TabsContent>
 
         <TabsContent value="expenses" className="space-y-4">
@@ -486,40 +593,11 @@ export function BudgetModule() {
               + Released Amount
             </Button>
           ) : null}
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Amount</th>
-                  <th className="px-4 py-2 text-left">Fund Source</th>
-                  <th className="px-4 py-2 text-left">Funding Years</th>
-                  <th className="px-4 py-2 text-left">Fund Type</th>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Receipt #</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredExpenses.map((row) => (
-                  <tr key={row.id} className="border-b last:border-b-0">
-                    <td className="px-4 py-2">{projectName(row.project)}</td>
-                    <td className="px-4 py-2 text-destructive">
-                      {formatExpenseAmount(row.amount)}
-                    </td>
-                    <td className="px-4 py-2">{row.fund_source ?? "—"}</td>
-                    <td className="px-4 py-2">{row.funding_years ?? "—"}</td>
-                    <td className="px-4 py-2">
-                      {row.fund_type === "Other"
-                        ? (row.fund_type_other ?? "Other")
-                        : row.fund_type}
-                    </td>
-                    <td className="px-4 py-2">{formatDisplayDate(row.date)}</td>
-                    <td className="px-4 py-2">{row.receipt_number ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={expenseColumns}
+            data={filteredExpenses}
+            getRowId={(row) => row.id}
+          />
         </TabsContent>
       </Tabs>
 
@@ -559,8 +637,8 @@ export function BudgetModule() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {YEAR_OPTIONS.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
+                {fundingYearNames.map((year) => (
+                  <SelectItem key={year} value={year}>
                     {year}
                   </SelectItem>
                 ))}
@@ -624,59 +702,62 @@ export function BudgetModule() {
             <Input id="receipt-number" value={receiptNumber} onChange={(e) => setReceiptNumber(e.target.value)} />
             <div className="space-y-3 rounded-md border p-3">
               <p className="text-sm font-medium">Fund Source</p>
-              <Label htmlFor="fund-source-trigger">Fund source</Label>
-              <Select value={fundSource} onValueChange={setFundSource}>
-                <SelectTrigger id="fund-source-trigger" aria-label="Fund source">
-                  <SelectValue placeholder="Select fund source" />
+              <Label htmlFor="release-year-trigger">Year</Label>
+              <Select value={releaseYear} onValueChange={setReleaseYear}>
+                <SelectTrigger id="release-year-trigger" aria-label="Year">
+                  <SelectValue placeholder="Select year" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FUND_SOURCE_OPTIONS.map((value) => (
+                  {fundingYearNames.map((value) => (
                     <SelectItem key={value} value={value}>
                       {value}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Label htmlFor="funding-years-trigger">Funding years</Label>
-              <Select value={fundingYears} onValueChange={setFundingYears}>
-                <SelectTrigger id="funding-years-trigger" aria-label="Funding years">
-                  <SelectValue placeholder="Select funding year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FUNDING_YEAR_OPTIONS.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label htmlFor="fund-type-trigger">Fund type</Label>
+              <Label htmlFor="main-account-trigger">Main account</Label>
               <Select
-                value={fundType}
+                value={mainAccount}
                 onValueChange={(value) => {
-                  setFundType(value as BudgetExpenseRecord["fund_type"])
-                  if (value !== "Other") setFundTypeOther("")
+                  setMainAccount(value)
+                  setSubAccount("")
                 }}
               >
-                <SelectTrigger id="fund-type-trigger" aria-label="Fund type">
-                  <SelectValue />
+                <SelectTrigger id="main-account-trigger" aria-label="Main account">
+                  <SelectValue placeholder="Select main account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FUND_TYPE.map((value) => (
+                  {mainAccountNames.map((value) => (
                     <SelectItem key={value} value={value}>
                       {value}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {fundType === "Other" ? (
+              {mainAccount === "Other" ? (
                 <>
-                  <Label htmlFor="fund-type-other">Other fund type</Label>
+                  <Label htmlFor="sub-account">Sub account</Label>
                   <Input
-                    id="fund-type-other"
-                    value={fundTypeOther}
-                    onChange={(event) => setFundTypeOther(event.target.value)}
+                    id="sub-account"
+                    value={subAccount}
+                    onChange={(event) => setSubAccount(event.target.value)}
                   />
+                </>
+              ) : subAccountNames.length > 0 ? (
+                <>
+                  <Label htmlFor="sub-account-trigger">Sub account</Label>
+                  <Select value={subAccount} onValueChange={setSubAccount}>
+                    <SelectTrigger id="sub-account-trigger" aria-label="Sub account">
+                      <SelectValue placeholder="Select sub account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subAccountNames.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </>
               ) : null}
             </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { ACCOUNT_STATUS, ROLE } from "@workspace/pocketbase/schema"
 import { parseRecordList, userRecordSchema } from "@workspace/pocketbase/schemas"
@@ -26,6 +27,7 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 
+import { DataTable, type ColumnDef } from "@/components/data-table"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -47,6 +49,10 @@ const emptyForm = (): UserFormState => ({
 
 export function UserManagementModule() {
   const [users, setUsers] = useState<UserRecord[]>([])
+  const [roleOptions, setRoleOptions] = useState<string[]>([...ROLE])
+  const [accountStatusOptions, setAccountStatusOptions] = useState<string[]>([
+    ...ACCOUNT_STATUS,
+  ])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<UserRecord | null>(null)
@@ -60,8 +66,24 @@ export function UserManagementModule() {
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
-    const rows = await getPocketBase().collection("users").getFullList()
+    const pb = getPocketBase()
+    const [rows, nextRoleOptions, nextAccountStatusOptions] = await Promise.all([
+      pb.collection("users").getFullList(),
+      loadOptionRecordNames(pb, "user_role_options", ROLE).then((options) =>
+        options.length > 0
+          ? options
+          : loadSelectFieldOptions(pb, "users", "role", ROLE)
+      ),
+      loadOptionRecordNames(pb, "user_account_status_options", ACCOUNT_STATUS).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "users", "account_status", ACCOUNT_STATUS)
+      ),
+    ])
     setUsers(parseRecordList(userRecordSchema, rows))
+    setRoleOptions(nextRoleOptions)
+    setAccountStatusOptions(nextAccountStatusOptions)
     setLoading(false)
   }, [])
 
@@ -143,6 +165,72 @@ export function UserManagementModule() {
     await getPocketBase().collection("users").requestPasswordReset(user.email)
   }
 
+  const userColumns: ColumnDef<UserRecord>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <span className="font-medium">{row.original.name || "—"}</span>
+      ),
+    },
+    { accessorKey: "email", header: "Email" },
+    {
+      accessorKey: "role",
+      header: "Role",
+      cell: ({ row }) => <Badge variant="secondary">{row.original.role}</Badge>,
+    },
+    { accessorKey: "account_status", header: "Status" },
+    {
+      id: "actions",
+      header: () => <span className="block text-right">Actions</span>,
+      cell: ({ row }) => {
+        const user = row.original
+        const label = user.name || user.email
+
+        return (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Edit ${label}`}
+              onClick={() => openEdit(user)}
+            >
+              Edit
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Deactivate ${label}`}
+              onClick={() => void deactivateUser(user)}
+            >
+              Deactivate
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Reset password for ${label}`}
+              onClick={() => void resetPassword(user)}
+            >
+              Reset password
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              aria-label={`Delete ${label}`}
+              onClick={() => void deleteUser(user)}
+            >
+              Delete
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
+
   if (loading) {
     return (
       <div className="space-y-3" data-testid="users-skeleton">
@@ -166,75 +254,11 @@ export function UserManagementModule() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="min-w-full text-sm">
-          <thead className="border-b text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Email</th>
-              <th className="px-4 py-2 text-left">Role</th>
-              <th className="px-4 py-2 text-left">Status</th>
-              <th className="px-4 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => {
-              const label = user.name || user.email
-
-              return (
-                <tr key={user.id} className="border-b last:border-b-0">
-                  <td className="px-4 py-2 font-medium">{user.name || "—"}</td>
-                  <td className="px-4 py-2">{user.email}</td>
-                  <td className="px-4 py-2">
-                    <Badge variant="secondary">{user.role}</Badge>
-                  </td>
-                  <td className="px-4 py-2">{user.account_status}</td>
-                  <td className="px-4 py-2">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`Edit ${label}`}
-                        onClick={() => openEdit(user)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`Deactivate ${label}`}
-                        onClick={() => void deactivateUser(user)}
-                      >
-                        Deactivate
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        aria-label={`Reset password for ${label}`}
-                        onClick={() => void resetPassword(user)}
-                      >
-                        Reset password
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        aria-label={`Delete ${label}`}
-                        onClick={() => void deleteUser(user)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={userColumns}
+        data={users}
+        getRowId={(user) => user.id}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
@@ -288,7 +312,7 @@ export function UserManagementModule() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE.map((role) => (
+                    {roleOptions.map((role) => (
                       <SelectItem key={role} value={role}>
                         {role}
                       </SelectItem>
@@ -311,7 +335,7 @@ export function UserManagementModule() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ACCOUNT_STATUS.map((status) => (
+                    {accountStatusOptions.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status}
                       </SelectItem>

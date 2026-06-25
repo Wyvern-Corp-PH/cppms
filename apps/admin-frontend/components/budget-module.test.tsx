@@ -203,6 +203,63 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it("renders budget transaction tables through the shared table primitive", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "20% DF",
+        date: "2026-06-18",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("table")).toHaveAttribute("data-slot", "table")
+      expect(screen.getByRole("columnheader", { name: /allocated by/i })).toHaveAttribute(
+        "data-slot",
+        "table-head"
+      )
+    })
+
+    await user.click(screen.getByRole("tab", { name: /expenses/i }))
+    expect(screen.getByRole("table")).toHaveAttribute("data-slot", "table")
+    expect(screen.getByRole("columnheader", { name: /main account/i })).toHaveAttribute(
+      "data-slot",
+      "table-head"
+    )
+  })
+
   it("filters allocations and expenses by municipality and scoped barangay", async () => {
     const user = userEvent.setup()
     store.projects = [

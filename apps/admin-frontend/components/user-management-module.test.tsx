@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
+  userRoleOptions: [] as Array<Record<string, unknown>>,
+  userAccountStatusOptions: [] as Array<Record<string, unknown>>,
   users: [
     {
       id: "u1",
@@ -32,7 +34,12 @@ vi.mock("@/lib/pocketbase", () => ({
       },
     },
     collection: (name: string) => ({
-      getFullList: vi.fn(async () => (name === "users" ? store.users : [])),
+      getFullList: vi.fn(async () => {
+        if (name === "users") return store.users
+        if (name === "user_role_options") return store.userRoleOptions
+        if (name === "user_account_status_options") return store.userAccountStatusOptions
+        return []
+      }),
       update: updateMock,
       delete: deleteMock,
       requestPasswordReset: requestPasswordResetMock,
@@ -67,6 +74,26 @@ describe("UserManagementModule (J6)", () => {
   })
 
   beforeEach(() => {
+    store.userRoleOptions = [
+      {
+        id: "role1",
+        collectionId: "user_role_options",
+        collectionName: "user_role_options",
+        name: "PB Auditor",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.userAccountStatusOptions = [
+      {
+        id: "status1",
+        collectionId: "user_account_status_options",
+        collectionName: "user_account_status_options",
+        name: "PB Suspended",
+        active: true,
+        sort_order: 1,
+      },
+    ]
     updateMock.mockClear()
     deleteMock.mockClear()
     requestPasswordResetMock.mockClear()
@@ -88,6 +115,20 @@ describe("UserManagementModule (J6)", () => {
     expect(
       screen.getByRole("button", { name: /reset password for admin user/i })
     ).toBeInTheDocument()
+  })
+
+  it("renders the users table through the shared table primitive", async () => {
+    render(<UserManagementModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin User")).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole("table")).toHaveAttribute("data-slot", "table")
+    expect(screen.getByRole("columnheader", { name: /actions/i })).toHaveAttribute(
+      "data-slot",
+      "table-head"
+    )
   })
 
   it("soft deactivates by default, hard deletes explicitly, and requests password reset", async () => {
@@ -121,5 +162,29 @@ describe("UserManagementModule (J6)", () => {
     expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
     expect(dialog).toHaveClass("overflow-y-auto")
     expect(dialog).toHaveClass("sm:max-w-lg")
+  })
+
+  it("loads role and account status dropdown options from PocketBase fields", async () => {
+    const user = userEvent.setup()
+    render(<UserManagementModule />)
+
+    await user.click(await screen.findByRole("button", { name: /create account/i }))
+    await user.click(await screen.findByLabelText(/^role$/i))
+
+    expect(
+      await screen.findByRole("option", { name: "PB Auditor" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Province" })
+    ).not.toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByLabelText(/^status$/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Suspended" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Active" })
+    ).not.toBeInTheDocument()
   })
 })

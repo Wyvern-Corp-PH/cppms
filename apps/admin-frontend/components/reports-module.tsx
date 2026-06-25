@@ -54,8 +54,10 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
+import { TableCell, TableRow } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { DataTable, type ColumnDef } from "@/components/data-table"
 import { SitePhoto, sitePhotoNames } from "@/components/site-photo"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { LivePill } from "@/components/live-pill"
@@ -275,6 +277,273 @@ export function ReportsModule() {
     XLSX.writeFile(book, `cppms-reports-${mode}.xlsx`)
   }
 
+  const projectColumns: ColumnDef<ProjectRecord>[] = [
+    { accessorKey: "name", header: "Project" },
+    { accessorKey: "category", header: "Category" },
+    { accessorKey: "status", header: "Status" },
+    {
+      id: "deadline",
+      header: "Deadline",
+      cell: ({ row }) => {
+        const deadline = resolveDeadlineStatus(
+          row.original.target_end_date,
+          row.original.progress_pct ?? 0
+        )
+        const tone = deadlineStatusTone(deadline)
+
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              tone === "destructive" && "text-destructive",
+              tone === "success" && "text-success",
+              tone === "warning" && "text-warning",
+              tone === "info" && "text-info"
+            )}
+          >
+            {deadline}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: "lgu_level",
+      header: "LGU",
+      cell: ({ row }) => row.original.lgu_level ?? "—",
+    },
+    {
+      id: "location",
+      header: "Location",
+      cell: ({ row }) =>
+        projectLocationDisplayParts(row.original).join(" · ") || "—",
+    },
+    {
+      accessorKey: "total_budget",
+      header: "Budget",
+      cell: ({ row }) => formatPhp(row.original.total_budget ?? 0),
+    },
+    {
+      accessorKey: "progress_pct",
+      header: "Progress",
+      cell: ({ row }) => `${row.original.progress_pct ?? 0}%`,
+    },
+  ]
+
+  const budgetColumns: ColumnDef<(typeof breakdown)[number]>[] = [
+    { accessorKey: "name", header: "Project" },
+    {
+      id: "category",
+      header: "Category",
+      cell: ({ row }) =>
+        filteredProjects.find((project) => project.id === row.original.projectId)
+          ?.category,
+    },
+    {
+      id: "lgu",
+      header: "LGU",
+      cell: ({ row }) =>
+        filteredProjects.find((project) => project.id === row.original.projectId)
+          ?.lgu_level ?? "—",
+    },
+    {
+      id: "location",
+      header: "Location",
+      cell: ({ row }) => {
+        const project = filteredProjects.find(
+          (item) => item.id === row.original.projectId
+        )
+        return project ? projectLocationDisplayParts(project).join(" · ") || "—" : "—"
+      },
+    },
+    {
+      accessorKey: "totalBudget",
+      header: "Total",
+      cell: ({ row }) => formatPhp(row.original.totalBudget),
+    },
+    {
+      accessorKey: "allocated",
+      header: "Allocated",
+      cell: ({ row }) => formatPhp(row.original.allocated),
+    },
+    {
+      accessorKey: "spent",
+      header: "Spent",
+      cell: ({ row }) => formatPhp(row.original.spent),
+    },
+    {
+      accessorKey: "remaining",
+      header: "Remaining",
+      cell: ({ row }) => formatPhp(row.original.remaining),
+    },
+    {
+      accessorKey: "spendPct",
+      header: "Util %",
+      cell: ({ row }) => `${row.original.spendPct}%`,
+    },
+  ]
+
+  const progressColumns: ColumnDef<ProgressUpdateRecord>[] = [
+    {
+      id: "project",
+      header: "Project",
+      cell: ({ row }) =>
+        filteredProjects.find((project) => project.id === row.original.project)
+          ?.name,
+    },
+    {
+      id: "category",
+      header: "Category",
+      cell: ({ row }) =>
+        filteredProjects.find((project) => project.id === row.original.project)
+          ?.category,
+    },
+    {
+      id: "lgu",
+      header: "LGU",
+      cell: ({ row }) =>
+        filteredProjects.find((project) => project.id === row.original.project)
+          ?.lgu_level ?? "—",
+    },
+    {
+      id: "location",
+      header: "Location",
+      cell: ({ row }) => {
+        const project = filteredProjects.find(
+          (item) => item.id === row.original.project
+        )
+        return project ? projectLocationDisplayParts(project).join(" · ") || "—" : "—"
+      },
+    },
+    {
+      accessorKey: "from_pct",
+      header: "From",
+      cell: ({ row }) => `${row.original.from_pct}%`,
+    },
+    {
+      accessorKey: "to_pct",
+      header: "To",
+      cell: ({ row }) => `${row.original.to_pct}%`,
+    },
+    {
+      id: "change",
+      header: "Change",
+      cell: ({ row }) => {
+        const change = row.original.to_pct - row.original.from_pct
+        return `${change >= 0 ? `+${change}` : change}%`
+      },
+    },
+    {
+      id: "photo",
+      header: "Photo",
+      cell: ({ row }) => {
+        const project = filteredProjects.find(
+          (item) => item.id === row.original.project
+        )
+        return (
+          <>
+            <SitePhoto
+              update={row.original}
+              alt={`${project?.name ?? "Project"} progress photo`}
+              className="h-10 w-10"
+            />
+            {sitePhotoNames(row.original.site_photo).length === 0 ? "—" : null}
+          </>
+        )
+      },
+    },
+    {
+      id: "updated_at",
+      header: "Updated at",
+      cell: ({ row }) =>
+        formatDisplayDateTime(row.original.updated_at ?? row.original.created),
+    },
+    {
+      accessorKey: "updated_by",
+      header: "Updated by",
+      cell: ({ row }) => displayUserRef(row.original.updated_by, userDisplay),
+    },
+  ]
+
+  const approvalColumns: ColumnDef<ProjectRecord>[] = [
+    { accessorKey: "name", header: "Project" },
+    { accessorKey: "category", header: "Category" },
+    {
+      accessorKey: "lgu_level",
+      header: "LGU",
+      cell: ({ row }) => row.original.lgu_level ?? "—",
+    },
+    {
+      id: "location",
+      header: "Location",
+      cell: ({ row }) =>
+        projectLocationDisplayParts(row.original).join(" · ") || "—",
+    },
+    { accessorKey: "status", header: "Status" },
+    {
+      accessorKey: "total_budget",
+      header: "Budget",
+      cell: ({ row }) => formatPhp(row.original.total_budget ?? 0),
+    },
+    {
+      id: "spent",
+      header: "Spent",
+      cell: ({ row }) => {
+        const spent = expenses
+          .filter((expense) => expense.project === row.original.id)
+          .reduce((sum, expense) => sum + expense.amount, 0)
+        return <span className="text-destructive">{formatPhp(spent)}</span>
+      },
+    },
+    {
+      id: "savings",
+      header: "Savings",
+      cell: ({ row }) => {
+        const spent = expenses
+          .filter((expense) => expense.project === row.original.id)
+          .reduce((sum, expense) => sum + expense.amount, 0)
+        const savings = Math.max(0, (row.original.total_budget ?? 0) - spent)
+        return <span className="text-success">{formatPhp(savings)}</span>
+      },
+    },
+    {
+      accessorKey: "approved_at",
+      header: "Approved at",
+      cell: ({ row }) =>
+        row.original.approved_at
+          ? formatDisplayDate(row.original.approved_at)
+          : "Pending",
+    },
+    {
+      accessorKey: "approved_by",
+      header: "Approved by",
+      cell: ({ row }) =>
+        displayUserRef(row.original.approved_by, userDisplay, "Pending"),
+    },
+  ]
+
+  const activityLogColumns: ColumnDef<ActivityLogRecord>[] = [
+    {
+      accessorKey: "actor_user",
+      header: "Actor",
+      cell: ({ row }) =>
+        displayUserRef(row.original.actor_user, userDisplay, row.original.actor_role),
+    },
+    { accessorKey: "action", header: "Action" },
+    {
+      accessorKey: "resource",
+      header: "Resource",
+      cell: ({ row }) =>
+        `${row.original.resource}${row.original.resource_id ? `:${row.original.resource_id}` : ""}`,
+    },
+    { accessorKey: "outcome", header: "Outcome" },
+    {
+      id: "when",
+      header: "When",
+      cell: ({ row }) =>
+        formatDisplayDateTime(row.original.created_at ?? row.original.created),
+    },
+  ]
+
   if (loading) {
     return <div className="bg-muted h-32 animate-pulse rounded-md" data-testid="reports-skeleton" />
   }
@@ -405,214 +674,45 @@ export function ReportsModule() {
         </div>
 
         <TabsContent value="projects">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Deadline</th>
-                  <th className="px-4 py-2 text-left">LGU</th>
-                  <th className="px-4 py-2 text-left">Location</th>
-                  <th className="px-4 py-2 text-left">Budget</th>
-                  <th className="px-4 py-2 text-left">Progress</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => {
-                  const deadline = resolveDeadlineStatus(
-                    project.target_end_date,
-                    project.progress_pct ?? 0
-                  )
-                  const tone = deadlineStatusTone(deadline)
-                  return (
-                    <tr key={project.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">{project.name}</td>
-                      <td className="px-4 py-2">{project.category}</td>
-                      <td className="px-4 py-2">{project.status}</td>
-                      <td className="px-4 py-2">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            tone === "destructive" && "text-destructive",
-                            tone === "success" && "text-success",
-                            tone === "warning" && "text-warning",
-                            tone === "info" && "text-info"
-                          )}
-                        >
-                          {deadline}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2">{project.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        {projectLocationDisplayParts(project).join(" · ") || "—"}
-                      </td>
-                      <td className="px-4 py-2">{formatPhp(project.total_budget ?? 0)}</td>
-                      <td className="px-4 py-2">{project.progress_pct ?? 0}%</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={projectColumns}
+            data={filteredProjects}
+            getRowId={(project) => project.id}
+          />
         </TabsContent>
 
         <TabsContent value="budget">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">LGU</th>
-                  <th className="px-4 py-2 text-left">Location</th>
-                  <th className="px-4 py-2 text-left">Total</th>
-                  <th className="px-4 py-2 text-left">Allocated</th>
-                  <th className="px-4 py-2 text-left">Spent</th>
-                  <th className="px-4 py-2 text-left">Remaining</th>
-                  <th className="px-4 py-2 text-left">Util %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdown.map((row) => {
-                  const project = filteredProjects.find((p) => p.id === row.projectId)
-                  return (
-                    <tr key={row.projectId} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">{row.name}</td>
-                      <td className="px-4 py-2">{project?.category}</td>
-                      <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        {project
-                          ? projectLocationDisplayParts(project).join(" · ") || "—"
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2">{formatPhp(row.totalBudget)}</td>
-                      <td className="px-4 py-2">{formatPhp(row.allocated)}</td>
-                      <td className="px-4 py-2">{formatPhp(row.spent)}</td>
-                      <td className="px-4 py-2">{formatPhp(row.remaining)}</td>
-                      <td className="px-4 py-2">{row.spendPct}%</td>
-                    </tr>
-                  )
-                })}
-                <tr className="bg-muted/40 font-medium">
-                  <td className="px-4 py-2" colSpan={4}>
-                    Total
-                  </td>
-                  <td className="px-4 py-2">{formatPhp(summary.totalBudget)}</td>
-                  <td className="px-4 py-2">{formatPhp(summary.totalAllocated)}</td>
-                  <td className="px-4 py-2">{formatPhp(summary.totalSpent)}</td>
-                  <td className="px-4 py-2">{formatPhp(summary.remaining)}</td>
-                  <td className="px-4 py-2">—</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={budgetColumns}
+            data={breakdown}
+            getRowId={(row) => row.projectId}
+            renderAfterRows={
+              <TableRow className="bg-muted/40 font-medium">
+                <TableCell colSpan={4}>Total</TableCell>
+                <TableCell>{formatPhp(summary.totalBudget)}</TableCell>
+                <TableCell>{formatPhp(summary.totalAllocated)}</TableCell>
+                <TableCell>{formatPhp(summary.totalSpent)}</TableCell>
+                <TableCell>{formatPhp(summary.remaining)}</TableCell>
+                <TableCell>—</TableCell>
+              </TableRow>
+            }
+          />
         </TabsContent>
 
         <TabsContent value="progress">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">LGU</th>
-                  <th className="px-4 py-2 text-left">Location</th>
-                  <th className="px-4 py-2 text-left">From</th>
-                  <th className="px-4 py-2 text-left">To</th>
-                  <th className="px-4 py-2 text-left">Change</th>
-                  <th className="px-4 py-2 text-left">Photo</th>
-                  <th className="px-4 py-2 text-left">Updated at</th>
-                  <th className="px-4 py-2 text-left">Updated by</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUpdates.map((update) => {
-                  const project = filteredProjects.find((p) => p.id === update.project)
-                  const change = update.to_pct - update.from_pct
-                  return (
-                    <tr key={update.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">{project?.name}</td>
-                      <td className="px-4 py-2">{project?.category}</td>
-                      <td className="px-4 py-2">{project?.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        {project
-                          ? projectLocationDisplayParts(project).join(" · ") || "—"
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-2">{update.from_pct}%</td>
-                      <td className="px-4 py-2">{update.to_pct}%</td>
-                      <td className="px-4 py-2">{change >= 0 ? `+${change}` : change}%</td>
-                      <td className="px-4 py-2">
-                        <SitePhoto
-                          update={update}
-                          alt={`${project?.name ?? "Project"} progress photo`}
-                          className="h-10 w-10"
-                        />
-                        {sitePhotoNames(update.site_photo).length === 0
-                          ? "—"
-                          : null}
-                      </td>
-                      <td className="px-4 py-2">{formatDisplayDateTime(update.updated_at ?? update.created)}</td>
-                      <td className="px-4 py-2">
-                        {displayUserRef(update.updated_by, userDisplay)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={progressColumns}
+            data={filteredUpdates}
+            getRowId={(update) => update.id}
+          />
         </TabsContent>
 
         <TabsContent value="approvals">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="min-w-full text-sm">
-              <thead className="text-muted-foreground border-b text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-2 text-left">Project</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">LGU</th>
-                  <th className="px-4 py-2 text-left">Location</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Budget</th>
-                  <th className="px-4 py-2 text-left">Spent</th>
-                  <th className="px-4 py-2 text-left">Savings</th>
-                  <th className="px-4 py-2 text-left">Approved at</th>
-                  <th className="px-4 py-2 text-left">Approved by</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => {
-                  const spent = expenses
-                    .filter((row) => row.project === project.id)
-                    .reduce((sum, row) => sum + row.amount, 0)
-                  const savings = Math.max(0, (project.total_budget ?? 0) - spent)
-                  return (
-                    <tr key={project.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">{project.name}</td>
-                      <td className="px-4 py-2">{project.category}</td>
-                      <td className="px-4 py-2">{project.lgu_level ?? "—"}</td>
-                      <td className="px-4 py-2">
-                        {projectLocationDisplayParts(project).join(" · ") || "—"}
-                      </td>
-                      <td className="px-4 py-2">{project.status}</td>
-                      <td className="px-4 py-2">{formatPhp(project.total_budget ?? 0)}</td>
-                      <td className="px-4 py-2 text-destructive">{formatPhp(spent)}</td>
-                      <td className="px-4 py-2 text-success">{formatPhp(savings)}</td>
-                      <td className="px-4 py-2">
-                        {project.approved_at ? formatDisplayDate(project.approved_at) : "Pending"}
-                      </td>
-                      <td className="px-4 py-2">
-                        {displayUserRef(project.approved_by, userDisplay, "Pending")}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={approvalColumns}
+            data={filteredProjects}
+            getRowId={(project) => project.id}
+          />
         </TabsContent>
       </Tabs>
 
@@ -624,37 +724,12 @@ export function ReportsModule() {
               Super Admin audit trail for project, budget, progress, approval, and user actions.
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="border-b text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-left">Actor</th>
-                  <th className="px-3 py-2 text-left">Action</th>
-                  <th className="px-3 py-2 text-left">Resource</th>
-                  <th className="px-3 py-2 text-left">Outcome</th>
-                  <th className="px-3 py-2 text-left">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activityLogs.map((log) => (
-                  <tr key={log.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2">
-                      {displayUserRef(log.actor_user, userDisplay, log.actor_role)}
-                    </td>
-                    <td className="px-3 py-2">{log.action}</td>
-                    <td className="px-3 py-2">
-                      {log.resource}
-                      {log.resource_id ? `:${log.resource_id}` : ""}
-                    </td>
-                    <td className="px-3 py-2">{log.outcome}</td>
-                    <td className="px-3 py-2">
-                      {formatDisplayDateTime(log.created_at ?? log.created)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={activityLogColumns}
+            data={activityLogs}
+            getRowId={(log) => log.id}
+            className="rounded-md"
+          />
         </section>
       ) : null}
     </div>

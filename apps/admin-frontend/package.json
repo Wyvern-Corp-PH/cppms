@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@tanstack/react-table": "^8.21.3",
     "@workspace/pocketbase": "workspace:*",
     "@workspace/ui": "workspace:*",
     "cmdk": "^1.1.1",
