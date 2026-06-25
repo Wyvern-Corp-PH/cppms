@@ -112,6 +112,16 @@ const budgetFundOptionRulesRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000021_budget_fund_option_rules_repair.js"
 )
+const optionCollectionFieldRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000023_option_collection_field_repair.js"
+)
+const collectionFieldShapeRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000024_collection_field_shape_repair.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -500,6 +510,48 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("budget_fund_sub_accounts")
     expect(migrationSource).toContain("listRule = AUTH_RULE")
     expect(migrationSource).toContain("viewRule = AUTH_RULE")
+  })
+
+  it("repairs id-only option collection field shapes without editing applied history", () => {
+    const migrationSource = readFileSync(
+      optionCollectionFieldRepairMigrationPath,
+      "utf8"
+    )
+
+    for (const collectionName of [
+      "budget_fund_sources",
+      "budget_funding_years",
+      "budget_fund_main_accounts",
+      "budget_fund_sub_accounts",
+      "project_status_options",
+      "project_category_options",
+      "user_role_options",
+      "user_account_status_options",
+    ]) {
+      expect(migrationSource).toContain(collectionName)
+    }
+    expect(migrationSource).toContain("addMarshaledJSON")
+    expect(migrationSource).toContain("fields.fieldNames")
+    expect(migrationSource).toContain("seedOptions")
+    expect(migrationSource).toContain("GF - Proper")
+    expect(migrationSource).toContain("Ready for Review")
+  })
+
+  it("repairs current project, allocation, and progress field shapes", () => {
+    const migrationSource = readFileSync(
+      collectionFieldShapeRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("projects")
+    expect(migrationSource).toContain("budget_allocations")
+    expect(migrationSource).toContain("progress_updates")
+    expect(migrationSource).toContain("number_of_students")
+    expect(migrationSource).toContain("resolution_file")
+    expect(migrationSource).toContain("agreement_file")
+    expect(migrationSource).toContain("certification_completion")
+    expect(migrationSource).toContain("liquidation_documents")
+    expect(migrationSource).toContain("addMarshaledJSON")
   })
 
   it("repairs local progress and project mutation role rules", () => {
