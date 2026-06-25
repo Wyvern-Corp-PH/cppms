@@ -55,6 +55,17 @@ vi.mock("@/lib/pocketbase", () => ({
 
 import { UserManagementModule } from "./user-management-module"
 
+async function chooseSelectOption(
+  user: ReturnType<typeof userEvent.setup>,
+  label: RegExp,
+  option: string
+) {
+  const trigger = screen.getByLabelText(label)
+  await user.click(trigger)
+  await user.click(await screen.findByRole("option", { name: option }))
+  await waitFor(() => expect(trigger).toHaveTextContent(option))
+}
+
 describe("UserManagementModule (J6)", () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
@@ -306,8 +317,7 @@ describe("UserManagementModule (J6)", () => {
     render(<UserManagementModule />)
 
     await user.click(await screen.findByRole("button", { name: /create account/i }))
-    await user.click(screen.getByLabelText(/^role$/i))
-    await user.click(await screen.findByRole("option", { name: "Municipality" }))
+    await chooseSelectOption(user, /^role$/i, "Municipality")
     expect(await screen.findByLabelText(/^municipality$/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/^barangay$/i)).not.toBeInTheDocument()
 
@@ -318,8 +328,7 @@ describe("UserManagementModule (J6)", () => {
     await user.type(screen.getByLabelText(/^name$/i), "Municipal Viewer")
     await user.type(screen.getByLabelText(/^email$/i), "municipal@example.test")
     await user.type(screen.getByLabelText(/initial password/i), "secret123")
-    await user.click(screen.getByLabelText(/^municipality$/i))
-    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await chooseSelectOption(user, /^municipality$/i, "Tuguegarao City")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -342,11 +351,9 @@ describe("UserManagementModule (J6)", () => {
     await user.type(screen.getByLabelText(/^name$/i), "Barangay Encoder")
     await user.type(screen.getByLabelText(/^email$/i), "barangay@example.test")
     await user.type(screen.getByLabelText(/initial password/i), "secret123")
-    await user.click(screen.getByLabelText(/^role$/i))
-    await user.click(await screen.findByRole("option", { name: "Barangay" }))
+    await chooseSelectOption(user, /^role$/i, "Barangay")
 
-    await user.click(await screen.findByLabelText(/^municipality$/i))
-    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await chooseSelectOption(user, /^municipality$/i, "Tuguegarao City")
     await user.click(screen.getByLabelText(/^barangay$/i))
     expect(
       await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
@@ -396,10 +403,8 @@ describe("UserManagementModule (J6)", () => {
       "Centro 01 (Bagumbayan)"
     )
 
-    await user.click(screen.getByLabelText(/^municipality$/i))
-    await user.click(await screen.findByRole("option", { name: "Lasam" }))
-    await user.click(screen.getByLabelText(/^barangay$/i))
-    await user.click(await screen.findByRole("option", { name: "Centro" }))
+    await chooseSelectOption(user, /^municipality$/i, "Lasam")
+    await chooseSelectOption(user, /^barangay$/i, "Centro")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {

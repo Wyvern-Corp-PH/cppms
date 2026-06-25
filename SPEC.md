@@ -642,7 +642,7 @@ V207: Approval request-revision flow completes deterministically under standard 
 | T102 | x | repair/display legacy blank GF/Trust Fund Released Amount sub-account rows | V16,V19,V178,V190,V197,V203,budget-module.test.tsx |
 | T103 | x | repair id-only option records and live PB collection field-shape drift | V16,V17,V133,V134,V177,V204,manifest.test.ts |
 | T104 | x | fix J13 role-scope expectation and regress scoped progress vs project mutation split | V16,V19,V160,V169,V171,V205,J13,access-control.test.ts,j13-role-scope.test.tsx |
-| T105 | . | harden `/users` scoped role create/edit selects in dialog and remove pointer-event/timeout flake | V16,V19,V146,V181,V195,V206,user-management-module.test.tsx |
+| T105 | x | harden `/users` scoped role create/edit selects in dialog and remove pointer-event/timeout flake | V16,V19,V146,V181,V195,V206,user-management-module.test.tsx |
 | T106 | . | harden Province request-revision approval test/UI flow to be deterministic and warning-clean | V16,V19,V158,V167,V199,V207,approvals-module.test.tsx |
 
 ## §B
