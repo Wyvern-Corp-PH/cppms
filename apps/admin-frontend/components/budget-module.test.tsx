@@ -149,6 +149,79 @@ describe("BudgetModule (V9, V10, V24)", () => {
     createMock.mockClear()
   })
 
+  async function fillAllocationForm(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByTestId("allocate-budget"))
+    await user.click((await screen.findAllByRole("combobox"))[0]!)
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
+    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
+  }
+
+  it("creates allocation payloads with the current auth user", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await fillAllocationForm(user)
+    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "p1",
+          amount: 100000,
+          allocated_by: "current-user",
+        })
+      )
+    })
+  })
+
+  it("creates allocation FormData uploads with the current auth user", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await fillAllocationForm(user)
+    await user.upload(
+      screen.getByTestId("document-upload-input-allocation-moa"),
+      new File(["moa"], "moa.pdf", { type: "application/pdf" })
+    )
+    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalled()
+    })
+    const payload = createMock.mock.calls[0]?.[0]
+    expect(payload).toBeInstanceOf(FormData)
+    expect((payload as FormData).get("project")).toBe("p1")
+    expect((payload as FormData).get("amount")).toBe("100000")
+    expect((payload as FormData).get("allocated_by")).toBe("current-user")
+  })
+
   it("renders allocation and expense amounts as signed single values", async () => {
     const user = userEvent.setup()
     store.projects = [

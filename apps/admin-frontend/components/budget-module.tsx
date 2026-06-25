@@ -425,6 +425,7 @@ export function BudgetModule() {
       year: allocationYear,
       date: new Date().toISOString().slice(0, 10),
       description: allocationDescription || undefined,
+      allocated_by: actor?.id,
     })
 
     if (!parsed.success) {

@@ -122,6 +122,7 @@ export const budgetAllocationMutateSchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
   date: z.string().min(1),
   description: z.string().optional(),
+  allocated_by: z.string().optional(),
 })
 
 export const budgetExpenseMutateSchema = z
