@@ -116,6 +116,10 @@ function formatImportSummary(result: ProjectImportResult) {
   return `${result.imported} of ${result.total} projects imported successfully. ${result.errors.length} ${errorLabel}.`
 }
 
+function importRowError(file: File, rowNumber: number, message: string) {
+  return `${file.name} Row ${rowNumber}: ${message}`
+}
+
 const emptyForm = (): ProjectFormState => ({
   name: "",
   description: "",
@@ -378,7 +382,7 @@ export function ProjectsModule() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
   const [importOpen, setImportOpen] = useState(false)
-  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importFiles, setImportFiles] = useState<File[]>([])
   const [importResult, setImportResult] = useState<ProjectImportResult | null>(
     null
   )
@@ -485,7 +489,7 @@ export function ProjectsModule() {
     if (!canCreateProjects) {
       return
     }
-    setImportFile(null)
+    setImportFiles([])
     setImportResult(null)
     setImportOpen(true)
   }
@@ -594,20 +598,21 @@ export function ProjectsModule() {
       return
     }
 
-    if (!importFile) {
+    if (importFiles.length === 0) {
       setImportResult({
         imported: 0,
         total: 0,
-        errors: ["Choose an Excel file before importing."],
+        errors: ["Choose at least one Excel file before importing."],
       })
       return
     }
 
-    if (!/\.(xlsx|xls)$/i.test(importFile.name)) {
+    const invalidFile = importFiles.find((file) => !/\.(xlsx|xls)$/i.test(file.name))
+    if (invalidFile) {
       setImportResult({
         imported: 0,
         total: 0,
-        errors: ["File must be an .xlsx or .xls workbook."],
+        errors: [`${invalidFile.name} must be an .xlsx or .xls workbook.`],
       })
       return
     }
@@ -615,64 +620,71 @@ export function ProjectsModule() {
     setImporting(true)
     const errors: string[] = []
     let imported = 0
+    let total = 0
 
     try {
-      const workbook = XLSX.read(await importFile.arrayBuffer(), {
-        type: "array",
-      })
-      const firstSheetName = workbook.SheetNames[0]
-      const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined
-      const rows = sheet
-        ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-            defval: "",
-          })
-        : []
       const pb = getPocketBase()
 
-      for (const [index, row] of rows.entries()) {
-        const rowNumber = index + 2
-        const name = importCellText(row, "Project Name")
-        const budgetValue = importCellText(row, "Total Budget")
-        const totalBudget = parseImportBudget(budgetValue)
-
-        if (!name) {
-          errors.push(`Row ${rowNumber}: Project Name is required.`)
-          continue
-        }
-        if (!budgetValue || totalBudget === null) {
-          errors.push(`Row ${rowNumber}: Total Budget must be a valid amount.`)
-          continue
-        }
-
-        const parsed = projectMutateSchema.safeParse({
-          name,
-          description: importCellText(row, "Description") || undefined,
-          location: importCellText(row, "Location") || undefined,
-          contractor: importCellText(row, "Contractor") || undefined,
-          total_budget: totalBudget,
-          category: "Infrastructure",
-          status: "Planning",
-          budget_year: new Date().getFullYear(),
-          progress_pct: 0,
+      for (const file of importFiles) {
+        const workbook = XLSX.read(await file.arrayBuffer(), {
+          type: "array",
         })
+        const firstSheetName = workbook.SheetNames[0]
+        const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined
+        const rows = sheet
+          ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+              defval: "",
+            })
+          : []
+        total += rows.length
 
-        if (!parsed.success) {
-          const message = parsed.error.issues[0]?.message ?? "Invalid row data."
-          errors.push(`Row ${rowNumber}: ${message}`)
-          continue
-        }
+        for (const [index, row] of rows.entries()) {
+          const rowNumber = index + 2
+          const name = importCellText(row, "Project Name")
+          const budgetValue = importCellText(row, "Total Budget")
+          const totalBudget = parseImportBudget(budgetValue)
 
-        try {
-          await pb.collection("projects").create(parsed.data)
-          imported += 1
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Project create failed."
-          errors.push(`Row ${rowNumber}: ${message}`)
+          if (!name) {
+            errors.push(importRowError(file, rowNumber, "Project Name is required."))
+            continue
+          }
+          if (!budgetValue || totalBudget === null) {
+            errors.push(
+              importRowError(file, rowNumber, "Total Budget must be a valid amount.")
+            )
+            continue
+          }
+
+          const parsed = projectMutateSchema.safeParse({
+            name,
+            description: importCellText(row, "Description") || undefined,
+            location: importCellText(row, "Location") || undefined,
+            contractor: importCellText(row, "Contractor") || undefined,
+            total_budget: totalBudget,
+            category: "Infrastructure",
+            status: "Planning",
+            budget_year: new Date().getFullYear(),
+            progress_pct: 0,
+          })
+
+          if (!parsed.success) {
+            const message = parsed.error.issues[0]?.message ?? "Invalid row data."
+            errors.push(importRowError(file, rowNumber, message))
+            continue
+          }
+
+          try {
+            await pb.collection("projects").create(parsed.data)
+            imported += 1
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "Project create failed."
+            errors.push(importRowError(file, rowNumber, message))
+          }
         }
       }
 
-      setImportResult({ imported, total: rows.length, errors })
+      setImportResult({ imported, total, errors })
       await loadProjects()
     } finally {
       setImporting(false)
@@ -939,7 +951,7 @@ export function ProjectsModule() {
         onOpenChange={(open) => {
           setImportOpen(open)
           if (!open) {
-            setImportFile(null)
+            setImportFiles([])
             setImportResult(null)
           }
         }}
@@ -948,7 +960,7 @@ export function ProjectsModule() {
           <DialogHeader>
             <DialogTitle>Import projects</DialogTitle>
             <DialogDescription>
-              Upload an Excel workbook with the project text fields for this
+              Upload one or more Excel workbooks with the project text fields for this
               import phase.
             </DialogDescription>
           </DialogHeader>
@@ -957,13 +969,14 @@ export function ProjectsModule() {
               Required headers: {PROJECT_IMPORT_HEADERS.join(", ")}.
             </div>
             <div className="space-y-1">
-              <Label htmlFor="project-import-file">Excel file</Label>
+              <Label htmlFor="project-import-file">Excel files</Label>
               <Input
                 id="project-import-file"
                 type="file"
                 accept=".xlsx,.xls"
+                multiple
                 onChange={(event) => {
-                  setImportFile(event.target.files?.[0] ?? null)
+                  setImportFiles(Array.from(event.target.files ?? []))
                   setImportResult(null)
                 }}
               />
