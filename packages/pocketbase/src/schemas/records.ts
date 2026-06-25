@@ -72,8 +72,8 @@ export const projectRecordSchema = baseRecordSchema.extend({
   number_of_students: pbZeroAsUndefined(
     pbNumber.pipe(z.number().int().positive()).optional()
   ),
-  moa_file: z.string().optional(),
-  resolution_file: z.string().optional(),
+  moa_file: pbFileList,
+  resolution_file: pbFileList,
   supporting_docs: z.array(z.string()).optional(),
   progress_pct: pbNumber.pipe(z.number().min(0).max(100)).optional(),
   approval_status: pbEmptyAsUndefined(approvalStatusSchema.optional()),
@@ -90,8 +90,8 @@ export const budgetAllocationRecordSchema = baseRecordSchema.extend({
   description: z.string().optional(),
   date: z.string(),
   allocated_by: pbEmptyAsUndefined(z.string().optional()),
-  moa_file: z.string().optional(),
-  resolution_file: z.string().optional(),
+  moa_file: pbFileList,
+  resolution_file: pbFileList,
   supporting_docs: z.array(z.string()).optional(),
 })
 
@@ -136,13 +136,13 @@ export const progressUpdateRecordSchema = baseRecordSchema.extend({
   to_pct: z.number().min(0).max(100),
   notes: z.string().optional(),
   site_photo: pbFileList,
-  certification_completion: z.string().optional(),
-  certificate_acceptance: z.string().optional(),
-  proof_payment_barangay: z.string().optional(),
-  acknowledgment_completion: z.string().optional(),
-  audit_documents: z.array(z.string()).optional(),
-  verification_documents: z.array(z.string()).optional(),
-  liquidation_documents: z.array(z.string()).optional(),
+  certification_completion: pbFileList,
+  certificate_acceptance: pbFileList,
+  proof_payment_barangay: pbFileList,
+  acknowledgment_completion: pbFileList,
+  audit_documents: pbFileList,
+  verification_documents: pbFileList,
+  liquidation_documents: pbFileList,
   updated_by: pbEmptyAsUndefined(z.string().optional()),
   updated_at: z.string().optional(),
 })

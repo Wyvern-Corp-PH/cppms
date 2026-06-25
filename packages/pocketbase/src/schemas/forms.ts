@@ -23,35 +23,35 @@ const sitePhotoListSchema = z.preprocess(
 )
 
 const optionalUploadedFileListSchema = z.preprocess(
-  (value) => (Array.isArray(value) && value.length === 0 ? undefined : value),
+  (value) => {
+    if (value === null || value === undefined) return undefined
+    if (value instanceof File) return [value]
+    if (Array.isArray(value) && value.length === 0) return undefined
+    return value
+  },
   uploadedFileListSchema.optional()
-)
-
-const optionalUploadedFileSchema = z.preprocess(
-  (value) => (value === null ? undefined : value),
-  uploadedFileSchema.optional()
 )
 
 export const REQUIRED_COMPLETION_DOCUMENTS = [
   {
     field: "certification_completion",
     label: "Certification of Completion",
-    multiple: false,
+    multiple: true,
   },
   {
     field: "certificate_acceptance",
     label: "Certificate of Acceptance",
-    multiple: false,
+    multiple: true,
   },
   {
     field: "proof_payment_barangay",
     label: "Proof of Payment from Barangay",
-    multiple: false,
+    multiple: true,
   },
   {
     field: "acknowledgment_completion",
     label: "Acknowledgment of Completion",
-    multiple: false,
+    multiple: true,
   },
   {
     field: "audit_documents",
@@ -74,10 +74,10 @@ export type CompletionDocumentField =
   (typeof REQUIRED_COMPLETION_DOCUMENTS)[number]["field"]
 
 const completionDocsSchema = z.object({
-  certification_completion: optionalUploadedFileSchema,
-  certificate_acceptance: optionalUploadedFileSchema,
-  proof_payment_barangay: optionalUploadedFileSchema,
-  acknowledgment_completion: optionalUploadedFileSchema,
+  certification_completion: optionalUploadedFileListSchema,
+  certificate_acceptance: optionalUploadedFileListSchema,
+  proof_payment_barangay: optionalUploadedFileListSchema,
+  acknowledgment_completion: optionalUploadedFileListSchema,
   audit_documents: optionalUploadedFileListSchema,
   verification_documents: optionalUploadedFileListSchema,
   liquidation_documents: optionalUploadedFileListSchema,
@@ -180,7 +180,7 @@ export const progressUpdateFormSchema = z
         ctx.addIssue({
           code: "custom",
           path: [doc.field],
-          message: doc.multiple
+          message: doc.label.endsWith("Documents")
             ? `${doc.label} are required.`
             : `${doc.label} is required.`,
         })

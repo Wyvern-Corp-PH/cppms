@@ -287,4 +287,41 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
 
     expect(result.success).toBe(true)
   })
+
+  it("accepts multiple files for each completion document", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 100,
+      sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
+      completionDocs: {
+        certification_completion: [
+          makeFile("certification-1.pdf"),
+          makeFile("certification-2.pdf"),
+        ],
+        certificate_acceptance: [
+          makeFile("acceptance-1.pdf"),
+          makeFile("acceptance-2.pdf"),
+        ],
+        proof_payment_barangay: [
+          makeFile("payment-1.pdf"),
+          makeFile("payment-2.pdf"),
+        ],
+        acknowledgment_completion: [
+          makeFile("acknowledgment-1.pdf"),
+          makeFile("acknowledgment-2.pdf"),
+        ],
+        audit_documents: [makeFile("audit-1.pdf"), makeFile("audit-2.pdf")],
+        verification_documents: [
+          makeFile("verification-1.pdf"),
+          makeFile("verification-2.pdf"),
+        ],
+        liquidation_documents: [
+          makeFile("liquidation-1.pdf"),
+          makeFile("liquidation-2.pdf"),
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
 })

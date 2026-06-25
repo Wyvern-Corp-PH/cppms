@@ -59,7 +59,7 @@ describe("collection record schemas (V33, V36)", () => {
       expect(result.data.municipality).toBe("Tuguegarao City")
       expect(result.data.barangay).toBe("Centro 01 (Bagumbayan)")
       expect(result.data.location).toBe("Bridge approach, east bank")
-      expect(result.data.resolution_file).toBe("resolution.pdf")
+      expect(result.data.resolution_file).toEqual(["resolution.pdf"])
     }
   })
 
@@ -157,6 +157,25 @@ describe("collection record schemas (V33, V36)", () => {
   })
 
   it("parses budget allocation and expense records", () => {
+    const allocation = budgetAllocationRecordSchema.safeParse({
+      ...base,
+      project: "p1",
+      amount: 1000,
+      year: 2026,
+      date: "2026-06-01",
+      moa_file: ["moa.pdf", "moa-2.pdf"],
+      resolution_file: ["resolution.pdf", "resolution-2.pdf"],
+    })
+
+    expect(allocation.success).toBe(true)
+    if (allocation.success) {
+      expect(allocation.data.moa_file).toEqual(["moa.pdf", "moa-2.pdf"])
+      expect(allocation.data.resolution_file).toEqual([
+        "resolution.pdf",
+        "resolution-2.pdf",
+      ])
+    }
+
     expect(
       budgetAllocationRecordSchema.safeParse({
         ...base,
@@ -293,6 +312,7 @@ describe("collection record schemas (V33, V36)", () => {
     expect(progress.success).toBe(true)
     if (progress.success) {
       expect(progress.data.site_photo).toEqual(["photo.jpg"])
+      expect(progress.data.certification_completion).toEqual(["certification.pdf"])
       expect(progress.data.audit_documents).toEqual(["audit.pdf"])
     }
 
