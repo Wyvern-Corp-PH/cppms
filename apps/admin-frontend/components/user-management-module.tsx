@@ -1,17 +1,18 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { ACCOUNT_STATUS, ROLE } from "@workspace/pocketbase/schema"
 import {
   fieldErrorsFromZod,
+  locationRecordSchema,
   parseRecordList,
   userAccountFormSchema,
   userRecordSchema,
 } from "@workspace/pocketbase/schemas"
-import type { UserRecord } from "@workspace/pocketbase/types"
+import type { LocationRecord, UserRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -47,6 +48,8 @@ type UserFormState = {
   role: UserRecord["role"]
   account_status: UserRecord["account_status"]
   password: string
+  municipality: string
+  barangay: string
 }
 
 const emptyForm = (): UserFormState => ({
@@ -55,10 +58,29 @@ const emptyForm = (): UserFormState => ({
   role: "Province",
   account_status: "Active",
   password: "",
+  municipality: "",
+  barangay: "",
 })
+
+function municipalityName(location: LocationRecord): string {
+  return location.level === "Barangay"
+    ? location.municipality_name || location.name
+    : location.name
+}
+
+function barangayName(location: LocationRecord): string {
+  return location.barangay_name || location.name
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b)
+  )
+}
 
 export function UserManagementModule() {
   const [users, setUsers] = useState<UserRecord[]>([])
+  const [locations, setLocations] = useState<LocationRecord[]>([])
   const [roleOptions, setRoleOptions] = useState<string[]>([...ROLE])
   const [accountStatusOptions, setAccountStatusOptions] = useState<string[]>([
     ...ACCOUNT_STATUS,
@@ -76,33 +98,70 @@ export function UserManagementModule() {
     : true
 
   const loadUsers = useCallback(async () => {
-    setLoading(true)
     const pb = getPocketBase()
-    const [rows, nextRoleOptions, nextAccountStatusOptions] = await Promise.all([
-      pb.collection("users").getFullList(),
-      loadOptionRecordNames(pb, "user_role_options", ROLE).then((options) =>
-        options.length > 0
-          ? options
-          : loadSelectFieldOptions(pb, "users", "role", ROLE)
-      ),
-      loadOptionRecordNames(pb, "user_account_status_options", ACCOUNT_STATUS).then(
-        (options) =>
+    try {
+      const [
+        rows,
+        locationRows,
+        nextRoleOptions,
+        nextAccountStatusOptions,
+      ] = await Promise.all([
+        pb.collection("users").getFullList(),
+        pb.collection("locations").getFullList().catch(() => []),
+        loadOptionRecordNames(pb, "user_role_options", ROLE).then((options) =>
           options.length > 0
             ? options
-            : loadSelectFieldOptions(pb, "users", "account_status", ACCOUNT_STATUS)
-      ),
-    ])
-    setUsers(parseRecordList(userRecordSchema, rows))
-    setRoleOptions(nextRoleOptions)
-    setAccountStatusOptions(nextAccountStatusOptions)
-    setLoading(false)
+            : loadSelectFieldOptions(pb, "users", "role", ROLE)
+        ),
+        loadOptionRecordNames(pb, "user_account_status_options", ACCOUNT_STATUS).then(
+          (options) =>
+            options.length > 0
+              ? options
+              : loadSelectFieldOptions(pb, "users", "account_status", ACCOUNT_STATUS)
+        ),
+      ])
+      setUsers(parseRecordList(userRecordSchema, rows))
+      setLocations(parseRecordList(locationRecordSchema, locationRows))
+      setRoleOptions(nextRoleOptions)
+      setAccountStatusOptions(nextAccountStatusOptions)
+    } catch {
+      setUsers([])
+      setLocations([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
+  const activeLocations = useMemo(
+    () => locations.filter((location) => location.active),
+    [locations]
+  )
+  const municipalityOptions = useMemo(
+    () => uniqueSorted(activeLocations.map(municipalityName)),
+    [activeLocations]
+  )
+  const barangayOptions = useMemo(
+    () =>
+      uniqueSorted(
+        activeLocations
+          .filter(
+            (location) =>
+              location.level === "Barangay" &&
+              municipalityName(location) === form.municipality
+          )
+          .map(barangayName)
+      ),
+    [activeLocations, form.municipality]
+  )
+  const needsMunicipality =
+    form.role === "Municipality" || form.role === "Barangay"
+  const needsBarangay = form.role === "Barangay"
+
   useEffect(() => {
-    void loadUsers().catch(() => {
-      setUsers([])
-      setLoading(false)
-    })
+    const timeoutId = window.setTimeout(() => {
+      void loadUsers()
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
   }, [loadUsers])
 
   function openCreate() {
@@ -120,6 +179,8 @@ export function UserManagementModule() {
       role: user.role,
       account_status: user.account_status,
       password: "",
+      municipality: user.municipality ?? "",
+      barangay: user.barangay ?? "",
     })
     setFieldErrors({})
     setDialogOpen(true)
@@ -137,6 +198,8 @@ export function UserManagementModule() {
       role: form.role,
       account_status: form.account_status,
       password: editing ? undefined : form.password,
+      municipality: form.municipality,
+      barangay: form.barangay,
     })
 
     if (!parsed.success) {
@@ -146,26 +209,41 @@ export function UserManagementModule() {
 
     setFieldErrors({})
 
+    let createdUser: UserRecord | null = null
+
     if (editing) {
       await pb.collection("users").update(editing.id, {
         name: parsed.data.name,
         email: parsed.data.email,
         role: parsed.data.role,
         account_status: parsed.data.account_status,
+        municipality: parsed.data.municipality,
+        barangay: parsed.data.barangay,
       })
     } else {
-      await pb.collection("users").create({
+      const created = await pb.collection("users").create({
         name: parsed.data.name,
         email: parsed.data.email,
         role: parsed.data.role,
         account_status: parsed.data.account_status,
+        municipality: parsed.data.municipality,
+        barangay: parsed.data.barangay,
         password: parsed.data.password,
         passwordConfirm: parsed.data.password,
       })
+      const createdParsed = userRecordSchema.safeParse(created)
+      createdUser = createdParsed.success ? createdParsed.data : null
     }
 
     setDialogOpen(false)
     await loadUsers()
+    if (createdUser) {
+      setUsers((current) =>
+        current.some((user) => user.id === createdUser.id)
+          ? current
+          : [createdUser, ...current]
+      )
+    }
   }
 
   async function deactivateUser(user: UserRecord) {
@@ -338,9 +416,18 @@ export function UserManagementModule() {
                 <FieldLabel>Role</FieldLabel>
                 <Select
                   value={form.role}
-                  onValueChange={(value) =>
-                    setForm({ ...form, role: value as UserRecord["role"] })
-                  }
+                  onValueChange={(value) => {
+                    const role = value as UserRecord["role"]
+                    setForm((current) => ({
+                      ...current,
+                      role,
+                      municipality:
+                        role === "Municipality" || role === "Barangay"
+                          ? current.municipality
+                          : "",
+                      barangay: role === "Barangay" ? current.barangay : "",
+                    }))
+                  }}
                 >
                   <SelectTrigger aria-label="Role" aria-invalid={!!fieldErrors.role}>
                     <SelectValue />
@@ -383,6 +470,60 @@ export function UserManagementModule() {
                 <FieldError>{fieldErrors.account_status}</FieldError>
               </Field>
             </div>
+            {needsMunicipality ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field data-invalid={!!fieldErrors.municipality}>
+                  <FieldLabel>Municipality</FieldLabel>
+                  <Select
+                    value={form.municipality}
+                    onValueChange={(value) =>
+                      setForm({ ...form, municipality: value, barangay: "" })
+                    }
+                  >
+                    <SelectTrigger
+                      aria-label="Municipality"
+                      aria-invalid={!!fieldErrors.municipality}
+                    >
+                      <SelectValue placeholder="Select municipality" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {municipalityOptions.map((municipality) => (
+                        <SelectItem key={municipality} value={municipality}>
+                          {municipality}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{fieldErrors.municipality}</FieldError>
+                </Field>
+                {needsBarangay ? (
+                  <Field data-invalid={!!fieldErrors.barangay}>
+                    <FieldLabel>Barangay</FieldLabel>
+                    <Select
+                      value={form.barangay}
+                      onValueChange={(value) =>
+                        setForm({ ...form, barangay: value })
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label="Barangay"
+                        aria-invalid={!!fieldErrors.barangay}
+                      >
+                        <SelectValue placeholder="Select barangay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {barangayOptions.map((barangay) => (
+                          <SelectItem key={barangay} value={barangay}>
+                            {barangay}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldError>{fieldErrors.barangay}</FieldError>
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
