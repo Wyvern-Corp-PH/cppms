@@ -64,10 +64,14 @@ export type DevSeedProject = {
   allocation: { amount: number; description: string }
   expenses: Array<{
     amount: number
-    fund_source: string
-    funding_years: string
-    fund_type: "Local" | "National" | "Grant" | "Other"
-    fund_type_other?: string
+    year: number
+    main_account:
+      | "General Fund"
+      | "Special Education Fund"
+      | "Special Health Fund"
+      | "Trust Fund"
+      | "Other"
+    sub_account?: string
     description: string
   }>
   progress?: { from_pct: number; to_pct: number; notes: string }
@@ -95,16 +99,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 4_200_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Rebar and concrete",
       },
       {
         amount: 1_800_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Crew wages Q1",
       },
     ],
@@ -134,9 +136,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 950_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "Special Health Fund",
         description: "Diagnostic package down payment",
       },
     ],
@@ -163,17 +164,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 2_100_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Seed stock procurement",
       },
       {
         amount: 450_000,
-        fund_source: "Trust Fund",
-        funding_years: "2026",
-        fund_type: "Other",
-        fund_type_other: "Warehouse handling fund",
+        year: 2026,
+        main_account: "Trust Fund",
         description: "Warehouse handling",
       },
     ],
@@ -203,9 +201,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 120_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Environmental clearance",
       },
     ],
@@ -232,10 +229,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 5_600_000,
-        fund_source: "Scholarship Fund",
-        funding_years: "2026",
-        fund_type: "Other",
-        fund_type_other: "Scholarship trust fund",
+        year: 2026,
+        main_account: "Special Education Fund",
         description: "First semester disbursements",
       },
     ],
@@ -262,9 +257,8 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 1_350_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Precast culverts",
       },
     ],
@@ -295,16 +289,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 2_800_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "Special Health Fund",
         description: "Clinic fit-out",
       },
       {
         amount: 900_000,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
         description: "Construction labor",
       },
     ],
@@ -332,16 +324,14 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
     expenses: [
       {
         amount: 16_200_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "General Fund",
         description: "Paving works",
       },
       {
         amount: 1_200_000,
-        fund_source: "National Grant",
-        funding_years: "2026",
-        fund_type: "National",
+        year: 2026,
+        main_account: "General Fund",
         description: "Quality assurance crew",
       },
     ],

@@ -4,6 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   failLocations: false,
+  projectStatusOptions: [] as Array<Record<string, unknown>>,
+  projectCategoryOptions: [] as Array<Record<string, unknown>>,
   projects: [
     {
       id: "1",
@@ -65,6 +67,8 @@ vi.mock("@/lib/pocketbase", () => ({
           if (store.failLocations) throw new Error("locations unavailable")
           return store.locations
         }
+        if (name === "project_status_options") return store.projectStatusOptions
+        if (name === "project_category_options") return store.projectCategoryOptions
         return store.projects
       }),
     }),
@@ -99,6 +103,26 @@ describe("PublicProjects (V2, J3)", () => {
 
   beforeEach(() => {
     store.failLocations = false
+    store.projectStatusOptions = [
+      {
+        id: "status1",
+        collectionId: "project_status_options",
+        collectionName: "project_status_options",
+        name: "PB Public Status",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.projectCategoryOptions = [
+      {
+        id: "category1",
+        collectionId: "project_category_options",
+        collectionName: "project_category_options",
+        name: "PB Public Category",
+        active: true,
+        sort_order: 1,
+      },
+    ]
     store.projects = [
       {
         id: "1",
@@ -212,6 +236,28 @@ describe("PublicProjects (V2, J3)", () => {
       expect(screen.getByText("Bridge")).toBeInTheDocument()
       expect(screen.queryByText("Water System")).not.toBeInTheDocument()
     })
+  })
+
+  it("loads public status and category filter options from PocketBase fields", async () => {
+    const user = userEvent.setup()
+    render(<PublicProjects />)
+
+    await user.click(await screen.findByLabelText(/filter by status/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Public Status" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Planning" })
+    ).not.toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByLabelText(/filter by category/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Public Category" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Infrastructure" })
+    ).not.toBeInTheDocument()
   })
 
   it("matches admin location display by omitting LGU level", async () => {

@@ -1,9 +1,16 @@
+const NumberField = globalThis.NumberField
 const SelectField = globalThis.SelectField
 const TextField = globalThis.TextField
 const migrate = globalThis.migrate
 
 const ROLE_VALUES = ["Super Admin", "Province", "Municipality", "Barangay"]
-const FUND_TYPE_VALUES = ["Local", "National", "Grant", "Other"]
+const MAIN_ACCOUNT_VALUES = [
+  "General Fund",
+  "Special Education Fund",
+  "Special Health Fund",
+  "Trust Fund",
+  "Other",
+]
 
 function fieldExists(collection, name) {
   try {
@@ -58,28 +65,27 @@ function ensureBudgetExpenseFields(app) {
   const expenses = app.findCollectionByNameOrId("budget_expenses")
   let changed = false
 
-  for (const field of [
-    { name: "fund_source" },
-    { name: "funding_years" },
-    { name: "fund_type_other" },
-  ]) {
-    if (!fieldExists(expenses, field.name)) {
-      expenses.fields.add(new TextField({ name: field.name }))
-      changed = true
-    }
+  if (!fieldExists(expenses, "year")) {
+    expenses.fields.add(new NumberField({ name: "year", required: true, onlyInt: true }))
+    changed = true
   }
 
-  if (!fieldExists(expenses, "fund_type")) {
+  if (!fieldExists(expenses, "main_account")) {
     expenses.fields.add(
       new SelectField({
-        name: "fund_type",
+        name: "main_account",
         required: true,
         maxSelect: 1,
-        values: FUND_TYPE_VALUES,
+        values: MAIN_ACCOUNT_VALUES,
       })
     )
     changed = true
-  } else if (setSelectValues(expenses, "fund_type", FUND_TYPE_VALUES)) {
+  } else if (setSelectValues(expenses, "main_account", MAIN_ACCOUNT_VALUES)) {
+    changed = true
+  }
+
+  if (!fieldExists(expenses, "sub_account")) {
+    expenses.fields.add(new TextField({ name: "sub_account" }))
     changed = true
   }
 
@@ -110,18 +116,15 @@ function backfillExpenses(app) {
   const records = app.findRecordsByFilter("budget_expenses", "", "", 1000, 0)
   for (const record of records) {
     const category = record.get("category")
-    if (!record.get("fund_source")) {
-      record.set("fund_source", "Legacy expense")
-    }
-    if (!record.get("funding_years")) {
+    if (!record.get("year")) {
       const date = String(record.get("date") || "")
-      record.set("funding_years", date.slice(0, 4) || String(new Date().getFullYear()))
+      record.set("year", Number(date.slice(0, 4)) || new Date().getFullYear())
     }
-    if (!record.get("fund_type")) {
-      record.set("fund_type", category === "Other" ? "Other" : "Local")
+    if (!record.get("main_account")) {
+      record.set("main_account", "General Fund")
     }
-    if (category === "Other" && !record.get("fund_type_other")) {
-      record.set("fund_type_other", "Legacy Other")
+    if (category === "Other" && !record.get("sub_account")) {
+      record.set("sub_account", "Legacy Other")
     }
     app.save(record)
   }
@@ -135,6 +138,20 @@ function removeLegacyBudgetCategory(app) {
   }
 }
 
+function removeLegacyBudgetExpenseFundFields(app) {
+  const expenses = app.findCollectionByNameOrId("budget_expenses")
+  let changed = false
+  for (const field of ["fund_source", "funding_years", "fund_type", "fund_type_other"]) {
+    if (fieldExists(expenses, field)) {
+      expenses.fields.removeByName(field)
+      changed = true
+    }
+  }
+  if (changed) {
+    app.save(expenses)
+  }
+}
+
 migrate(
   (app) => {
     ensureUserScopeFields(app)
@@ -142,6 +159,7 @@ migrate(
     backfillUsers(app)
     backfillExpenses(app)
     removeLegacyBudgetCategory(app)
+    removeLegacyBudgetExpenseFundFields(app)
   },
   () => {
     // Additive business-rule migration; keep repaired schema/data on down.

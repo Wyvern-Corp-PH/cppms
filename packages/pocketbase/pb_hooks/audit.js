@@ -34,10 +34,9 @@ const AUDIT_FIELDS = {
   budget_expenses: [
     "project",
     "amount",
-    "fund_source",
-    "funding_years",
-    "fund_type",
-    "fund_type_other",
+    "year",
+    "main_account",
+    "sub_account",
     "date",
     "receipt_number",
   ],

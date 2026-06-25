@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import {
   filterProjects,
   projectLocationDisplayParts,
@@ -68,6 +69,10 @@ function uniqueByName<T extends { name: string }>(locations: T[]) {
 export function PublicProjects() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
+  const [statusOptions, setStatusOptions] = useState<string[]>([...PROJECT_STATUS])
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([
+    ...PROJECT_CATEGORY,
+  ])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("all")
@@ -79,8 +84,24 @@ export function PublicProjects() {
 
   const loadProjects = useCallback(async () => {
     const pb = getPocketBase()
-    const projectRows = await pb.collection("projects").getFullList()
+    const [projectRows, nextStatusOptions, nextCategoryOptions] = await Promise.all([
+      pb.collection("projects").getFullList(),
+      loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "status", PROJECT_STATUS)
+      ),
+      loadOptionRecordNames(pb, "project_category_options", PROJECT_CATEGORY).then(
+        (options) =>
+          options.length > 0
+            ? options
+            : loadSelectFieldOptions(pb, "projects", "category", PROJECT_CATEGORY)
+      ),
+    ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
+    setStatusOptions(nextStatusOptions)
+    setCategoryOptions(nextCategoryOptions)
     try {
       const locationRows = await pb.collection("locations").getFullList()
       setLocations(
@@ -187,7 +208,7 @@ export function PublicProjects() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            {PROJECT_STATUS.map((value) => (
+            {statusOptions.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
               </SelectItem>
@@ -200,7 +221,7 @@ export function PublicProjects() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {PROJECT_CATEGORY.map((value) => (
+            {categoryOptions.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
               </SelectItem>

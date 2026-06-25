@@ -9,6 +9,7 @@ export {
   subscribeCollections,
   type CollectionRealtimeEvent,
 } from "./realtime"
+export { loadOptionRecordNames, loadSelectFieldOptions } from "./select-options"
 export type {
   AccountStatus,
   ActivityLogRecord,

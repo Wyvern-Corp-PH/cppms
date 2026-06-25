@@ -123,13 +123,12 @@ describe("dev seed fixtures (V70)", () => {
   it("seeds budget expenses with fund source fields", () => {
     for (const fixture of DEV_SEED_FIXTURES) {
       for (const expense of fixture.expenses) {
-        expect(expense.fund_source).toBeTruthy()
-        expect(expense.funding_years).toBeTruthy()
-        expect(expense.fund_type).toBeTruthy()
+        expect(expense.year).toBeTruthy()
+        expect(expense.main_account).toBeTruthy()
       }
     }
-    expect(seedScriptSource).toContain("fund_source: expense.fund_source")
-    expect(seedScriptSource).toContain("funding_years: expense.funding_years")
-    expect(seedScriptSource).toContain("fund_type: expense.fund_type")
+    expect(seedScriptSource).toContain("year: expense.year")
+    expect(seedScriptSource).toContain("main_account: expense.main_account")
+    expect(seedScriptSource).toContain("sub_account: expense.sub_account")
   })
 })

@@ -98,13 +98,13 @@ describe("approvalFormSchema (V5, V35)", () => {
 })
 
 describe("budgetExpenseMutateSchema (V34, V157)", () => {
-  it("accepts fund source fields without a category", () => {
+  it("accepts released amount fund source fields without a category", () => {
     const result = budgetExpenseMutateSchema.safeParse({
       project: "p1",
       amount: "25000",
-      fund_source: "General Fund",
-      funding_years: "2026",
-      fund_type: "Local",
+      year: "2026",
+      main_account: "General Fund",
+      sub_account: "Road materials",
       date: "2026-06-24",
       receipt_number: "OR-1",
     })
@@ -112,29 +112,43 @@ describe("budgetExpenseMutateSchema (V34, V157)", () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data).toMatchObject({
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Road materials",
       })
       expect("category" in result.data).toBe(false)
+      expect("funding_years" in result.data).toBe(false)
+      expect("fund_type" in result.data).toBe(false)
     }
   })
 
-  it("requires manual fund type text when fund type is Other", () => {
+  it("requires sub account text when main account is Other", () => {
     const result = budgetExpenseMutateSchema.safeParse({
       project: "p1",
       amount: "25000",
-      fund_source: "General Fund",
-      funding_years: "2026",
-      fund_type: "Other",
-      fund_type_other: "",
+      year: "2026",
+      main_account: "Other",
+      sub_account: "",
       date: "2026-06-24",
     })
 
     expect(result.success).toBe(false)
     if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).fund_type_other).toMatch(/required/i)
+      expect(fieldErrorsFromZod(result.error).sub_account).toMatch(/required/i)
     }
+  })
+
+  it("accepts main account values provided by PocketBase option collections", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      year: "2027",
+      main_account: "Special Education Fund",
+      sub_account: "School supplies",
+      date: "2026-06-24",
+    })
+
+    expect(result.success).toBe(true)
   })
 })
 

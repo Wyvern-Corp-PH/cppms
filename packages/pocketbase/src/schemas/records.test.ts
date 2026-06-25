@@ -5,6 +5,7 @@ import {
   approvalActionRecordSchema,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
+  budgetFundOptionRecordSchema,
   locationRecordSchema,
   progressUpdateRecordSchema,
   projectRecordSchema,
@@ -26,6 +27,14 @@ describe("collection record schemas (V33, V36)", () => {
       "projects",
       "budget_allocations",
       "budget_expenses",
+      "budget_fund_sources",
+      "budget_funding_years",
+      "budget_fund_main_accounts",
+      "budget_fund_sub_accounts",
+      "project_status_options",
+      "project_category_options",
+      "user_role_options",
+      "user_account_status_options",
       "progress_updates",
       "approval_actions",
       "locations",
@@ -166,9 +175,9 @@ describe("collection record schemas (V33, V36)", () => {
         collectionName: "budget_expenses",
         project: "p1",
         amount: 500,
-        fund_source: "General Fund",
-        funding_years: "2026",
-        fund_type: "Local",
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Road materials",
         date: "2026-06-15 00:00:00.000Z",
         receipt_number: "",
         description: "Rebar",
@@ -176,24 +185,55 @@ describe("collection record schemas (V33, V36)", () => {
     ).toBe(true)
   })
 
-  it("parses Other fund type text on budget expense records", () => {
+  it("parses Other main account sub account text on budget expense records", () => {
     const result = budgetExpenseRecordSchema.safeParse({
       id: "o9jfia8svz2j0rj",
       collectionId: "pbc_2635419501",
       collectionName: "budget_expenses",
       project: "p1",
       amount: 500,
-      fund_source: "Supplemental fund",
-      funding_years: "2026",
-      fund_type: "Other",
-      fund_type_other: "Disaster response fund",
+      year: 2026,
+      main_account: "Other",
+      sub_account: "Disaster response fund",
       date: "2026-06-15 00:00:00.000Z",
     })
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.fund_type_other).toBe("Disaster response fund")
+      expect(result.data.sub_account).toBe("Disaster response fund")
       expect("category" in result.data).toBe(false)
+      expect("funding_years" in result.data).toBe(false)
+      expect("fund_type" in result.data).toBe(false)
+    }
+  })
+
+  it("parses Budget fund dropdown option records", () => {
+    const result = budgetFundOptionRecordSchema.safeParse({
+      id: "fs1",
+      collectionId: "pbc_budget_fund_sources",
+      collectionName: "budget_fund_sources",
+      name: "Special Education Fund",
+      active: true,
+      sort_order: 2,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("parses Budget sub account option records with a parent main account", () => {
+    const result = budgetFundOptionRecordSchema.safeParse({
+      id: "sa1",
+      collectionId: "pbc_budget_fund_sub_accounts",
+      collectionName: "budget_fund_sub_accounts",
+      main_account: "General Fund",
+      name: "20% DF",
+      active: true,
+      sort_order: 2,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.main_account).toBe("General Fund")
     }
   })
 

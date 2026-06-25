@@ -5,7 +5,6 @@ import {
   approvalStatusSchema,
   auditActionSchema,
   accountStatusSchema,
-  fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
   projectStatusSchema,
@@ -80,13 +79,31 @@ export const budgetExpenseRecordSchema = baseRecordSchema.extend({
   collectionName: z.literal("budget_expenses").optional(),
   project: z.string(),
   amount: z.number(),
-  fund_source: z.string().optional(),
-  funding_years: z.string().optional(),
-  fund_type: fundTypeSchema,
-  fund_type_other: pbEmptyAsUndefined(z.string().optional()),
+  year: z.number(),
+  main_account: z.string().trim().min(1),
+  sub_account: pbEmptyAsUndefined(z.string().optional()),
   date: z.string(),
   receipt_number: pbEmptyAsUndefined(z.string().optional()),
   description: z.string().optional(),
+})
+
+export const budgetFundOptionCollectionNameSchema = z.enum([
+  "budget_fund_sources",
+  "budget_funding_years",
+  "budget_fund_main_accounts",
+  "budget_fund_sub_accounts",
+  "project_status_options",
+  "project_category_options",
+  "user_role_options",
+  "user_account_status_options",
+])
+
+export const budgetFundOptionRecordSchema = baseRecordSchema.extend({
+  collectionName: budgetFundOptionCollectionNameSchema.optional(),
+  main_account: z.string().optional(),
+  name: z.string().trim().min(1),
+  active: z.boolean(),
+  sort_order: z.number().optional(),
 })
 
 export const progressUpdateRecordSchema = baseRecordSchema.extend({
@@ -173,6 +190,11 @@ export type BudgetAllocationRecord = z.infer<
 export type BudgetExpenseRecord = z.infer<typeof budgetExpenseRecordSchema> & {
   collectionName?: "budget_expenses"
 }
+export type BudgetFundOptionRecord = z.infer<
+  typeof budgetFundOptionRecordSchema
+> & {
+  collectionName?: z.infer<typeof budgetFundOptionCollectionNameSchema>
+}
 export type ProgressUpdateRecord = z.infer<
   typeof progressUpdateRecordSchema
 > & {
@@ -198,6 +220,14 @@ export const recordSchemas = {
   projects: projectRecordSchema,
   budget_allocations: budgetAllocationRecordSchema,
   budget_expenses: budgetExpenseRecordSchema,
+  budget_fund_sources: budgetFundOptionRecordSchema,
+  budget_funding_years: budgetFundOptionRecordSchema,
+  budget_fund_main_accounts: budgetFundOptionRecordSchema,
+  budget_fund_sub_accounts: budgetFundOptionRecordSchema,
+  project_status_options: budgetFundOptionRecordSchema,
+  project_category_options: budgetFundOptionRecordSchema,
+  user_role_options: budgetFundOptionRecordSchema,
+  user_account_status_options: budgetFundOptionRecordSchema,
   progress_updates: progressUpdateRecordSchema,
   approval_actions: approvalActionRecordSchema,
   locations: locationRecordSchema,

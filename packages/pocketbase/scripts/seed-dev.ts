@@ -298,10 +298,9 @@ async function seedDemoProjects(
       await pb.collection("budget_expenses").create({
         project: project.id,
         amount: expense.amount,
-        fund_source: expense.fund_source,
-        funding_years: expense.funding_years,
-        fund_type: expense.fund_type,
-        fund_type_other: expense.fund_type_other,
+        year: expense.year,
+        main_account: expense.main_account,
+        sub_account: expense.sub_account,
         description: expense.description,
         date: today,
       })

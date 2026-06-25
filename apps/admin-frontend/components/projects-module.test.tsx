@@ -2,9 +2,15 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
+const xlsxState = {
+  rows: [] as Array<Record<string, unknown>>,
+}
+
 const store = {
   projects: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
+  projectStatusOptions: [] as Array<Record<string, unknown>>,
+  projectCategoryOptions: [] as Array<Record<string, unknown>>,
   authRecord: {
     id: "sa1",
     role: "Super Admin",
@@ -38,6 +44,10 @@ vi.mock("@/lib/pocketbase", () => ({
           ? store.projects
           : name === "locations"
             ? store.locations
+            : name === "project_status_options"
+              ? store.projectStatusOptions
+              : name === "project_category_options"
+                ? store.projectCategoryOptions
             : []
       ),
       create: createMock,
@@ -47,6 +57,21 @@ vi.mock("@/lib/pocketbase", () => ({
   }),
 }))
 
+vi.mock("xlsx", () => ({
+  read: vi.fn(() => ({
+    SheetNames: ["Projects"],
+    Sheets: { Projects: {} },
+  })),
+  utils: {
+    aoa_to_sheet: vi.fn(() => ({})),
+    book_new: vi.fn(() => ({})),
+    book_append_sheet: vi.fn(),
+    sheet_to_json: vi.fn(() => xlsxState.rows),
+  },
+  writeFile: vi.fn(),
+}))
+
+import * as XLSX from "xlsx"
 import { ProjectsModule } from "./projects-module"
 
 describe("ProjectsModule (J4)", () => {
@@ -75,6 +100,26 @@ describe("ProjectsModule (J4)", () => {
 
   beforeEach(() => {
     store.projects = []
+    store.projectStatusOptions = [
+      {
+        id: "status1",
+        collectionId: "project_status_options",
+        collectionName: "project_status_options",
+        name: "PB Custom Status",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.projectCategoryOptions = [
+      {
+        id: "category1",
+        collectionId: "project_category_options",
+        collectionName: "project_category_options",
+        name: "PB Custom Category",
+        active: true,
+        sort_order: 1,
+      },
+    ]
     store.locations = [
       {
         id: "loc1",
@@ -156,6 +201,13 @@ describe("ProjectsModule (J4)", () => {
     }
     createMock.mockClear()
     updateMock.mockClear()
+    vi.mocked(XLSX.read).mockClear()
+    vi.mocked(XLSX.utils.aoa_to_sheet).mockClear()
+    vi.mocked(XLSX.utils.book_new).mockClear()
+    vi.mocked(XLSX.utils.book_append_sheet).mockClear()
+    vi.mocked(XLSX.utils.sheet_to_json).mockClear()
+    vi.mocked(XLSX.writeFile).mockClear()
+    xlsxState.rows = []
   })
 
   it("opens the create project modal with save affordance", async () => {
@@ -171,6 +223,125 @@ describe("ProjectsModule (J4)", () => {
         screen.getByRole("button", { name: /^save$/i })
       ).toBeInTheDocument()
     })
+  })
+
+  it("loads project status and category dropdown options from PocketBase fields", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByLabelText(/filter by status/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Custom Status" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Planning" })
+    ).not.toBeInTheDocument()
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByLabelText(/filter by category/i))
+    expect(
+      await screen.findByRole("option", { name: "PB Custom Category" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Infrastructure" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("opens an Excel import dialog with the expected file types", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+
+    const input = await screen.findByLabelText(/excel file/i)
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(input).toHaveAttribute("type", "file")
+    expect(input).toHaveAttribute("accept", ".xlsx,.xls")
+    expect(
+      screen.getByRole("button", { name: /download template/i })
+    ).toBeInTheDocument()
+  })
+
+  it("downloads an Excel template with exact project import headers", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+    await user.click(
+      await screen.findByRole("button", { name: /download template/i })
+    )
+
+    expect(XLSX.utils.aoa_to_sheet).toHaveBeenCalledWith([
+      [
+        "Project Name",
+        "Description",
+        "Location",
+        "Contractor",
+        "Total Budget",
+      ],
+    ])
+    expect(XLSX.writeFile).toHaveBeenCalledWith(
+      expect.anything(),
+      "cppms-project-import-template.xlsx"
+    )
+  })
+
+  it("imports valid Excel rows and reports row-level errors", async () => {
+    const user = userEvent.setup()
+    xlsxState.rows = [
+      {
+        "Project Name": "Road Widening",
+        Description: "Phase 1",
+        Location: "Tuguegarao City",
+        Contractor: "BuildCo",
+        "Total Budget": "1500000",
+      },
+      {
+        "Project Name": "",
+        Description: "No name",
+        Location: "Lasam",
+        Contractor: "Contractor",
+        "Total Budget": "250000",
+      },
+      {
+        "Project Name": "School Repair",
+        Description: "Roofing",
+        Location: "Lasam",
+        Contractor: "FixCo",
+        "Total Budget": "500000",
+      },
+    ]
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+    await user.upload(
+      await screen.findByLabelText(/excel file/i),
+      new File(["workbook"], "projects.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+    )
+    await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(2)
+    })
+    expect(createMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: "Road Widening",
+        description: "Phase 1",
+        location: "Tuguegarao City",
+        contractor: "BuildCo",
+        total_budget: 1500000,
+        category: "Infrastructure",
+        status: "Planning",
+        progress_pct: 0,
+      })
+    )
+    expect(
+      await screen.findByText("2 of 3 projects imported successfully. 1 row had errors.")
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Row 3: Project Name is required/i)).toBeInTheDocument()
   })
 
   it("uses Resolution as the project agreement document label", async () => {

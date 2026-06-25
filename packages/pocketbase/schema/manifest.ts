@@ -20,7 +20,13 @@ export const PROJECT_CATEGORY = [
 
 export const LGU_LEVEL = ["Municipality", "Barangay", "District", "SK"] as const
 
-export const FUND_TYPE = ["Local", "National", "Grant", "Other"] as const
+export const FUND_TYPE = [
+  "General Fund",
+  "Special Education Fund",
+  "Special Health Fund",
+  "Trust Fund",
+  "Other",
+] as const
 
 export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const
 export const ROLE = ["Super Admin", "Province", "Municipality", "Barangay"] as const
@@ -95,15 +101,46 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
     fields: [
       "project",
       "amount",
-      "fund_source",
-      "funding_years",
-      "fund_type",
-      "fund_type_other",
+      "year",
+      "main_account",
+      "sub_account",
       "date",
       "receipt_number",
       "description",
     ],
     relations: ["project"],
+  },
+  {
+    name: "budget_fund_sources",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "budget_funding_years",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "budget_fund_main_accounts",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "budget_fund_sub_accounts",
+    fields: ["main_account", "name", "active", "sort_order"],
+  },
+  {
+    name: "project_status_options",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "project_category_options",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "user_role_options",
+    fields: ["name", "active", "sort_order"],
+  },
+  {
+    name: "user_account_status_options",
+    fields: ["name", "active", "sort_order"],
   },
   {
     name: "progress_updates",
