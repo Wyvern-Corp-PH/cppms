@@ -139,7 +139,7 @@ export function projectLocationDisplayParts(
 export function isApprovalEligible(
   project: Pick<ProjectRecord, "status">
 ): boolean {
-  return project.status === "Completed"
+  return project.status === "Ready for Review"
 }
 
 import { formatDisplayDate } from "./format-display-date"

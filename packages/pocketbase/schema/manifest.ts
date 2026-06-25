@@ -4,8 +4,9 @@ export const PROJECT_STATUS = [
   "Planning",
   "Procurement",
   "Ongoing",
+  "Ready for Review",
+  "For Revision",
   "Completed",
-  "Approved",
   "Rejected",
 ] as const
 

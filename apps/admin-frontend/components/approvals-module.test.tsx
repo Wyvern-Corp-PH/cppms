@@ -10,9 +10,9 @@ const store = {
       collectionName: "projects",
       created: "",
       updated: "",
-      name: "Completed Bridge",
+      name: "Review Ready Bridge",
       category: "Infrastructure",
-      status: "Completed",
+      status: "Ready for Review",
       municipality: "Tuguegarao City",
       barangay: "Centro 01 (Bagumbayan)",
       budget_year: 2026,
@@ -125,9 +125,9 @@ describe("ApprovalsModule (J5, V5)", () => {
         collectionName: "projects",
         created: "",
         updated: "",
-        name: "Completed Bridge",
+        name: "Review Ready Bridge",
         category: "Infrastructure",
-        status: "Completed",
+        status: "Ready for Review",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -196,7 +196,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     ]
   })
 
-  it("approves a completed project and updates status to Approved", async () => {
+  it("approves a review-ready project and updates status to Completed", async () => {
     const user = userEvent.setup()
     render(<ApprovalsModule />)
 
@@ -208,7 +208,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     await user.click(screen.getByTestId("confirm-approval-action"))
 
     await waitFor(() => {
-      expect(store.projects[0]?.status).toBe("Approved")
+      expect(store.projects[0]?.status).toBe("Completed")
       expect(store.actions[0]?.action).toBe("approve")
       expect(updateMock).toHaveBeenCalledWith(
         "1",
@@ -238,6 +238,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         action: "request_revision",
         reason: "Please upload clearer liquidation docs.",
       })
+      expect(store.projects[0]?.status).toBe("For Revision")
     })
   })
 
@@ -281,7 +282,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Completed",
+        status: "Ready for Review",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -296,7 +297,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Completed",
+        status: "Ready for Review",
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
@@ -324,7 +325,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     render(<ApprovalsModule />)
 
     const card = await screen.findByTestId("approval-card-1")
-    expect(within(card).getByText("Completed")).toBeInTheDocument()
+    expect(within(card).getByText("Ready for Review")).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()
@@ -333,7 +334,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("shows approved projects as read-only entries", async () => {
+  it("shows completed projects as read-only entries", async () => {
     const user = userEvent.setup()
     store.projects[0] = {
       id: "1",
@@ -341,9 +342,9 @@ describe("ApprovalsModule (J5, V5)", () => {
       collectionName: "projects",
       created: "",
       updated: "",
-      name: "Approved Bridge",
+      name: "Completed Bridge",
       category: "Infrastructure",
-      status: "Approved",
+      status: "Completed",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "approved",
@@ -351,7 +352,7 @@ describe("ApprovalsModule (J5, V5)", () => {
 
     render(<ApprovalsModule />)
 
-    await user.click(await screen.findByRole("tab", { name: /^approved$/i }))
+    await user.click(await screen.findByRole("tab", { name: /^completed$/i }))
 
     const card = await screen.findByTestId("approval-card-1")
     expect(
@@ -377,6 +378,75 @@ describe("ApprovalsModule (J5, V5)", () => {
     ).not.toBeInTheDocument()
   })
 
+  it("shows for-revision projects in their own read-only tab with latest revision note", async () => {
+    const user = userEvent.setup()
+    store.projects[0] = {
+      id: "1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Revision Bridge",
+      category: "Infrastructure",
+      status: "For Revision",
+      budget_year: 2026,
+      progress_pct: 100,
+      approval_status: "pending",
+    }
+    store.actions = [
+      {
+        id: "a1",
+        collectionId: "actions",
+        collectionName: "approval_actions",
+        project: "1",
+        action: "request_revision",
+        authority_name: "Provincial Engineer",
+        reason: "Please upload clearer liquidation docs.",
+        created: "2026-06-25T00:00:00.000Z",
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("approvals-queue")).toHaveTextContent("0")
+      expect(screen.getByTestId("approvals-for-revision")).toHaveTextContent("1")
+    })
+
+    await user.click(await screen.findByRole("tab", { name: /for revision/i }))
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByText("For Revision")).toBeInTheDocument()
+    expect(
+      within(card).getByText("Please upload clearer liquidation docs.")
+    ).toBeInTheDocument()
+    expect(
+      within(card).getByRole("button", { name: /view details/i })
+    ).toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /^approve$/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /^reject$/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(card).queryByRole("button", { name: /request revision/i })
+    ).not.toBeInTheDocument()
+
+    await user.click(within(card).getByRole("button", { name: /view details/i }))
+
+    const detail = screen.getByTestId("approval-detail-panel")
+    expect(
+      within(detail).getByText("Please upload clearer liquidation docs.")
+    ).toBeInTheDocument()
+    expect(
+      within(detail).queryByRole("button", { name: /^approve$/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(detail).queryByRole("button", { name: /^reject$/i })
+    ).not.toBeInTheDocument()
+  })
+
   it("filters approval cards by municipality and scoped barangay", async () => {
     const user = userEvent.setup()
     store.projects = [
@@ -388,7 +458,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Completed",
+        status: "Ready for Review",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -403,7 +473,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Completed",
+        status: "Ready for Review",
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
@@ -440,7 +510,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Completed",
+        status: "Ready for Review",
         budget_year: 2026,
         total_budget: 100_000,
         progress_pct: 100,
@@ -454,7 +524,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Completed",
+        status: "Ready for Review",
         budget_year: 2026,
         total_budget: 300_000,
         progress_pct: 100,
@@ -504,7 +574,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       expect(screen.getByText("City Bridge")).toBeInTheDocument()
       expect(screen.getByText("Lasam School")).toBeInTheDocument()
       expect(screen.getByTestId("approvals-queue")).toHaveTextContent("2")
-      expect(screen.getByTestId("approvals-budget-managed")).toHaveTextContent("₱400,000")
+      expect(screen.getByTestId("approvals-for-revision")).toHaveTextContent("0")
     })
 
     await chooseDateRange(user, "2026-06-01", "2026-06-30")
@@ -513,7 +583,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       expect(screen.getByText("City Bridge")).toBeInTheDocument()
       expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
       expect(screen.getByTestId("approvals-queue")).toHaveTextContent("1")
-      expect(screen.getByTestId("approvals-budget-managed")).toHaveTextContent("₱100,000")
+      expect(screen.getByTestId("approvals-for-revision")).toHaveTextContent("0")
     })
   })
 
@@ -527,7 +597,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       updated: "",
       name: "Rejected Bridge",
       category: "Infrastructure",
-      status: "Completed",
+      status: "Ready for Review",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "rejected",

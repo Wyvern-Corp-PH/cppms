@@ -315,7 +315,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       description:
         "Concrete paving for farm-to-market roads in western municipalities.",
       category: "Infrastructure",
-      status: "Approved",
+      status: "Completed",
       municipality: "Piat",
       location: "Piat",
       lgu_level: "Municipality",

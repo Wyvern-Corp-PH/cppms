@@ -58,8 +58,9 @@ describe("buildProgressSummaryCards (V81)", () => {
       countActiveProjects([
         { status: "Planning" },
         { status: "Procurement" },
-        { status: "Approved" },
+        { status: "For Revision" },
+        { status: "Completed" },
       ])
-    ).toBe(2)
+    ).toBe(3)
   })
 })

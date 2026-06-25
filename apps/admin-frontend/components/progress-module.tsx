@@ -69,6 +69,12 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
+const EDITABLE_PROGRESS_STATUSES = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+] as const
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
@@ -117,6 +123,16 @@ function effectiveProgressPct(
   updates: ProgressUpdateRecord[]
 ): number {
   return updates[0]?.to_pct ?? project.progress_pct ?? 0
+}
+
+function canUpdateProjectProgress(
+  project: ProjectRecord,
+  canCreateProgressUpdates: boolean
+) {
+  return (
+    canCreateProgressUpdates &&
+    (EDITABLE_PROGRESS_STATUSES as readonly string[]).includes(project.status)
+  )
 }
 
 export function ProgressModule() {
@@ -236,7 +252,7 @@ export function ProgressModule() {
   )
 
   function openUpdateModal(project: ProjectRecord) {
-    if (!canCreateProgressUpdates) {
+    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
       return
     }
     const projectUpdates = updates.filter(
@@ -316,6 +332,10 @@ export function ProgressModule() {
         setFormError("Project is required.")
         return
       }
+      if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
+        setFormError("This project is read-only for progress updates.")
+        return
+      }
       const projectUpdates = updates.filter(
         (update) => update.project === project.id
       )
@@ -339,7 +359,7 @@ export function ProgressModule() {
       try {
         await pb.collection("projects").update(parsed.data.projectId, {
           progress_pct: parsed.data.toPct,
-          status: parsed.data.toPct >= 100 ? "Completed" : project.status,
+          status: parsed.data.toPct >= 100 ? "Ready for Review" : project.status,
         })
       } catch (error) {
         console.warn(
@@ -506,7 +526,7 @@ export function ProgressModule() {
                   >
                     View details
                   </Button>
-                  {canCreateProgressUpdates ? (
+                  {canUpdateProjectProgress(project, canCreateProgressUpdates) ? (
                     <Button
                       type="button"
                       size="sm"
@@ -580,7 +600,7 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              {canCreateProgressUpdates ? (
+              {canUpdateProjectProgress(selected, canCreateProgressUpdates) ? (
                 <Button
                   type="button"
                   className="w-full"
@@ -658,7 +678,7 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              {canCreateProgressUpdates ? (
+              {canUpdateProjectProgress(selected, canCreateProgressUpdates) ? (
                 <DialogFooter>
                   <Button
                     type="button"

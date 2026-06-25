@@ -12,7 +12,7 @@ const projects: ProjectRecord[] = [
     updated: "",
     name: "Bridge",
     category: "Infrastructure",
-    status: "Approved",
+    status: "Completed",
     budget_year: 2026,
     approval_status: "approved",
     lgu_level: "Municipality",
@@ -40,7 +40,7 @@ const projects: ProjectRecord[] = [
 describe("filterReportProjects (V89)", () => {
   it("applies all sentinel filters", () => {
     expect(filterReportProjects(projects, { status: "all", category: "all" })).toHaveLength(2)
-    expect(filterReportProjects(projects, { status: "Approved" })).toHaveLength(1)
+    expect(filterReportProjects(projects, { status: "Completed" })).toHaveLength(1)
     expect(
       filterReportProjects(projects, {
         municipality: "Lasam",

@@ -10,9 +10,9 @@ const store = {
       collectionName: "projects",
       created: "",
       updated: "",
-      name: "Completed Bridge",
+      name: "Review Ready Bridge",
       category: "Infrastructure",
-      status: "Completed",
+      status: "Ready for Review",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "pending",
@@ -50,7 +50,7 @@ vi.mock("@/lib/pocketbase", () => ({
 
 import { ApprovalsModule } from "@/components/approvals-module"
 
-describe("J5 approve completed project journey", () => {
+describe("J5 approve review-ready project journey", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://localhost:8090"
     store.projects[0] = {
@@ -59,9 +59,9 @@ describe("J5 approve completed project journey", () => {
       collectionName: "projects",
       created: "",
       updated: "",
-      name: "Completed Bridge",
+      name: "Review Ready Bridge",
       category: "Infrastructure",
-      status: "Completed",
+      status: "Ready for Review",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "pending",
@@ -88,7 +88,7 @@ describe("J5 approve completed project journey", () => {
     ]
   })
 
-  it("approves a completed project and sets status Approved", async () => {
+  it("approves a review-ready project and sets status Completed", async () => {
     const user = userEvent.setup()
     render(<ApprovalsModule />)
 
@@ -100,7 +100,7 @@ describe("J5 approve completed project journey", () => {
     await user.click(screen.getByTestId("confirm-approval-action"))
 
     await waitFor(() => {
-      expect(store.projects[0]?.status).toBe("Approved")
+      expect(store.projects[0]?.status).toBe("Completed")
     })
   })
 })

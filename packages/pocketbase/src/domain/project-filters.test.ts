@@ -114,8 +114,14 @@ describe("formatProjectDateRange", () => {
 })
 
 describe("isApprovalEligible (V4)", () => {
-  it("only allows Completed projects", () => {
-    expect(isApprovalEligible(sampleProjects[1]!)).toBe(true)
+  it("only allows Ready for Review projects", () => {
+    expect(
+      isApprovalEligible({
+        ...sampleProjects[1]!,
+        status: "Ready for Review",
+      })
+    ).toBe(true)
+    expect(isApprovalEligible(sampleProjects[1]!)).toBe(false)
     expect(isApprovalEligible(sampleProjects[0]!)).toBe(false)
   })
 })

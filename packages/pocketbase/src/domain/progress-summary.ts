@@ -10,6 +10,7 @@ export const ACTIVE_PROJECT_STATUSES = [
   "Planning",
   "Procurement",
   "Ongoing",
+  "For Revision",
 ] as const satisfies readonly ProjectRecord["status"][]
 
 export type ProgressSummaryCards = {

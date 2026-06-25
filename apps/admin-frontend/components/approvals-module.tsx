@@ -17,6 +17,7 @@ import {
 import { recordFileUrl } from "@workspace/pocketbase/files"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
+  approvalActionRecordSchema,
   approvalFormSchema,
   fieldErrorsFromZod,
   locationRecordSchema,
@@ -27,6 +28,7 @@ import {
   budgetExpenseRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
+  ApprovalActionRecord,
   BudgetAllocationRecord,
   BudgetExpenseRecord,
   LocationRecord,
@@ -94,8 +96,9 @@ function isReviewedProject(
   return (
     project.approval_status === "approved" ||
     project.approval_status === "rejected" ||
-    project.status === "Approved" ||
-    project.status === "Rejected"
+    project.status === "Completed" ||
+    project.status === "Rejected" ||
+    project.status === "For Revision"
   )
 }
 
@@ -103,6 +106,16 @@ function isRejectedProject(
   project: Pick<ProjectRecord, "approval_status" | "status">
 ) {
   return project.approval_status === "rejected" || project.status === "Rejected"
+}
+
+function isForRevisionProject(project: Pick<ProjectRecord, "status">) {
+  return project.status === "For Revision"
+}
+
+function isCompletedProject(
+  project: Pick<ProjectRecord, "approval_status" | "status">
+) {
+  return project.approval_status === "approved" || project.status === "Completed"
 }
 
 function latestCompletionUpdate(updates: ProgressUpdateRecord[]) {
@@ -200,6 +213,7 @@ function CompletionDocumentsPanel({
 export function ApprovalsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [actions, setActions] = useState<ApprovalActionRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
@@ -226,16 +240,24 @@ export function ApprovalsModule() {
   const load = useCallback(async () => {
     setLoading(true)
     const pb = getPocketBase()
-    const [projectRows, updateRows, allocationRows, expenseRows, locationRows] =
-      await Promise.all([
+    const [
+      projectRows,
+      updateRows,
+      actionRows,
+      allocationRows,
+      expenseRows,
+      locationRows,
+    ] = await Promise.all([
         pb.collection("projects").getFullList(),
         pb.collection("progress_updates").getFullList(),
+        pb.collection("approval_actions").getFullList(),
         pb.collection("budget_allocations").getFullList(),
         pb.collection("budget_expenses").getFullList(),
         pb.collection("locations").getFullList().catch(() => []),
       ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
+    setActions(parseRecordList(approvalActionRecordSchema, actionRows))
     setAllocations(
       parseRecordList(budgetAllocationRecordSchema, allocationRows)
     )
@@ -290,20 +312,10 @@ export function ApprovalsModule() {
       ),
     [filteredProjects]
   )
-  const approved = filteredProjects.filter(
-    (project) => project.approval_status === "approved"
-  )
+  const forRevision = filteredProjects.filter(isForRevisionProject)
+  const completed = filteredProjects.filter(isCompletedProject)
   const rejected = filteredProjects.filter(
-    (project) => project.approval_status === "rejected"
-  )
-
-  const reviewedBudgetTotal = useMemo(
-    () =>
-      [...queue, ...approved, ...rejected].reduce(
-        (sum, project) => sum + (project.total_budget ?? 0),
-        0
-      ),
-    [queue, approved, rejected]
+    (project) => project.approval_status === "rejected" || project.status === "Rejected"
   )
 
   function projectBudget(project: ProjectRecord) {
@@ -323,6 +335,23 @@ export function ApprovalsModule() {
 
   function projectUpdates(projectId: string) {
     return updates.filter((update) => update.project === projectId)
+  }
+
+  function latestRevisionAction(projectId: string) {
+    return (
+      actions
+        .filter(
+          (action) =>
+            action.project === projectId &&
+            action.action === "request_revision" &&
+            action.reason
+        )
+        .sort((a, b) => {
+          const aKey = a.created ?? a.id
+          const bKey = b.created ?? b.id
+          return bKey.localeCompare(aKey)
+        })[0] ?? null
+    )
   }
 
   async function submitAction(action: "approve" | "reject" | "request_revision") {
@@ -365,19 +394,26 @@ export function ApprovalsModule() {
           : undefined,
     })
 
-    if (parsed.data.action !== "request_revision") {
-      await pb.collection("projects").update(selected.id, {
-        approval_status:
-          parsed.data.action === "approve" ? "approved" : "rejected",
-        status: parsed.data.action === "approve" ? "Approved" : "Rejected",
-        approved_at:
-          parsed.data.action === "approve"
-            ? new Date().toISOString().slice(0, 10)
-            : undefined,
-        rejection_reason:
-          parsed.data.action === "reject" ? parsed.data.reason : undefined,
-      })
-    }
+    await pb.collection("projects").update(selected.id, {
+      approval_status:
+        parsed.data.action === "approve"
+          ? "approved"
+          : parsed.data.action === "reject"
+            ? "rejected"
+            : "pending",
+      status:
+        parsed.data.action === "approve"
+          ? "Completed"
+          : parsed.data.action === "reject"
+            ? "Rejected"
+            : "For Revision",
+      approved_at:
+        parsed.data.action === "approve"
+          ? new Date().toISOString().slice(0, 10)
+          : undefined,
+      rejection_reason:
+        parsed.data.action === "reject" ? parsed.data.reason : undefined,
+    })
 
     setDialog(null)
     setAuthorityName("")
@@ -398,6 +434,7 @@ export function ApprovalsModule() {
     )
     const isReviewed = isReviewedProject(project)
     const isRejected = isRejectedProject(project)
+    const revisionAction = latestRevisionAction(project.id)
     const completionStatus = completionDocumentStatus(projectUpdateList)
 
     return (
@@ -449,6 +486,12 @@ export function ApprovalsModule() {
             </p>
           </div>
         ) : null}
+        {revisionAction?.reason ? (
+          <div className="mt-2 rounded-md border border-warning/30 bg-warning/10 p-2 text-sm">
+            <p className="font-medium text-warning">Revision notes</p>
+            <p className="mt-1 text-muted-foreground">{revisionAction.reason}</p>
+          </div>
+        ) : null}
         {(project.progress_pct ?? 0) >= 100 &&
         !isReviewed &&
         completionStatus.missing.length > 0 ? (
@@ -470,7 +513,7 @@ export function ApprovalsModule() {
           >
             View details
           </Button>
-          {!isReviewed && canCreateApprovalActions ? (
+          {!isReviewed && isApprovalEligible(project) && canCreateApprovalActions ? (
             <>
               <Button
                 type="button"
@@ -548,19 +591,19 @@ export function ApprovalsModule() {
             testId: "approvals-queue",
           },
           {
-            label: "Approved",
-            value: String(approved.length),
-            testId: "approvals-approved",
+            label: "For Revision",
+            value: String(forRevision.length),
+            testId: "approvals-for-revision",
+          },
+          {
+            label: "Completed",
+            value: String(completed.length),
+            testId: "approvals-completed",
           },
           {
             label: "Rejected",
             value: String(rejected.length),
             testId: "approvals-rejected",
-          },
-          {
-            label: "Total budget managed",
-            value: formatPhp(reviewedBudgetTotal),
-            testId: "approvals-budget-managed",
           },
         ]}
       />
@@ -585,7 +628,8 @@ export function ApprovalsModule() {
           <div className="-mx-1 overflow-x-auto pb-1">
             <TabsList className="w-max min-w-full">
               <TabsTrigger value="queue">Completion approval</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
+              <TabsTrigger value="for-revision">For Revision</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
               <TabsTrigger value="rejected">Rejected</TabsTrigger>
             </TabsList>
           </div>
@@ -600,8 +644,13 @@ export function ApprovalsModule() {
               ))
             )}
           </TabsContent>
-          <TabsContent value="approved" className="space-y-3">
-            {approved.map((project) => (
+          <TabsContent value="for-revision" className="space-y-3">
+            {forRevision.map((project) => (
+              <ApprovalCard key={project.id} project={project} />
+            ))}
+          </TabsContent>
+          <TabsContent value="completed" className="space-y-3">
+            {completed.map((project) => (
               <ApprovalCard key={project.id} project={project} />
             ))}
           </TabsContent>
@@ -667,6 +716,14 @@ export function ApprovalsModule() {
                   </p>
                 </div>
               ) : null}
+              {latestRevisionAction(selected.id)?.reason ? (
+                <div className="rounded-md border border-warning/30 bg-warning/10 p-3">
+                  <p className="font-medium text-warning">Revision notes</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {latestRevisionAction(selected.id)?.reason}
+                  </p>
+                </div>
+              ) : null}
               <ul className="space-y-2">
                 {projectUpdates(selected.id).map((update) => (
                   <li key={update.id} className="border-b pb-2">
@@ -683,7 +740,9 @@ export function ApprovalsModule() {
                   </li>
                 ))}
               </ul>
-              {!isReviewedProject(selected) && canCreateApprovalActions ? (
+              {!isReviewedProject(selected) &&
+              isApprovalEligible(selected) &&
+              canCreateApprovalActions ? (
                 <div className="flex gap-2">
                   <Button
                     type="button"

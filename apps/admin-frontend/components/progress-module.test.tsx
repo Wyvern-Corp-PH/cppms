@@ -141,6 +141,37 @@ describe("ProgressModule (V81, V84)", () => {
     return new File(["content"], name, { type })
   }
 
+  async function uploadRequiredCompletionDocs(user: ReturnType<typeof userEvent.setup>) {
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-certification_completion"),
+      makeFile("certification.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-certificate_acceptance"),
+      makeFile("acceptance.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-proof_payment_barangay"),
+      makeFile("payment.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-acknowledgment_completion"),
+      makeFile("acknowledgment.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-audit_documents"),
+      makeFile("audit.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-verification_documents"),
+      makeFile("verification.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-liquidation_documents"),
+      makeFile("liquidation.pdf")
+    )
+  }
+
   const barangayScope = {
     municipality: "Tuguegarao City",
     barangay: "Centro 01 (Bagumbayan)",
@@ -203,6 +234,30 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-on-track")).toBeInTheDocument()
       expect(screen.getByTestId("progress-needs-attention")).toBeInTheDocument()
       expect(screen.getByTestId("progress-updates-today")).toBeInTheDocument()
+    })
+  })
+
+  it("counts For Revision projects as active progress work", async () => {
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Bridge",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Revision Bridge")).toBeInTheDocument()
+      expect(screen.getByTestId("progress-active")).toHaveTextContent("1")
     })
   })
 
@@ -603,5 +658,73 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it("lets Barangay update a For Revision project and resubmit it as Ready for Review", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Bridge",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-1")
+    await user.click(within(row).getByRole("button", { name: /update progress/i }))
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await uploadRequiredCompletionDocs(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(updateMock).toHaveBeenCalledWith("1", {
+        progress_pct: 100,
+        status: "Ready for Review",
+      })
+    })
+  })
+
+  it("keeps final Completed projects read-only for Barangay progress users", async () => {
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Completed Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-1")
+    expect(
+      within(row).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(row).getByRole("button", { name: /view details/i })
+    ).toBeInTheDocument()
   })
 })

@@ -92,6 +92,16 @@ const budgetFundOptionValueRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000016_budget_fund_option_value_repair.js"
 )
+const budgetExpenseLegacyFieldRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000017_budget_expense_legacy_field_repair.js"
+)
+const projectStatusReviewRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000018_project_status_review_workflow.js"
+)
 
 describe("schema manifest (SPEC §I)", () => {
   it("defines auth, module, location, and audit collections", () => {
@@ -116,7 +126,15 @@ describe("schema manifest (SPEC §I)", () => {
   })
 
   it("includes enum values from SPEC", () => {
-    expect(PROJECT_STATUS).toContain("Completed")
+    expect(PROJECT_STATUS).toEqual([
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "Ready for Review",
+      "For Revision",
+      "Completed",
+      "Rejected",
+    ])
     expect(PROJECT_CATEGORY).toContain("Infrastructure")
     expect(LGU_LEVEL).toContain("Municipality")
     expect(FUND_TYPE).toEqual([
@@ -425,6 +443,21 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("GT - Proper")
   })
 
+  it("repairs legacy Released Amount fields without editing applied history", () => {
+    const migrationSource = readFileSync(
+      budgetExpenseLegacyFieldRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("budget_expenses")
+    expect(migrationSource).toContain("fund_type")
+    expect(migrationSource).toContain("funding_years")
+    expect(migrationSource).toContain("fund_source")
+    expect(migrationSource).toContain("fund_type_other")
+    expect(migrationSource).toContain("category")
+    expect(migrationSource).toContain("removeByName")
+  })
+
   it("adds editable project and user dropdown option collections", () => {
     const migrationSource = readFileSync(
       dropdownOptionCollectionsMigrationPath,
@@ -436,9 +469,24 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("user_role_options")
     expect(migrationSource).toContain("user_account_status_options")
     expect(migrationSource).toContain("Planning")
+    expect(migrationSource).toContain("Ready for Review")
+    expect(migrationSource).toContain("For Revision")
     expect(migrationSource).toContain("Infrastructure")
     expect(migrationSource).toContain("Super Admin")
     expect(migrationSource).toContain("Active")
+  })
+
+  it("repairs project status review workflow values without editing applied history", () => {
+    const migrationSource = readFileSync(
+      projectStatusReviewRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("projects")
+    expect(migrationSource).toContain("project_status_options")
+    expect(migrationSource).toContain("Ready for Review")
+    expect(migrationSource).toContain("For Revision")
+    expect(migrationSource).toContain("Approved")
   })
 })
 

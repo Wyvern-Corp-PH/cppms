@@ -41,6 +41,6 @@ export function countApprovedProjects(
 ): number {
   return projects.filter(
     (project) =>
-      project.status === "Approved" || project.approval_status === "approved"
+      project.status === "Completed" || project.approval_status === "approved"
   ).length
 }

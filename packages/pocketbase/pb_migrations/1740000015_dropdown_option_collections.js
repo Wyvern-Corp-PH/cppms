@@ -11,7 +11,15 @@ const AUTH_RULE = '@request.auth.id != ""'
 const OPTION_COLLECTIONS = [
   {
     name: "project_status_options",
-    options: ["Planning", "Procurement", "Ongoing", "Completed", "Approved", "Rejected"],
+    options: [
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "Ready for Review",
+      "For Revision",
+      "Completed",
+      "Rejected",
+    ],
     rule: READ_ALL_RULE,
   },
   {

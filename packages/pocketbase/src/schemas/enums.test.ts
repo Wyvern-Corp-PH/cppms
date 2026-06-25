@@ -46,7 +46,15 @@ describe("schema enums (V36)", () => {
   })
 
   it("matches §C enum table cardinality", () => {
-    expect(PROJECT_STATUS).toHaveLength(6)
+    expect(PROJECT_STATUS).toEqual([
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "Ready for Review",
+      "For Revision",
+      "Completed",
+      "Rejected",
+    ])
     expect(PROJECT_CATEGORY).toHaveLength(6)
     expect(LGU_LEVEL).toHaveLength(4)
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
