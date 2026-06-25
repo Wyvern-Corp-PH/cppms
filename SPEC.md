@@ -527,6 +527,7 @@ V198: Project import `Location` header maps only to free-text `projects.location
 V199: Completion review transition: Municipality/Barangay 100% scoped progress save with V110 docs sets status Ready for Review; Province action on Ready for Review project writes `approval_actions.action=request_revision` with required reason and sets `projects.status="For Revision"` or approve sets `projects.status="Completed"`; scoped Municipality/Barangay actor can Update Progress/details/docs for own For Revision project; Completed/Rejected remain read-only; saving For Revision at 100% with V110 docs sets status back to Ready for Review.
 V200: Budget option PB collections are repaired as a complete set after applied-history drift: `budget_fund_sources`, `budget_funding_years`, `budget_fund_main_accounts`, `budget_fund_sub_accounts`; repair seeds canonical V178/V189 values, resets auth read/write rules, and must tolerate any existing subset.
 V201: Released Amount rows returned by PB with missing legacy/drifted `year` derive display/filter year from `date`; valid saved `budget_expenses` rows must still count in Budget summary/breakdown/table instead of being dropped by `parseRecordList`.
+V202: Released Amount create requires `sub_account` when `main_account` is `General Fund` or `Trust Fund`; blank child account create is blocked with `Sub account is required.`; Special Education Fund/Special Health Fund keep blank child value; Others still requires purpose copy per V192.
 
 ## §T
 
@@ -632,6 +633,7 @@ V201: Released Amount rows returned by PB with missing legacy/drifted `year` der
 | T98 | x | Completion review status workflow: add Ready for Review + For Revision options/tabs/summary, keep Barangay Update Progress available, resubmit to Ready for Review with red-first tests | V16,V19,V4,V81,V85,V86,V93,V109,V158,V159,V199,J16,approvals-module.test.tsx,progress-module.test.tsx,forms.test.ts,manifest.test.ts |
 | T99 | x | repair missing Budget option PB collections after applied migration drift | V16,V133,V134,V177,V178,V189,V200,manifest.test.ts |
 | T100 | x | keep Released Amount rows visible after PB schema/rule drift | V16,V33,V75–V80,V134,V200,V201,budget-module.test.tsx,records.test.ts,manifest.test.ts |
+| T101 | x | require General Fund/Trust Fund sub-account on Released Amount create | V16,V19,V34,V157,V190,V202,budget-module.test.tsx,forms.test.ts |
 
 ## §B
 
@@ -701,3 +703,4 @@ V201: Released Amount rows returned by PB with missing legacy/drifted `year` der
 | B62 | 2026-06-26 | live PB had `budget_fund_sources` but missed `budget_funding_years`/`budget_fund_main_accounts`/`budget_fund_sub_accounts`; old collection migration already applied so admin Budget dropdown GETs 404 | add later idempotent collection repair migration that creates/seeds all Budget option collections as a set | V200,T99 |
 | B63 | 2026-06-26 | saved `budget_expenses` rows can return without current `year` after applied schema drift; strict zod parse drops rows → Released Amount summary/table stays ₱0 despite PB records | derive missing expense year from `date` before record parse; RTL regression covers denied aux lookups + missing year row | V201,T100 |
 | B64 | 2026-06-26 | existing Budget option collections can keep superuser-only rules because collection repair only sets rules when creating missing collections | add later rules repair migration resetting `budget_fund_*` list/view/mutate rules to authenticated access | V200,T100 |
+| B65 | 2026-06-26 | `budgetExpenseMutateSchema` required Others purpose only, so General Fund/Trust Fund releases could save `sub_account` blank and table rendered `—` | require sub-account for dropdown-bearing main accounts; RTL/schema regressions block blank create | V202,T101 |
