@@ -503,6 +503,7 @@ V179: Budget fund source data model stores selected main account separately from
 V180: ∀ tabular data UI (admin/public, reports, budget tx, users, imports, future tables) follows shadcn Radix Data Table guide: `@tanstack/react-table` column defs + state, `@workspace/ui` Table primitives, accessible headers/actions, responsive `overflow-x-auto`; ⊥ hand-rolled data-grid/table markup.
 V181: ∀ form UI follows shadcn Radix Field guide: controls grouped via `FieldSet`/`FieldGroup`/`Field`; labels via `FieldLabel htmlFor`; helper/error via `FieldDescription`/`FieldError`; invalid state sets `data-invalid` + `aria-invalid`; zod errors render as field-level errors.
 V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavior (sort/filter/page/actions where present; submit/validation/errors for forms) with role/label/`data-testid` selectors; ⊥ CSS/nth-child selectors.
+V183: Workspace packages consumed by Next `transpilePackages` expose raw TS safely: internal source imports are extensionless or package-export imports; emitted-only relative `.js` specifiers in `.ts` source ⊥ because Turbopack resolves real files during Docker/Next builds.
 
 ## §T
 
@@ -591,6 +592,7 @@ V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavi
 | T81 | x | amend Budget Released Amount data/UI: remove Materials/category/fund_type/funding_years, add year/main_account/sub_account Fund Source section, update expense table/export with red-first tests | V16,V19,V79,V80,V156,V157,V178,V179,budget-module.test.tsx,manifest.test.ts |
 | T82 | x | standardize all data tables on shadcn Radix Data Table/TanStack pattern with red-first RTL regressions | V16,V19,V180,V182,reports-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,projects-module.test.tsx |
 | T83 | x | standardize all forms on shadcn Radix Field pattern with zod field errors and red-first RTL regressions | V16,V19,V23,V35,V181,V182,projects-module.test.tsx,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,user-management-module.test.tsx |
+| T84 | x | fix Docker/Next build regression from emitted-only `.js` package source import | V16,V183,source-imports.test.ts |
 
 ## §B
 
@@ -641,3 +643,4 @@ V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavi
 | B43 | 2026-06-24 | `Calendar` passed stale `classNames.table` to `react-day-picker@10`, so admin Next build failed typecheck | remove stale slot; add source regression for supported v10 slots | V166,T77 |
 | B44 | 2026-06-25 | approvals UI defaulted missing auth actor to allowed → approval buttons could render without Province actor | fail-closed `canCreateApprovalActions`; add no-actor RTL regression | V167,T68 |
 | B45 | 2026-06-25 | scoped Municipality/Barangay actor with blank scope could be active; blank actor scope could match blank project scope | require scoped role assignments before active policy/scope checks; blank scope values never match | V168,V170,T78 |
+| B46 | 2026-06-25 | `packages/pocketbase/src/schemas/forms.ts` imported `./enums.js`; Docker/Next Turbopack consumed raw TS via `transpilePackages` and could not resolve real `enums.js` | use package export import + source regression banning relative `.js` TS imports | V183,T84 |

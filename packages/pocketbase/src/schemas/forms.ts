@@ -7,7 +7,7 @@ import {
   projectCategorySchema,
   projectStatusSchema,
   roleSchema,
-} from "./enums.js"
+} from "@workspace/pocketbase/schemas/enums"
 
 const uploadedFileSchema = z
   .custom<File>((value) => value instanceof File, "File is required.")
