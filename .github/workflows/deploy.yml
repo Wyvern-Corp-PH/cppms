@@ -34,8 +34,11 @@ permissions:
   contents: read
   packages: write
 
+defaults:
+  run:
+    shell: bash
+
 env:
-  GHCR_REGISTRY: ghcr.io/${{ github.repository_owner }}
   IMAGE_TAG: ${{ github.sha }}
   EC2_HOST: ${{ secrets.EC2_HOST }}
   EC2_USER: ${{ secrets.EC2_USER }}
@@ -84,6 +87,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare image metadata
+        id: image-meta
+        run: |
+          echo "GHCR_REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_ENV}"
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -101,7 +110,7 @@ jobs:
           file: ${{ matrix.file }}
           target: ${{ matrix.target || '' }}
           push: true
-          tags: ${{ env.GHCR_REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
+          tags: ${{ steps.image-meta.outputs.registry }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
           build-args: ${{ matrix.build_args || '' }}
           cache-from: type=gha,scope=${{ matrix.id }}
           cache-to: type=gha,mode=max,scope=${{ matrix.id }}
@@ -114,9 +123,61 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare image metadata
+        run: echo "GHCR_REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_ENV}"
+
+      - name: Validate deploy configuration
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+          CADDY_HTTP_PORT: ${{ vars.CADDY_HTTP_PORT }}
+          CADDY_HTTPS_PORT: ${{ vars.CADDY_HTTPS_PORT }}
+          ORIGINS: ${{ vars.ORIGINS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          LOG_STDOUT: ${{ vars.LOG_STDOUT }}
+          NEXT_PUBLIC_POCKETBASE_URL: ${{ vars.NEXT_PUBLIC_POCKETBASE_URL }}
+          NEXT_PUBLIC_PUBLIC_URL: ${{ vars.NEXT_PUBLIC_PUBLIC_URL }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ vars.NEXT_PUBLIC_ADMIN_URL }}
+          POCKETBASE_ENCRYPTION_KEY: ${{ secrets.POCKETBASE_ENCRYPTION_KEY }}
+          POCKETBASE_ADMIN_EMAIL: ${{ secrets.POCKETBASE_ADMIN_EMAIL }}
+          POCKETBASE_ADMIN_PASSWORD: ${{ secrets.POCKETBASE_ADMIN_PASSWORD }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          required=(
+            DOMAIN
+            CADDY_HTTP_PORT
+            CADDY_HTTPS_PORT
+            ORIGINS
+            LOG_LEVEL
+            LOG_STDOUT
+            NEXT_PUBLIC_POCKETBASE_URL
+            NEXT_PUBLIC_PUBLIC_URL
+            NEXT_PUBLIC_ADMIN_URL
+            POCKETBASE_ENCRYPTION_KEY
+            POCKETBASE_ADMIN_EMAIL
+            POCKETBASE_ADMIN_PASSWORD
+            EC2_HOST
+            EC2_USER
+            EC2_APP_DIR
+            EC2_SSH_PRIVATE_KEY
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("${name}")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required deploy configuration: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
 
       - name: Render deploy env
         run: node scripts/render-deploy-env.mjs > .env
@@ -133,7 +194,6 @@ jobs:
           POCKETBASE_ENCRYPTION_KEY: ${{ secrets.POCKETBASE_ENCRYPTION_KEY }}
           POCKETBASE_ADMIN_EMAIL: ${{ secrets.POCKETBASE_ADMIN_EMAIL }}
           POCKETBASE_ADMIN_PASSWORD: ${{ secrets.POCKETBASE_ADMIN_PASSWORD }}
-          GHCR_REGISTRY: ${{ env.GHCR_REGISTRY }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
 

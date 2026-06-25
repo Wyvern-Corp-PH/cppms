@@ -148,6 +148,7 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 | zod deps | `zod@4` in `@workspace/pocketbase`; apps import schemas only |
 | `format-display-date.ts` | `formatDisplayDate` + `formatDisplayDateTime` — en-US `MMM D, YYYY` (V97) |
 | seed | `packages/pocketbase/scripts/seed-dev.ts`, `src/seed/dev-fixtures.ts`, `src/seed/cagayan-locations.ts`; `bun run seed:dev` |
+| deploy | `.github/workflows/deploy.yml` — GHCR build/push, direct EC2 `rsync`/`scp`, backup/smoke/rollback |
 
 **admin routes** (`apps/admin-frontend`)
 
@@ -504,6 +505,7 @@ V180: ∀ tabular data UI (admin/public, reports, budget tx, users, imports, fut
 V181: ∀ form UI follows shadcn Radix Field guide: controls grouped via `FieldSet`/`FieldGroup`/`Field`; labels via `FieldLabel htmlFor`; helper/error via `FieldDescription`/`FieldError`; invalid state sets `data-invalid` + `aria-invalid`; zod errors render as field-level errors.
 V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavior (sort/filter/page/actions where present; submit/validation/errors for forms) with role/label/`data-testid` selectors; ⊥ CSS/nth-child selectors.
 V183: Workspace packages consumed by Next `transpilePackages` expose raw TS safely: internal source imports are extensionless or package-export imports; emitted-only relative `.js` specifiers in `.ts` source ⊥ because Turbopack resolves real files during Docker/Next builds.
+V184: Production deploy workflow builds/pushes service images to lowercase GHCR paths and deploys to EC2 by direct `rsync`/`scp` + remote pull; GitHub artifact upload/download actions ⊥.
 
 ## §T
 
@@ -593,6 +595,7 @@ V183: Workspace packages consumed by Next `transpilePackages` expose raw TS safe
 | T82 | x | standardize all data tables on shadcn Radix Data Table/TanStack pattern with red-first RTL regressions | V16,V19,V180,V182,reports-module.test.tsx,budget-module.test.tsx,user-management-module.test.tsx,projects-module.test.tsx |
 | T83 | x | standardize all forms on shadcn Radix Field pattern with zod field errors and red-first RTL regressions | V16,V19,V23,V35,V181,V182,projects-module.test.tsx,budget-module.test.tsx,progress-module.test.tsx,approvals-module.test.tsx,user-management-module.test.tsx |
 | T84 | x | fix Docker/Next build regression from emitted-only `.js` package source import | V16,V183,source-imports.test.ts |
+| T85 | x | harden production deploy workflow: lowercase GHCR metadata, early config validation, no GitHub artifacts | V16,V21,V184,source-imports.test.ts |
 
 ## §B
 

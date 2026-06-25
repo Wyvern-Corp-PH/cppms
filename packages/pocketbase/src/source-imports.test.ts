@@ -35,3 +35,22 @@ describe("workspace package source imports", () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe("production deploy workflow", () => {
+  it("deploys through GHCR and direct EC2 sync without GitHub artifacts", async () => {
+    const workflowPath = path.resolve(
+      import.meta.dirname,
+      "../../../.github/workflows/deploy.yml"
+    )
+    const workflow = await readFile(workflowPath, "utf8")
+
+    expect(workflow).not.toMatch(/\bactions\/(?:upload|download)-artifact\b/)
+    expect(workflow).not.toMatch(/\bartifact(?:s)?\b/i)
+    expect(workflow).toContain(
+      'echo "GHCR_REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"'
+    )
+    expect(workflow).toContain("push: true")
+    expect(workflow).toContain("rsync -az --delete")
+    expect(workflow).toContain("scp -F")
+  })
+})
