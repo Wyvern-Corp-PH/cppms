@@ -764,4 +764,49 @@ describe("ProjectsModule (J4)", () => {
     })
     expect(createMock).not.toHaveBeenCalled()
   })
+
+  it("hides edit, status, and delete controls from scoped local admins", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        lgu_level: "Barangay",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        total_budget: 200_000,
+        progress_pct: 25,
+      },
+    ]
+    store.authRecord = {
+      id: "b1",
+      role: "Barangay",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+    }
+
+    render(<ProjectsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole("button", { name: /actions for bridge/i })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument()
+    expect(screen.queryByText("Change status")).not.toBeInTheDocument()
+    expect(screen.queryByText("Delete")).not.toBeInTheDocument()
+  })
 })

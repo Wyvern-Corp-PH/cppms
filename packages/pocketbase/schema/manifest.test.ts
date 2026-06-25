@@ -97,6 +97,11 @@ const budgetExpenseLegacyFieldRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000017_budget_expense_legacy_field_repair.js"
 )
+const progressUpdateRoleRulesMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000019_progress_update_role_rules.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -456,6 +461,20 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("fund_type_other")
     expect(migrationSource).toContain("category")
     expect(migrationSource).toContain("removeByName")
+  })
+
+  it("repairs local progress and project mutation role rules", () => {
+    const migrationSource = readFileSync(
+      progressUpdateRoleRulesMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("progress_updates")
+    expect(migrationSource).toContain("projects")
+    expect(migrationSource).toContain('role = "Municipality"')
+    expect(migrationSource).toContain('role = "Barangay"')
+    expect(migrationSource).toContain("SUPER_ADMIN_OR_PROVINCE_RULE")
+    expect(migrationSource).not.toContain("BARANGAY_PROJECT_SCOPE_RULE")
   })
 
   it("adds editable project and user dropdown option collections", () => {

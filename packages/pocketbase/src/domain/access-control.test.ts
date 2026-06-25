@@ -106,7 +106,7 @@ describe("access control (V115-V121)", () => {
     ).toBe(true)
   })
 
-  it("lets Barangay submit updates but keeps Municipality read-only", () => {
+  it("lets Municipality and Barangay submit progress updates without project mutation", () => {
     expect(
       canAccess(
         {
@@ -121,8 +121,36 @@ describe("access control (V115-V121)", () => {
     ).toBe(true)
     expect(
       canAccess(
-        { id: "m1", role: "Municipality", account_status: "Active" },
+        {
+          id: "b1",
+          role: "Barangay",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01",
+        },
+        "projects.update"
+      )
+    ).toBe(false)
+    expect(
+      canAccess(
+        {
+          id: "m1",
+          role: "Municipality",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+        },
         "progress_updates.create"
+      )
+    ).toBe(true)
+    expect(
+      canAccess(
+        {
+          id: "m1",
+          role: "Municipality",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+        },
+        "projects.update"
       )
     ).toBe(false)
   })

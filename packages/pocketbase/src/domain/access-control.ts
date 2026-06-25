@@ -45,13 +45,15 @@ function hasScopeValue(value: string | undefined): boolean {
 }
 
 const BARANGAY_POLICIES: readonly PolicyKey[] = [
-  "projects.update",
   "progress_updates.create",
   "progress_updates.update",
   "progress_updates.delete",
 ]
 
 const MUNICIPALITY_POLICIES: readonly PolicyKey[] = [
+  "progress_updates.create",
+  "progress_updates.update",
+  "progress_updates.delete",
   "reports.view",
 ]
 
