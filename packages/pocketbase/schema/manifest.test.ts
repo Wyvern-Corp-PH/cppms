@@ -102,6 +102,16 @@ const progressUpdateRoleRulesMigrationPath = resolve(
   "pb_migrations",
   "1740000019_progress_update_role_rules.js"
 )
+const budgetFundOptionCollectionRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000020_budget_fund_option_collection_repair.js"
+)
+const budgetFundOptionRulesRepairMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000021_budget_fund_option_rules_repair.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -461,6 +471,35 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("fund_type_other")
     expect(migrationSource).toContain("category")
     expect(migrationSource).toContain("removeByName")
+  })
+
+  it("repairs missing Budget fund option collections without rerunning applied history", () => {
+    const migrationSource = readFileSync(
+      budgetFundOptionCollectionRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("budget_fund_sources")
+    expect(migrationSource).toContain("budget_funding_years")
+    expect(migrationSource).toContain("budget_fund_main_accounts")
+    expect(migrationSource).toContain("budget_fund_sub_accounts")
+    expect(migrationSource).toContain("GF - Proper")
+    expect(migrationSource).toContain("LDRRMF - SA")
+    expect(migrationSource).toContain("createOptionCollection")
+    expect(migrationSource).toContain("seedOptions")
+  })
+
+  it("repairs Budget fund option read rules on existing collections", () => {
+    const migrationSource = readFileSync(
+      budgetFundOptionRulesRepairMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("budget_funding_years")
+    expect(migrationSource).toContain("budget_fund_main_accounts")
+    expect(migrationSource).toContain("budget_fund_sub_accounts")
+    expect(migrationSource).toContain("listRule = AUTH_RULE")
+    expect(migrationSource).toContain("viewRule = AUTH_RULE")
   })
 
   it("repairs local progress and project mutation role rules", () => {
