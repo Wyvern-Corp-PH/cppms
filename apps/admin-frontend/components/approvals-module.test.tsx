@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -78,14 +78,12 @@ async function submitRequestRevision(
   expect(
     await screen.findByRole("dialog", { name: /request revision/i })
   ).toBeInTheDocument()
-  await user.type(
-    await screen.findByLabelText(/reviewing authority name/i),
-    "Provincial Engineer"
-  )
-  await user.type(
-    await screen.findByLabelText(/revision notes/i),
-    "Please upload clearer liquidation docs."
-  )
+  fireEvent.change(await screen.findByLabelText(/reviewing authority name/i), {
+    target: { value: "Provincial Engineer" },
+  })
+  fireEvent.change(await screen.findByLabelText(/revision notes/i), {
+    target: { value: "Please upload clearer liquidation docs." },
+  })
   await user.click(screen.getByTestId("confirm-approval-action"))
 }
 

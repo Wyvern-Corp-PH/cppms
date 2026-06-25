@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -62,10 +62,7 @@ async function chooseSelectOption(
 ) {
   const trigger = screen.getByLabelText(label)
   await user.click(trigger)
-  const optionNode = await screen.findByRole("option", { name: option })
-  await act(async () => {
-    await user.click(optionNode)
-  })
+  await user.click(await screen.findByRole("option", { name: option }))
   await waitFor(() => expect(trigger).toHaveTextContent(option))
 }
 

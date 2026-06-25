@@ -20,7 +20,7 @@ export default defineConfig({
   plugins: [react(), uiInternalAlias()],
   test: {
     environment: "jsdom",
-    setupFiles: ["./vitest.react-act-env.ts", "./vitest.setup.ts"],
+    setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
     pool: "threads",
     testTimeout: 10000,
