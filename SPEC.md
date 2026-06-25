@@ -530,6 +530,9 @@ V201: Released Amount rows returned by PB with missing legacy/drifted `year` der
 V202: Released Amount create requires `sub_account` when `main_account` is `General Fund` or `Trust Fund`; blank child account create is blocked with `Sub account is required.`; Special Education Fund/Special Health Fund keep blank child value; Others still requires purpose copy per V192.
 V203: Legacy Released Amount rows with blank `sub_account` for General Fund/Trust Fund render and repair to canonical defaults (`GF - Proper`, `Trust Fund - Proper`) instead of showing `—`; repair also reasserts current `budget_expenses` fields and removes legacy fund fields.
 V204: Live PB schema audit via `/v1` shows every manifest collection has all §I fields, no id-only option records, and no legacy `agreement_file`; option repairs use `fields.addMarshaledJSON` + reseed after applied-history drift.
+V205: Role-scope checks distinguish project mutation from progress mutation: Municipality/Barangay scoped actors may `progress_updates.create` only for in-scope projects, while `projects.create|update|delete` stays denied and Projects UI hides project mutate affordances.
+V206: `/users` create/edit scope selects are dialog-safe and pointer-interactable in RTL/browser flows: role change reveals required Municipality/Barangay controls, option selection never leaves trigger/body `pointer-events:none`, and submit payload includes valid scope.
+V207: Approval request-revision flow completes deterministically under standard Vitest timeout: Province opens Request Revision, submits authority+notes, writes `approval_actions.action=request_revision`, moves project to `For Revision`, and emits no React `act`/suspense warnings.
 
 ## §T
 
@@ -638,6 +641,9 @@ V204: Live PB schema audit via `/v1` shows every manifest collection has all §I
 | T101 | x | require General Fund/Trust Fund sub-account on Released Amount create | V16,V19,V34,V157,V190,V202,budget-module.test.tsx,forms.test.ts |
 | T102 | x | repair/display legacy blank GF/Trust Fund Released Amount sub-account rows | V16,V19,V178,V190,V197,V203,budget-module.test.tsx |
 | T103 | x | repair id-only option records and live PB collection field-shape drift | V16,V17,V133,V134,V177,V204,manifest.test.ts |
+| T104 | x | fix J13 role-scope expectation and regress scoped progress vs project mutation split | V16,V19,V160,V169,V171,V205,J13,access-control.test.ts,j13-role-scope.test.tsx |
+| T105 | . | harden `/users` scoped role create/edit selects in dialog and remove pointer-event/timeout flake | V16,V19,V146,V181,V195,V206,user-management-module.test.tsx |
+| T106 | . | harden Province request-revision approval test/UI flow to be deterministic and warning-clean | V16,V19,V158,V167,V199,V207,approvals-module.test.tsx |
 
 ## §B
 
@@ -710,3 +716,6 @@ V204: Live PB schema audit via `/v1` shows every manifest collection has all §I
 | B65 | 2026-06-26 | `budgetExpenseMutateSchema` required Others purpose only, so General Fund/Trust Fund releases could save `sub_account` blank and table rendered `—` | require sub-account for dropdown-bearing main accounts; RTL/schema regressions block blank create | V202,T101 |
 | B66 | 2026-06-26 | existing General Fund/Trust Fund Released Amount rows saved before V202 can still have blank `sub_account`, so table shows `—` despite the current option tree | display canonical defaults for legacy rows and add idempotent PB migration backfilling blank child accounts/current fields | V203,T102 |
 | B67 | 2026-06-26 | live `/v1` PB audit found option collections whose schema contained only `id`, creating id-only option records; projects/budget_allocations/progress_updates also missed current manifest fields after applied migrations | add later field-shape repair migrations using `addMarshaledJSON`, delete unusable id-only option rows, reseed canonical options, and re-audit `/v1` clean | V204,T103 |
+| B68 | 2026-06-26 | J13 expected Municipality `progress_updates.create` denied, contradicting scoped-progress RBAC that allows Municipality/Barangay progress updates while denying project mutation | update journey/source tests to assert project mutation denied but scoped progress mutation allowed only in-scope | V205,T104 |
+| B69 | 2026-06-26 | `/users` scoped role tests time out or hit `pointer-events:none` on Municipality/Barangay selects inside dialog, so scoped account create/edit cannot be trusted | make dialog-contained selects portal/cleanup safe and keep scope payload regressions warning-clean | V206,T105 |
+| B70 | 2026-06-26 | Province Request Revision approval test times out despite spec requiring request_revision action + For Revision transition | stabilize request-revision interaction/submit flow and keep Vitest/RTL output free of React act/suspense warnings | V207,T106 |

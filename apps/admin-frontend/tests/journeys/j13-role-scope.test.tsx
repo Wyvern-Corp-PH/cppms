@@ -74,12 +74,12 @@ describe("J13 role-scoped access journey", () => {
     store.locations = []
   })
 
-  it("Municipality scope filters project data and denies mutate affordances", async () => {
+  it("Municipality scope filters project data and denies project mutate affordances", async () => {
     const visible = filterProjectsForUser(store.authRecord, store.projects)
 
     expect(visible.map((project) => project.id)).toEqual(["p1"])
     expect(canAccess(store.authRecord, "projects.update")).toBe(false)
-    expect(canAccess(store.authRecord, "progress_updates.create")).toBe(false)
+    expect(canAccess(store.authRecord, "progress_updates.create")).toBe(true)
 
     render(<ProjectsModule />)
 
