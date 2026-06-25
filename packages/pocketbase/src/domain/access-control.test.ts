@@ -109,7 +109,13 @@ describe("access control (V115-V121)", () => {
   it("lets Barangay submit updates but keeps Municipality read-only", () => {
     expect(
       canAccess(
-        { id: "b1", role: "Barangay", account_status: "Active" },
+        {
+          id: "b1",
+          role: "Barangay",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01",
+        },
         "progress_updates.create"
       )
     ).toBe(true)
@@ -117,6 +123,29 @@ describe("access control (V115-V121)", () => {
       canAccess(
         { id: "m1", role: "Municipality", account_status: "Active" },
         "progress_updates.create"
+      )
+    ).toBe(false)
+  })
+
+  it("requires scoped roles to have assigned municipality and barangay", () => {
+    const blankProject = { id: "p0", municipality: "", barangay: "" }
+
+    expect(isActiveUser({ id: "m1", role: "Municipality", account_status: "Active" })).toBe(
+      false
+    )
+    expect(
+      isActiveUser({
+        id: "b1",
+        role: "Barangay",
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+      })
+    ).toBe(false)
+    expect(isProjectInUserScope({ role: "Municipality" }, blankProject)).toBe(false)
+    expect(
+      isProjectInUserScope(
+        { role: "Barangay", municipality: "Tuguegarao City" },
+        blankProject
       )
     ).toBe(false)
   })
