@@ -87,4 +87,21 @@ describe("production deploy workflow", () => {
     expect(caddyfile).toContain("{$DOMAIN::80}")
     expect(caddyfile).not.toMatch(/\n:80\s+\{/)
   })
+
+  it("authenticates backups with the running PocketBase container env", async () => {
+    const backupScript = await readFile(
+      path.resolve(
+        import.meta.dirname,
+        "../../../scripts/pocketbase-backup-remote.sh"
+      ),
+      "utf8"
+    )
+
+    expect(backupScript).toContain("load_pb_container_env")
+    expect(backupScript.indexOf("load_pb_container_env")).toBeLessThan(
+      backupScript.indexOf("auth_json=$(pb_curl")
+    )
+    expect(backupScript).toContain("POCKETBASE_ADMIN_EMAIL=")
+    expect(backupScript).toContain("POCKETBASE_ADMIN_PASSWORD=")
+  })
 })

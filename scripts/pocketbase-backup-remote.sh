@@ -76,6 +76,24 @@ pb_container() {
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q pocketbase
 }
 
+load_pb_container_env() {
+  local cid="$1"
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      POCKETBASE_ADMIN_EMAIL=*)
+        export POCKETBASE_ADMIN_EMAIL="${line#POCKETBASE_ADMIN_EMAIL=}"
+        ;;
+      POCKETBASE_ADMIN_PASSWORD=*)
+        export POCKETBASE_ADMIN_PASSWORD="${line#POCKETBASE_ADMIN_PASSWORD=}"
+        ;;
+      POCKETBASE_ENCRYPTION_KEY=*)
+        export POCKETBASE_ENCRYPTION_KEY="${line#POCKETBASE_ENCRYPTION_KEY=}"
+        ;;
+    esac
+  done < <(docker_cmd inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$cid")
+}
+
 pb_curl() {
   local cid="$1"
   shift
@@ -93,13 +111,15 @@ if ! docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps pocketbase 
   exit 0
 fi
 
+cid=$(pb_container)
+[[ -n "$cid" ]] || { echo "PocketBase container id not found." >&2; exit 1; }
+
+load_pb_container_env "$cid"
+
 if [[ -z "${POCKETBASE_ADMIN_EMAIL:-}" || -z "${POCKETBASE_ADMIN_PASSWORD:-}" ]]; then
   echo "POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD are required for backup." >&2
   exit 1
 fi
-
-cid=$(pb_container)
-[[ -n "$cid" ]] || { echo "PocketBase container id not found." >&2; exit 1; }
 
 auth_json=$(pb_curl "$cid" \
   -X POST "http://127.0.0.1:8090/api/collections/_superusers/auth-with-password" \
@@ -124,7 +144,7 @@ echo "Creating PocketBase backup: $backup_name"
 create_http=$(docker_cmd run --rm --network "container:${cid}" curlimages/curl:8.12.1 -sS \
   -X POST "http://127.0.0.1:8090/api/backups" \
   -H "Content-Type: application/json" \
-  -H "Authorization: ${token}" \
+  -H "Authorization: Bearer ${token}" \
   -d "{\"name\":\"${backup_name}\"}" \
   -o /dev/null -w '%{http_code}')
 
@@ -137,7 +157,7 @@ deadline=$((SECONDS + MAX_WAIT_SEC))
 found=false
 while (( SECONDS < deadline )); do
   list_json=$(pb_curl "$cid" \
-    -H "Authorization: ${token}" \
+    -H "Authorization: Bearer ${token}" \
     "http://127.0.0.1:8090/api/backups")
   if printf '%s' "$list_json" | grep -q "\"key\"[[:space:]]*:[[:space:]]*\"${backup_name}\""; then
     found=true

@@ -507,6 +507,7 @@ V182: Table/form refactors obey TDD: failing-first Vitest/RTL covers user behavi
 V183: Workspace packages consumed by Next `transpilePackages` expose raw TS safely: internal source imports are extensionless or package-export imports; emitted-only relative `.js` specifiers in `.ts` source ⊥ because Turbopack resolves real files during Docker/Next builds.
 V184: Production deploy workflow builds/pushes service images to lowercase GHCR paths and deploys to EC2 by direct `rsync`/`scp` + remote pull; GitHub artifact upload/download actions ⊥.
 V185: Production deploy supports no-domain EC2-IP bootstrap: missing `DOMAIN` renders `DOMAIN=:80`; Caddy serves via `{$DOMAIN::80}`; pre-deploy backup runs before new `.env` upload so it authenticates against current running PocketBase env.
+V186: Pre-deploy PocketBase backup auth uses the running `pocketbase` container env (`docker inspect .Config.Env`) before API login; stale remote `.env` values must not block backup after a failed prior deploy.
 
 ## §T
 
@@ -598,6 +599,7 @@ V185: Production deploy supports no-domain EC2-IP bootstrap: missing `DOMAIN` re
 | T84 | x | fix Docker/Next build regression from emitted-only `.js` package source import | V16,V183,source-imports.test.ts |
 | T85 | x | harden production deploy workflow: lowercase GHCR metadata, early config validation, no GitHub artifacts | V16,V21,V184,source-imports.test.ts |
 | T86 | x | fix no-domain deploy + pre-backup env ordering regression | V16,V21,V184,V185,source-imports.test.ts |
+| T87 | x | fix pre-deploy backup auth after stale remote `.env` from failed deploy | V16,V21,V185,V186,source-imports.test.ts |
 
 ## §B
 
@@ -650,3 +652,4 @@ V185: Production deploy supports no-domain EC2-IP bootstrap: missing `DOMAIN` re
 | B45 | 2026-06-25 | scoped Municipality/Barangay actor with blank scope could be active; blank actor scope could match blank project scope | require scoped role assignments before active policy/scope checks; blank scope values never match | V168,V170,T78 |
 | B46 | 2026-06-25 | `packages/pocketbase/src/schemas/forms.ts` imported `./enums.js`; Docker/Next Turbopack consumed raw TS via `transpilePackages` and could not resolve real `enums.js` | use package export import + source regression banning relative `.js` TS imports | V183,T84 |
 | B47 | 2026-06-25 | deploy uploaded new `.env` before backup, so current PocketBase could auth with mismatched env; deploy also required `DOMAIN` before DNS existed | backup before env upload; render missing `DOMAIN` as `:80`; Caddy env default supports IP-only deploy | V185,T86 |
+| B48 | 2026-06-25 | prior failed deploy left remote `.env` newer than running PocketBase process env, so backup still auth'd with wrong superuser password | load backup auth vars from running `pocketbase` container env before API login; use Bearer token header | V186,T87 |
