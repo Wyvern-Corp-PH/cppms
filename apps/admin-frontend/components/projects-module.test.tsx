@@ -401,6 +401,42 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
+  it("does not derive edit municipality or barangay from imported free-text location", async () => {
+    const user = userEvent.setup()
+    store.projects.push({
+      id: "1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Imported Road",
+      description: "Imported from Excel",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      total_budget: 1500000,
+      location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+      progress_pct: 0,
+    })
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for imported road/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByLabelText(/^location$/i)).toHaveValue(
+      "Tuguegarao City / Centro 01 (Bagumbayan)"
+    )
+    expect(
+      screen.getByRole("combobox", { name: /^municipality$/i })
+    ).not.toHaveTextContent("Tuguegarao City")
+    expect(screen.getByRole("combobox", { name: /^barangay$/i })).not.toHaveTextContent(
+      "Centro 01 (Bagumbayan)"
+    )
+  })
+
   it("uses Resolution as the project agreement document label", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)

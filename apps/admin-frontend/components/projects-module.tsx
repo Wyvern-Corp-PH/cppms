@@ -505,15 +505,14 @@ export function ProjectsModule() {
     if (!canUpdateProjects) {
       return
     }
-    const locationParts = splitProjectLocation(project.location)
     setEditing(project)
     setForm({
       name: project.name,
       description: project.description ?? "",
       category: project.category,
       status: project.status,
-      municipality: project.municipality ?? locationParts.municipality,
-      barangay: project.barangay ?? locationParts.barangay,
+      municipality: project.municipality ?? "",
+      barangay: project.barangay ?? "",
       location: project.location ?? "",
       contractor: project.contractor ?? "",
       start_date: project.start_date ?? "",
