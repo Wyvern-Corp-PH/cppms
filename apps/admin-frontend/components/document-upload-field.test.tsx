@@ -42,7 +42,7 @@ describe("DocumentUploadField", () => {
     expect(screen.getByText(/on record: signed-moa\.pdf/i)).toBeInTheDocument()
   })
 
-  it("adds multiple files when multiple is enabled", async () => {
+  it("adds multiple files by default", async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
 
@@ -50,7 +50,6 @@ describe("DocumentUploadField", () => {
       <DocumentUploadField
         id="supporting"
         label="Supporting project documents"
-        multiple
         files={[]}
         onChange={onChange}
       />
@@ -73,6 +72,7 @@ describe("DocumentUploadField", () => {
       <DocumentUploadField
         id="moa"
         label="Memorandum of Agreement"
+        multiple={false}
         files={[makeFile("old.pdf")]}
         onChange={onChange}
       />

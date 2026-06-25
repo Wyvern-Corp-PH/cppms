@@ -177,8 +177,8 @@ export function BudgetModule() {
   const [receiptNumber, setReceiptNumber] = useState("")
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [expenseDescription, setExpenseDescription] = useState("")
-  const [moaFile, setMoaFile] = useState<File | null>(null)
-  const [resolutionFile, setResolutionFile] = useState<File | null>(null)
+  const [moaFiles, setMoaFiles] = useState<File[]>([])
+  const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const actor = getPocketBase().authStore?.record
@@ -190,8 +190,8 @@ export function BudgetModule() {
     : true
 
   function clearAllocationUploads() {
-    setMoaFile(null)
-    setResolutionFile(null)
+    setMoaFiles([])
+    setResolutionFiles([])
     setSupportingFiles([])
   }
 
@@ -423,6 +423,11 @@ export function BudgetModule() {
       header: "Receipt #",
       cell: ({ row }) => row.original.receipt_number ?? "—",
     },
+    {
+      accessorKey: "description",
+      header: "Description",
+      cell: ({ row }) => row.original.description ?? "—",
+    },
   ]
 
   async function saveAllocation() {
@@ -446,15 +451,20 @@ export function BudgetModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || resolutionFile || supportingFiles.length > 0
+    const hasFiles =
+      moaFiles.length > 0 || resolutionFiles.length > 0 || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
       for (const [key, value] of Object.entries(parsed.data)) {
         if (value !== undefined) formData.append(key, String(value))
       }
-      if (moaFile) formData.append("moa_file", moaFile)
-      if (resolutionFile) formData.append("resolution_file", resolutionFile)
+      for (const file of moaFiles) {
+        formData.append("moa_file", file)
+      }
+      for (const file of resolutionFiles) {
+        formData.append("resolution_file", file)
+      }
       for (const file of supportingFiles) {
         formData.append("supporting_docs", file)
       }
@@ -718,14 +728,16 @@ export function BudgetModule() {
               <DocumentUploadField
                 id="allocation-moa"
                 label="Memorandum of Agreement"
-                files={moaFile ? [moaFile] : []}
-                onChange={(files) => setMoaFile(files[0] ?? null)}
+                multiple
+                files={moaFiles}
+                onChange={setMoaFiles}
               />
               <DocumentUploadField
                 id="allocation-resolution"
                 label="Resolution"
-                files={resolutionFile ? [resolutionFile] : []}
-                onChange={(files) => setResolutionFile(files[0] ?? null)}
+                multiple
+                files={resolutionFiles}
+                onChange={setResolutionFiles}
               />
               <DocumentUploadField
                 id="allocation-supporting"

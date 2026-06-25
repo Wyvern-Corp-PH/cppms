@@ -39,7 +39,7 @@ export function DocumentUploadField({
   id,
   label,
   accept = DOCUMENT_UPLOAD_ACCEPT,
-  multiple = false,
+  multiple = true,
   maxFiles = multiple ? 10 : 1,
   files,
   onChange,

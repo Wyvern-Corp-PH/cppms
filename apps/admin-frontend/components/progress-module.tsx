@@ -93,20 +93,20 @@ function recordInDateRange(date: string | undefined, from: string, to: string) {
 }
 
 type CompletionDocumentState = {
-  certification_completion: File | null
-  certificate_acceptance: File | null
-  proof_payment_barangay: File | null
-  acknowledgment_completion: File | null
+  certification_completion: File[]
+  certificate_acceptance: File[]
+  proof_payment_barangay: File[]
+  acknowledgment_completion: File[]
   audit_documents: File[]
   verification_documents: File[]
   liquidation_documents: File[]
 }
 
 const emptyCompletionDocuments = (): CompletionDocumentState => ({
-  certification_completion: null,
-  certificate_acceptance: null,
-  proof_payment_barangay: null,
-  acknowledgment_completion: null,
+  certification_completion: [],
+  certificate_acceptance: [],
+  proof_payment_barangay: [],
+  acknowledgment_completion: [],
   audit_documents: [],
   verification_documents: [],
   liquidation_documents: [],
@@ -279,19 +279,14 @@ export function ProgressModule() {
   ) {
     setCompletionDocs((current) => ({
       ...current,
-      [field]: Array.isArray(current[field]) ? files : (files[0] ?? null),
+      [field]: files,
     }))
   }
 
   function appendCompletionDocuments(formData: FormData) {
     for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
-      const value = completionDocs[doc.field]
-      if (Array.isArray(value)) {
-        for (const file of value) {
-          formData.append(doc.field, file)
-        }
-      } else if (value) {
-        formData.append(doc.field, value)
+      for (const file of completionDocs[doc.field]) {
+        formData.append(doc.field, file)
       }
     }
   }
@@ -773,19 +768,13 @@ export function ProgressModule() {
                     Required before saving a 100% progress update.
                   </p>
                   {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
-                    const value = completionDocs[doc.field]
-                    const files = Array.isArray(value)
-                      ? value
-                      : value
-                        ? [value]
-                        : []
                     return (
                       <DocumentUploadField
                         key={doc.field}
                         id={`completion-${doc.field}`}
                         label={doc.label}
                         multiple={doc.multiple}
-                        files={files}
+                        files={completionDocs[doc.field]}
                         onChange={(files) =>
                           setCompletionDocument(doc.field, files)
                         }

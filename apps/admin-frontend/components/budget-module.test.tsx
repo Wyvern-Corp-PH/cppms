@@ -211,10 +211,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
     render(<BudgetModule />)
 
     await fillAllocationForm(user)
-    await user.upload(
-      screen.getByTestId("document-upload-input-allocation-moa"),
-      new File(["moa"], "moa.pdf", { type: "application/pdf" })
-    )
+    await user.upload(screen.getByTestId("document-upload-input-allocation-moa"), [
+      new File(["moa"], "moa.pdf", { type: "application/pdf" }),
+      new File(["moa 2"], "moa-2.pdf", { type: "application/pdf" }),
+    ])
     await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
 
     await waitFor(() => {
@@ -225,6 +225,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect((payload as FormData).get("project")).toBe("p1")
     expect((payload as FormData).get("amount")).toBe("100000")
     expect((payload as FormData).get("allocated_by")).toBe("current-user")
+    expect((payload as FormData).getAll("moa_file")).toHaveLength(2)
   })
 
   it("renders allocation and expense amounts as signed single values", async () => {
@@ -306,6 +307,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         main_account: "General Fund",
         sub_account: "20% DF",
         date: "2026-06-17",
+        description: "Release for road work",
       },
     ]
 
@@ -322,6 +324,8 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("-25,000")).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: /description/i })).toBeInTheDocument()
+      expect(screen.getByText("Release for road work")).toBeInTheDocument()
     })
   })
 

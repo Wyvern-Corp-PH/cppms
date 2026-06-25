@@ -136,8 +136,13 @@ const emptyForm = (): ProjectFormState => ({
   number_of_students: "",
 })
 
-function namesOnRecord(...values: (string | undefined)[]): string[] {
-  return values.filter((value): value is string => Boolean(value?.trim()))
+function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
+  return values.flatMap((value) => {
+    if (Array.isArray(value)) {
+      return value.filter((name) => Boolean(name.trim()))
+    }
+    return value?.trim() ? [value] : []
+  })
 }
 
 function splitProjectLocation(location: string | undefined) {
@@ -376,8 +381,8 @@ export function ProjectsModule() {
   const [barangayPickerOpen, setBarangayPickerOpen] = useState(false)
   const [editing, setEditing] = useState<ProjectRecord | null>(null)
   const [form, setForm] = useState<ProjectFormState>(emptyForm())
-  const [moaFile, setMoaFile] = useState<File | null>(null)
-  const [resolutionFile, setResolutionFile] = useState<File | null>(null)
+  const [moaFiles, setMoaFiles] = useState<File[]>([])
+  const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
@@ -393,8 +398,8 @@ export function ProjectsModule() {
   const canDeleteProjects = actor ? canAccess(actor, "projects.delete") : true
 
   function clearUploadFiles() {
-    setMoaFile(null)
-    setResolutionFile(null)
+    setMoaFiles([])
+    setResolutionFiles([])
     setSupportingFiles([])
   }
 
@@ -478,8 +483,8 @@ export function ProjectsModule() {
     }
     setEditing(null)
     setForm(emptyForm())
-    setMoaFile(null)
-    setResolutionFile(null)
+    setMoaFiles([])
+    setResolutionFiles([])
     setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
@@ -523,8 +528,8 @@ export function ProjectsModule() {
         ? String(project.number_of_students)
         : "",
     })
-    setMoaFile(null)
-    setResolutionFile(null)
+    setMoaFiles([])
+    setResolutionFiles([])
     setSupportingFiles([])
     setFieldErrors({})
     setDialogOpen(true)
@@ -562,7 +567,8 @@ export function ProjectsModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles = moaFile || resolutionFile || supportingFiles.length > 0
+    const hasFiles =
+      moaFiles.length > 0 || resolutionFiles.length > 0 || supportingFiles.length > 0
 
     if (hasFiles) {
       const formData = new FormData()
@@ -571,8 +577,12 @@ export function ProjectsModule() {
           formData.append(key, String(value))
         }
       }
-      if (moaFile) formData.append("moa_file", moaFile)
-      if (resolutionFile) formData.append("resolution_file", resolutionFile)
+      for (const file of moaFiles) {
+        formData.append("moa_file", file)
+      }
+      for (const file of resolutionFiles) {
+        formData.append("resolution_file", file)
+      }
       for (const file of supportingFiles) {
         formData.append("supporting_docs", file)
       }
@@ -1256,16 +1266,16 @@ export function ProjectsModule() {
               <DocumentUploadField
                 id="moa-file"
                 label="Memorandum of Agreement"
-                files={moaFile ? [moaFile] : []}
+                files={moaFiles}
                 existingNames={namesOnRecord(editing?.moa_file)}
-                onChange={(files) => setMoaFile(files[0] ?? null)}
+                onChange={setMoaFiles}
               />
               <DocumentUploadField
                 id="resolution-file"
                 label="Resolution"
-                files={resolutionFile ? [resolutionFile] : []}
+                files={resolutionFiles}
                 existingNames={namesOnRecord(editing?.resolution_file)}
-                onChange={(files) => setResolutionFile(files[0] ?? null)}
+                onChange={setResolutionFiles}
               />
               <DocumentUploadField
                 id="supporting-file"

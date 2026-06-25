@@ -654,7 +654,7 @@ describe("ProgressModule (V81, V84)", () => {
       await screen.findByText(/certification of completion is required/i)
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/liquidation documents are required/i)
+      await screen.findByText(/liquidation documents are required/i)
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
@@ -697,6 +697,78 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ready for Review",
       })
     })
+  })
+
+  it("appends multiple files for every completion document upload", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(screen.getByTestId("document-upload-input-site-photo"), [
+      makeFile("site-1.jpg", "image/jpeg"),
+      makeFile("site-2.jpg", "image/jpeg"),
+    ])
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-certification_completion"),
+      [makeFile("certification-1.pdf"), makeFile("certification-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-certificate_acceptance"),
+      [makeFile("acceptance-1.pdf"), makeFile("acceptance-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-proof_payment_barangay"),
+      [makeFile("payment-1.pdf"), makeFile("payment-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-acknowledgment_completion"),
+      [makeFile("acknowledgment-1.pdf"), makeFile("acknowledgment-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-audit_documents"),
+      [makeFile("audit-1.pdf"), makeFile("audit-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-verification_documents"),
+      [makeFile("verification-1.pdf"), makeFile("verification-2.pdf")]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-completion-liquidation_documents"),
+      [makeFile("liquidation-1.pdf"), makeFile("liquidation-2.pdf")]
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    const payload = createMock.mock.calls[0]?.[0] as FormData
+    expect(payload.getAll("site_photo")).toHaveLength(2)
+    expect(payload.getAll("certification_completion")).toHaveLength(2)
+    expect(payload.getAll("certificate_acceptance")).toHaveLength(2)
+    expect(payload.getAll("proof_payment_barangay")).toHaveLength(2)
+    expect(payload.getAll("acknowledgment_completion")).toHaveLength(2)
+    expect(payload.getAll("audit_documents")).toHaveLength(2)
+    expect(payload.getAll("verification_documents")).toHaveLength(2)
+    expect(payload.getAll("liquidation_documents")).toHaveLength(2)
   })
 
   it("keeps final Completed projects read-only for Barangay progress users", async () => {
