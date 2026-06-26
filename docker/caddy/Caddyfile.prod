@@ -1,3 +1,7 @@
+{
+	local_certs
+}
+
 (routes) {
 	@admin path /admin /admin/*
 	handle @admin {
@@ -21,6 +25,10 @@
 	}
 }
 
-{$DOMAIN::80} {
+{$DOMAIN} {
+	import routes
+}
+
+:80 {
 	import routes
 }
