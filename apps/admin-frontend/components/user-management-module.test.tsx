@@ -26,7 +26,10 @@ const store = {
 const updateMock = vi.fn()
 const deleteMock = vi.fn()
 const createMock = vi.fn()
-const requestPasswordResetMock = vi.fn()
+
+vi.mock("@workspace/pocketbase/domain/temp-password", () => ({
+  generateTempPassword: () => "TempPass1234",
+}))
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
@@ -48,7 +51,6 @@ vi.mock("@/lib/pocketbase", () => ({
       create: createMock,
       update: updateMock,
       delete: deleteMock,
-      requestPasswordReset: requestPasswordResetMock,
     }),
   }),
 }))
@@ -183,7 +185,6 @@ describe("UserManagementModule (J6)", () => {
     updateMock.mockClear()
     deleteMock.mockClear()
     createMock.mockClear()
-    requestPasswordResetMock.mockClear()
   })
 
   it("lists users and exposes Super Admin account actions", async () => {
@@ -218,7 +219,7 @@ describe("UserManagementModule (J6)", () => {
     )
   })
 
-  it("soft deactivates by default, hard deletes explicitly, and requests password reset", async () => {
+  it("soft deactivates by default, hard deletes explicitly, and sets admin-assisted temp password", async () => {
     const user = userEvent.setup()
     render(<UserManagementModule />)
 
@@ -235,7 +236,18 @@ describe("UserManagementModule (J6)", () => {
     await user.click(
       screen.getByRole("button", { name: /reset password for admin user/i })
     )
-    expect(requestPasswordResetMock).toHaveBeenCalledWith("admin@example.test")
+    expect(
+      await screen.findByRole("dialog", { name: /reset password/i })
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole("button", { name: /^reset password$/i })
+    )
+    expect(updateMock).toHaveBeenCalledWith("u1", {
+      password: "TempPass1234",
+      passwordConfirm: "TempPass1234",
+      must_change_password: true,
+    })
+    expect(screen.getByTestId("temp-password-value")).toHaveValue("TempPass1234")
   })
 
   it("keeps create account dialog responsive at zoomed viewports", async () => {

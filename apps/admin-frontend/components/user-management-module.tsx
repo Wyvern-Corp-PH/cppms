@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
+import { generateTempPassword } from "@workspace/pocketbase/domain/temp-password"
 import { ACCOUNT_STATUS, ROLE } from "@workspace/pocketbase/schema"
 import {
   fieldErrorsFromZod,
@@ -87,6 +88,12 @@ export function UserManagementModule() {
   ])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [resetTarget, setResetTarget] = useState<UserRecord | null>(null)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const [revealedTempPassword, setRevealedTempPassword] = useState<string | null>(
+    null
+  )
+  const [resettingPassword, setResettingPassword] = useState(false)
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm())
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -265,11 +272,49 @@ export function UserManagementModule() {
     await loadUsers()
   }
 
-  async function resetPassword(user: UserRecord) {
+  function openResetConfirm(user: UserRecord) {
     if (!canResetPasswords) {
       return
     }
-    await getPocketBase().collection("users").requestPasswordReset(user.email)
+    setResetTarget(user)
+    setResetConfirmOpen(true)
+  }
+
+  async function confirmResetPassword() {
+    if (!resetTarget || !canResetPasswords) {
+      return
+    }
+
+    setResettingPassword(true)
+    const tempPassword = generateTempPassword()
+
+    try {
+      await getPocketBase().collection("users").update(resetTarget.id, {
+        password: tempPassword,
+        passwordConfirm: tempPassword,
+        must_change_password: true,
+      })
+      setResetConfirmOpen(false)
+      setRevealedTempPassword(tempPassword)
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
+  function closeTempPasswordReveal() {
+    setRevealedTempPassword(null)
+    setResetTarget(null)
+  }
+
+  async function copyTempPassword() {
+    if (!revealedTempPassword) {
+      return
+    }
+    await navigator.clipboard.writeText(revealedTempPassword)
+  }
+
+  async function resetPassword(user: UserRecord) {
+    openResetConfirm(user)
   }
 
   const userColumns: ColumnDef<UserRecord>[] = [
@@ -532,6 +577,75 @@ export function UserManagementModule() {
             </Button>
             <Button type="button" onClick={() => void saveUser()}>
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+            <DialogDescription>
+              {resetTarget
+                ? `Generate a temporary password for ${resetTarget.name || resetTarget.email}. Deliver it through a secure offline channel.`
+                : "Generate a temporary password for this account."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={resettingPassword}
+              onClick={() => void confirmResetPassword()}
+            >
+              {resettingPassword ? "Resetting…" : "Reset password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={revealedTempPassword !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeTempPasswordReveal()
+          }
+        }}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Temporary password</DialogTitle>
+            <DialogDescription>
+              Copy this password now. It will not be shown again. Deliver it to
+              the user offline. They must set a new password on next sign-in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Input
+              readOnly
+              value={revealedTempPassword ?? ""}
+              aria-label="Temporary password"
+              data-testid="temp-password-value"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Copy temporary password"
+              onClick={() => void copyTempPassword()}
+            >
+              Copy
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={closeTempPasswordReveal}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
