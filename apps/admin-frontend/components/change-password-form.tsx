@@ -17,6 +17,7 @@ import {
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 
+import { PasswordRequirements } from "@/components/password-requirements"
 import { useAuth } from "@/lib/auth"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -105,6 +106,7 @@ export function ChangePasswordForm() {
             aria-invalid={!!fieldErrors.password}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <PasswordRequirements />
           <FieldError>{fieldErrors.password}</FieldError>
         </Field>
         <Field data-invalid={!!fieldErrors.passwordConfirm}>

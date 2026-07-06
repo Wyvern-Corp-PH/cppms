@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
+import { copyTextToClipboard } from "@workspace/pocketbase/domain/copy-to-clipboard"
 import { generateTempPassword } from "@workspace/pocketbase/domain/temp-password"
 import { ACCOUNT_STATUS, ROLE } from "@workspace/pocketbase/schema"
 import {
@@ -41,6 +42,7 @@ import {
 
 import { DataTable, type ColumnDef } from "@/components/data-table"
 import { PageHeaderBand } from "@/components/page-header-band"
+import { PasswordRequirements } from "@/components/password-requirements"
 import { getPocketBase } from "@/lib/pocketbase"
 
 type UserFormState = {
@@ -93,6 +95,7 @@ export function UserManagementModule() {
   const [revealedTempPassword, setRevealedTempPassword] = useState<string | null>(
     null
   )
+  const [tempPasswordCopied, setTempPasswordCopied] = useState(false)
   const [resettingPassword, setResettingPassword] = useState(false)
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm())
@@ -304,13 +307,17 @@ export function UserManagementModule() {
   function closeTempPasswordReveal() {
     setRevealedTempPassword(null)
     setResetTarget(null)
+    setTempPasswordCopied(false)
   }
 
   async function copyTempPassword() {
     if (!revealedTempPassword) {
       return
     }
-    await navigator.clipboard.writeText(revealedTempPassword)
+    const copied = await copyTextToClipboard(revealedTempPassword)
+    if (copied) {
+      setTempPasswordCopied(true)
+    }
   }
 
   async function resetPassword(user: UserRecord) {
@@ -454,6 +461,7 @@ export function UserManagementModule() {
                     setForm({ ...form, password: event.target.value })
                   }
                 />
+                <PasswordRequirements />
                 <FieldError>{fieldErrors.password}</FieldError>
               </Field>
             ) : null}
@@ -637,10 +645,14 @@ export function UserManagementModule() {
             <Button
               type="button"
               variant="outline"
-              aria-label="Copy temporary password"
+              aria-label={
+                tempPasswordCopied
+                  ? "Temporary password copied"
+                  : "Copy temporary password"
+              }
               onClick={() => void copyTempPassword()}
             >
-              Copy
+              {tempPasswordCopied ? "Copied!" : "Copy"}
             </Button>
           </div>
           <DialogFooter>

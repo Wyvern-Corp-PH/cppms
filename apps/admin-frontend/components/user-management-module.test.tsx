@@ -31,6 +31,12 @@ vi.mock("@workspace/pocketbase/domain/temp-password", () => ({
   generateTempPassword: () => "TempPass1234",
 }))
 
+const copyTextToClipboardMock = vi.fn().mockResolvedValue(true)
+
+vi.mock("@workspace/pocketbase/domain/copy-to-clipboard", () => ({
+  copyTextToClipboard: (...args: unknown[]) => copyTextToClipboardMock(...args),
+}))
+
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     authStore: {
@@ -185,6 +191,8 @@ describe("UserManagementModule (J6)", () => {
     updateMock.mockClear()
     deleteMock.mockClear()
     createMock.mockClear()
+    copyTextToClipboardMock.mockClear()
+    copyTextToClipboardMock.mockResolvedValue(true)
   })
 
   it("lists users and exposes Super Admin account actions", async () => {
@@ -248,6 +256,36 @@ describe("UserManagementModule (J6)", () => {
       must_change_password: true,
     })
     expect(screen.getByTestId("temp-password-value")).toHaveValue("TempPass1234")
+  })
+
+  it("copies the revealed temporary password to the clipboard", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    render(<UserManagementModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /reset password for admin user/i })
+    )
+    await user.click(screen.getByRole("button", { name: /^reset password$/i }))
+
+    await user.click(
+      await screen.findByRole("button", { name: /copy temporary password/i })
+    )
+
+    await waitFor(() => {
+      expect(copyTextToClipboardMock).toHaveBeenCalledWith("TempPass1234")
+    })
+    expect(
+      await screen.findByRole("button", { name: /copied/i })
+    ).toBeInTheDocument()
+  })
+
+  it("shows password requirements on the create-account initial password field", async () => {
+    const user = userEvent.setup()
+    render(<UserManagementModule />)
+
+    await user.click(await screen.findByRole("button", { name: /create account/i }))
+
+    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
   })
 
   it("keeps create account dialog responsive at zoomed viewports", async () => {

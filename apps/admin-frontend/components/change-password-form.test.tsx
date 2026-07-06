@@ -81,6 +81,12 @@ describe("ChangePasswordForm (V210,J17)", () => {
     expect(mockReplace).toHaveBeenCalledWith("/dashboard")
   })
 
+  it("shows password requirements below the new password field", () => {
+    render(<ChangePasswordForm />)
+
+    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
+  })
+
   it("shows validation errors for mismatched passwords", async () => {
     const user = userEvent.setup()
     render(<ChangePasswordForm />)
