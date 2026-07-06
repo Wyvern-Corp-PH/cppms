@@ -127,6 +127,11 @@ const usersPasswordResetMigrationPath = resolve(
   "pb_migrations",
   "1740000026_users_password_reset_fields.js"
 )
+const usersSelfPasswordUpdateRuleMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000027_users_self_password_update_rule.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -610,6 +615,19 @@ describe("collection access rules (V14, T8)", () => {
 
     expect(migrationSource).toContain("must_change_password")
     expect(migrationSource).toContain("manageRule")
+    expect(migrationSource).toContain("Super Admin")
+  })
+
+  it("allows authenticated users to self-update password with oldPassword (V210,V215)", () => {
+    const migrationSource = readFileSync(
+      usersSelfPasswordUpdateRuleMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("users")
+    expect(migrationSource).toContain("updateRule")
+    expect(migrationSource).toContain("@request.auth.id = id")
+    expect(migrationSource).toContain("@request.body.oldPassword:isset = true")
     expect(migrationSource).toContain("Super Admin")
   })
 })
