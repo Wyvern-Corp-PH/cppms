@@ -186,6 +186,7 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 | `reports-module.tsx` | global filters + tab-selector cards + 4 report tables + export |
 | `user-management-module.tsx` | Super Admin user CRUD, roles, status, admin-assisted temp password reset |
 | `change-password-form.tsx` | forced password change when `users.must_change_password=true` |
+| `password-requirements.tsx` | shared `FieldDescription` for password min-length policy (V213) |
 | route `/change-password` | admin forced password change before module access |
 | `site-photo.tsx` | PB file URL `<img>` for progress_update.site_photo |
 | `site-photo-carousel.tsx` | approval queue photo carousel (V87,V96) |
@@ -544,6 +545,9 @@ V209: Super Admin reset password → confirm dialog → PB `users.update(id,{pas
 V210: `users.must_change_password=true` → authenticated user ⊥ access admin modules until `/change-password` succeeds: `users.update` w/ `oldPassword` (temp) + new `password`/`passwordConfirm` + `must_change_password:false`; AuthGuard + login redirect enforce; `/change-password` ⊥ behind auth.
 V211: PB `users.manageRule` = Super Admin only (`@request.auth.role = "Super Admin"`); enables Super Admin password set w/o `oldPassword`; password change refreshes `tokenKey` → prior sessions invalid.
 V212: Reset password UI/tests/hooks ⊥ call `requestPasswordReset`/`confirmPasswordReset`; audit action remains `reset_password`; PB audit hook emits `reset_password` row when Super Admin sets temp password (not generic `update` only).
+V213: Password entry UIs (`/change-password` new password, `/users` create initial password) show shared requirements via `FieldDescription` (`PASSWORD_REQUIREMENTS_TEXT`); zod min length = `PASSWORD_MIN_LENGTH` (8).
+V214: Temp password reveal modal Copy uses `copyTextToClipboard` (clipboard API + `execCommand` fallback); success → visible `Copied!` + updated aria-label; Vitest+RTL asserts clipboard write.
+V215: `users.updateRule` = Super Admin full update OR authenticated self-update when `@request.body.oldPassword:isset` (forced/voluntary password change w/o manageRule); repair migration `1740000027_users_self_password_update_rule.js`; ⊥ Super-Admin-only updateRule blocking V210.
 
 ## §T
 
@@ -659,6 +663,8 @@ V212: Reset password UI/tests/hooks ⊥ call `requestPasswordReset`/`confirmPass
 | T108 | x | replace `/users` reset email w/ admin temp-password confirm+reveal dialog; red-first Vitest+RTL; ⊥ `requestPasswordReset` | V16,V19,V116,V120,V208,V209,V212,J6,user-management-module.test.tsx |
 | T109 | x | forced password change: `/change-password` form, AuthGuard redirect/block, login post-auth routing; Vitest+RTL journey J17 | V16,V19,V210,J17,change-password-form.test.tsx,auth-guard.test.tsx,j17-change-password.test.tsx |
 | T110 | x | PB audit hook: Super Admin temp password set → `activity_logs.action=reset_password`; redact password fields | V16,V124,V128,V212,audit-ownership.test.ts |
+| T111 | x | password requirements UI on password fields + fix temp password Copy w/ fallback/feedback; red-first Vitest+RTL | V16,V19,V181,V213,V214,password-policy.test.ts,copy-to-clipboard.test.ts,change-password-form.test.tsx,user-management-module.test.tsx |
+| T112 | x | PB repair migration: users self password updateRule for forced change (V210); manifest regression | V16,V133,V134,V210,V215,manifest.test.ts |
 
 ## §B
 
@@ -735,3 +741,5 @@ V212: Reset password UI/tests/hooks ⊥ call `requestPasswordReset`/`confirmPass
 | B69 | 2026-06-26 | `/users` scoped role tests time out or hit `pointer-events:none` on Municipality/Barangay selects inside dialog, so scoped account create/edit cannot be trusted | make dialog-contained selects portal/cleanup safe and keep scope payload regressions warning-clean | V206,T105 |
 | B70 | 2026-06-26 | Province Request Revision approval test times out despite spec requiring request_revision action + For Revision transition | stabilize request-revision interaction/submit flow and keep Vitest/RTL output free of React act/suspense warnings | V207,T106 |
 | B71 | 2026-07-06 | `requestPasswordReset` depends on PB mailer/SMTP; deploy has no reliable email/SMS → reset emails never reach barangay/municipality users | admin-assisted temp password reset + forced change on login; ⊥ email/SMS recovery | V208–V212,T107–T110 |
+| B72 | 2026-07-06 | temp password Copy called `navigator.clipboard.writeText` only — no fallback/feedback → silent fail in dev/non-secure contexts; password UIs lacked visible requirements | `copyTextToClipboard` w/ execCommand fallback + Copied! state; `PasswordRequirements` + shared `PASSWORD_MIN_LENGTH` | V213,V214,T111 |
+| B73 | 2026-07-06 | `users.updateRule` Super Admin only after PBAC migrations; non–Super Admin forced change PATCH → PB 404 `sql: no rows in result set` despite valid temp password | migration `1740000027` adds self-update when `oldPassword` in body; keeps Super Admin full update | V210,V215,T112 |
