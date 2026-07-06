@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   approvalFormSchema,
   budgetExpenseMutateSchema,
+  changePasswordFormSchema,
   loginFormSchema,
   progressUpdateFormSchema,
   projectMutateSchema,
@@ -24,6 +25,31 @@ describe("loginFormSchema (V35, V15)", () => {
     if (!result.success) {
       expect(fieldErrorsFromZod(result.error).email).toBeTruthy()
     }
+  })
+})
+
+describe("changePasswordFormSchema (V210)", () => {
+  it("rejects mismatched new passwords", () => {
+    const result = changePasswordFormSchema.safeParse({
+      currentPassword: "TempPass1234",
+      password: "newsecret99",
+      passwordConfirm: "different99",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).passwordConfirm).toBe(
+        "Passwords do not match."
+      )
+    }
+  })
+
+  it("accepts valid password change payloads", () => {
+    const result = changePasswordFormSchema.safeParse({
+      currentPassword: "TempPass1234",
+      password: "newsecret99",
+      passwordConfirm: "newsecret99",
+    })
+    expect(result.success).toBe(true)
   })
 })
 

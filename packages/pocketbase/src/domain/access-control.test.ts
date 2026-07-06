@@ -7,6 +7,7 @@ import {
   isActiveUser,
   isProjectInUserScope,
   isSuperAdmin,
+  mustChangePassword,
 } from "./access-control"
 
 describe("access control (V115-V121)", () => {
@@ -19,6 +20,25 @@ describe("access control (V115-V121)", () => {
 
     expect(isActiveUser(user)).toBe(true)
     expect(isSuperAdmin(user)).toBe(true)
+  })
+
+  it("detects accounts that must change password", () => {
+    expect(
+      mustChangePassword({
+        id: "u1",
+        role: "Province",
+        account_status: "Active",
+        must_change_password: true,
+      })
+    ).toBe(true)
+    expect(
+      mustChangePassword({
+        id: "u1",
+        role: "Province",
+        account_status: "Active",
+        must_change_password: false,
+      })
+    ).toBe(false)
   })
 
   it("denies inactive users before policy checks", () => {

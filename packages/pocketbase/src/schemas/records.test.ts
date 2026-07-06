@@ -356,6 +356,18 @@ describe("collection record schemas (V33, V36)", () => {
     ).toBe(true)
 
     expect(
+      userRecordSchema.safeParse({
+        ...base,
+        collectionName: "users",
+        email: "reset@example.test",
+        name: "Reset User",
+        role: "Barangay",
+        account_status: "Active",
+        must_change_password: true,
+      }).success
+    ).toBe(true)
+
+    expect(
       locationRecordSchema.safeParse({
         ...base,
         collectionName: "locations",

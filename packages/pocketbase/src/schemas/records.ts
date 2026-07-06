@@ -164,6 +164,7 @@ export const userRecordSchema = baseRecordSchema.extend({
   account_status: accountStatusSchema,
   municipality: pbEmptyAsUndefined(z.string().optional()),
   barangay: pbEmptyAsUndefined(z.string().optional()),
+  must_change_password: z.boolean().optional(),
   last_login: z.string().optional(),
 })
 

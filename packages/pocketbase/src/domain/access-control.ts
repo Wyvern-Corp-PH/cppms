@@ -33,6 +33,7 @@ export type PolicyUser = {
   account_status?: "Active" | "Inactive" | string
   municipality?: string
   barangay?: string
+  must_change_password?: boolean
 }
 
 export type ScopedProject = {
@@ -114,6 +115,12 @@ export function isActiveUser(user: PolicyUser | null | undefined): boolean {
     return hasScopeValue(user.municipality) && hasScopeValue(user.barangay)
   }
   return false
+}
+
+export function mustChangePassword(
+  user: PolicyUser | null | undefined
+): boolean {
+  return user?.must_change_password === true
 }
 
 export function isSuperAdmin(user: PolicyUser | null | undefined): boolean {

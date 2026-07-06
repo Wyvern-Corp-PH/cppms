@@ -88,6 +88,22 @@ export const loginFormSchema = z.object({
   password: z.string().min(1, "Password is required."),
 })
 
+export const changePasswordFormSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required."),
+    password: z.string().min(8, "New password must be at least 8 characters."),
+    passwordConfirm: z.string().min(1, "Confirm your new password."),
+  })
+  .superRefine((value, ctx) => {
+    if (value.password !== value.passwordConfirm) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["passwordConfirm"],
+        message: "Passwords do not match.",
+      })
+    }
+  })
+
 export const projectMutateSchema = z
   .object({
     name: z.string().trim().min(1, "Project name is required."),
@@ -257,6 +273,7 @@ export const userAccountFormSchema = z
   })
 
 export type LoginFormInput = z.infer<typeof loginFormSchema>
+export type ChangePasswordFormInput = z.infer<typeof changePasswordFormSchema>
 export type ProjectMutateInput = z.infer<typeof projectMutateSchema>
 export type BudgetAllocationMutateInput = z.infer<
   typeof budgetAllocationMutateSchema
