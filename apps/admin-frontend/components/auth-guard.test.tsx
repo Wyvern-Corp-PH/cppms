@@ -16,6 +16,7 @@ const authState = {
     id: string
     role?: string
     account_status?: string
+    must_change_password?: boolean
   } | null,
   loading: false,
 }
@@ -100,5 +101,25 @@ describe("AuthGuard (V1)", () => {
       expect(mockReplace).toHaveBeenCalledWith("/dashboard?forbidden=users")
     })
     expect(screen.queryByText("User Management")).not.toBeInTheDocument()
+  })
+
+  it("redirects users who must change password to /change-password", async () => {
+    authState.user = {
+      id: "1",
+      role: "Province",
+      account_status: "Active",
+      must_change_password: true,
+    }
+
+    render(
+      <AuthGuard>
+        <p>Protected</p>
+      </AuthGuard>
+    )
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/change-password")
+    })
+    expect(screen.queryByText("Protected")).not.toBeInTheDocument()
   })
 })

@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { canAccess, isActiveUser } from "@workspace/pocketbase/domain/access-control"
+import { canAccess, isActiveUser, mustChangePassword } from "@workspace/pocketbase/domain/access-control"
 
 import { useAuth } from "@/lib/auth"
 
@@ -22,6 +22,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
     if (user && !isActiveUser(user)) {
       router.replace("/login?inactive=1")
+      return
+    }
+
+    if (user && mustChangePassword(user)) {
+      router.replace("/change-password")
       return
     }
 
@@ -51,6 +56,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   if (
     !user ||
     !isActiveUser(user) ||
+    mustChangePassword(user) ||
     (pathname.startsWith("/users") && !canAccess(user, "users.update"))
   ) {
     return null

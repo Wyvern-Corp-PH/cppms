@@ -9,6 +9,20 @@ import { LoginForm } from "./login-form"
 const mockReplace = vi.fn()
 const mockLogin = vi.fn()
 
+vi.mock("@/lib/pocketbase", () => ({
+  getPocketBase: () => ({
+    authStore: {
+      record: {
+        id: "1",
+        email: "admin@cppms.local",
+        role: "Province",
+        account_status: "Active",
+        must_change_password: false,
+      },
+    },
+  }),
+}))
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace }),
   useSearchParams: () => new URLSearchParams("next=/dashboard"),
