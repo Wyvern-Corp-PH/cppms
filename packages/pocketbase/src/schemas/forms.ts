@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { PASSWORD_MIN_LENGTH } from "@workspace/pocketbase/domain/password-policy"
 import {
   accountStatusSchema,
   approvalActionSchema,
@@ -91,7 +92,12 @@ export const loginFormSchema = z.object({
 export const changePasswordFormSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required."),
-    password: z.string().min(8, "New password must be at least 8 characters."),
+    password: z
+      .string()
+      .min(
+        PASSWORD_MIN_LENGTH,
+        `New password must be at least ${PASSWORD_MIN_LENGTH} characters.`
+      ),
     passwordConfirm: z.string().min(1, "Confirm your new password."),
   })
   .superRefine((value, ctx) => {
@@ -242,6 +248,17 @@ export const userAccountFormSchema = z
         code: "custom",
         path: ["password"],
         message: "Initial password is required.",
+      })
+    }
+    if (
+      value.password !== undefined &&
+      value.password.trim().length > 0 &&
+      value.password.length < PASSWORD_MIN_LENGTH
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
       })
     }
     if (
