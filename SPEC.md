@@ -105,7 +105,8 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 - RBAC is client-critical (Atty. Charo): ~820 barangays require fail-closed, indexed municipality/barangay scoping; UI filters ⊥ widen backend scope.
 - PBAC: code role→policy map + PB rule enforcement by action/resource, evaluated after auth and before UI/API mutate.
 - First Super Admin: promote existing PB auth user/admin manually.
-- Super Admin: user account CRUD, role/status management, password reset trigger, system settings.
+- Super Admin: user account CRUD, role/status management, admin-assisted temp password reset (offline delivery), system settings.
+- Password recovery ⊥ SMTP/SMS/email link/OTP/self-service forgot-password; Super Admin sets temp password in-app, delivers out-of-band (in-person/phone); user forced password change on next login (V208–V212).
 - Province / Provincial Admin: view all projects; approve/reject/request revision; process fund releases; ⊥ manage users/settings.
 - Municipality: view all projects in assigned municipality; update scoped project progress/photos/docs; ⊥ project edit/status/delete; ⊥ outside municipality.
 - Barangay: view own barangay projects; update scoped project progress/photos/liquidation docs; ⊥ project edit/status/delete; ⊥ approve; ⊥ outside barangay.
@@ -183,7 +184,9 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 | `progress-module.tsx` | 4 summary cards + list + detail panel + update modal |
 | `approvals-module.tsx` | 4 summary cards + queue cards + approve/reject modals |
 | `reports-module.tsx` | global filters + tab-selector cards + 4 report tables + export |
-| `user-management-module.tsx` | Super Admin user CRUD, roles, status, password reset |
+| `user-management-module.tsx` | Super Admin user CRUD, roles, status, admin-assisted temp password reset |
+| `change-password-form.tsx` | forced password change when `users.must_change_password=true` |
+| route `/change-password` | admin forced password change before module access |
 | `site-photo.tsx` | PB file URL `<img>` for progress_update.site_photo |
 | `site-photo-carousel.tsx` | approval queue photo carousel (V87,V96) |
 | `summary-card-row.tsx` | compact KPI strip / metric cards |
@@ -231,7 +234,7 @@ activity_logs → actor_user, actor_role, actor_municipality?, actor_barangay?, 
   target_user?, before?, after?, outcome, error?, duration_ms, request_id, env, created_at
 
 users auth fields → role(Super Admin|Province|Municipality|Barangay), account_status,
-  municipality?, barangay? (required for scoped Municipality/Barangay roles), name?, email
+  municipality?, barangay? (required for scoped Municipality/Barangay roles), must_change_password(bool default false), name?, email
 
 pb_hooks → server-side audit hook on user/project/budget/progress/approval/location mutations
 ```
@@ -245,7 +248,8 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 | J3 | public `/projects` browse + filter; ⊥ create/edit/delete affordance | public |
 | J4 | admin create project via modal → appears in list | admin |
 | J5 | admin approve completed project → status Approved | admin |
-| J6 | Super Admin `/users` create/edit/deactivate/delete/reset password | admin |
+| J6 | Super Admin `/users` create/edit/deactivate/delete/admin-assisted temp password reset | admin |
+| J17 | user `must_change_password=true` → login → `/change-password` → dashboard | admin |
 | J7 | Province/Municipality/Barangay direct `/users` → deny/redirect; nav link hidden | admin |
 | J8 | public `/projects` location filter combines w/ status/category | public |
 | J9 | Projects module content stays visible at 100% zoom under nav/header | admin |
@@ -309,7 +313,9 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 
 - **User Management** (`/users`) — Super Admin only (V115–V121)
   - List: all registered users — name, email, role, account_status, created/updated, last_login?.
-  - Actions: Create account; Edit name/email/role/status/scope; Deactivate; Delete (soft default; hard confirm); Trigger password reset email; created account appears in list immediately after PB create succeeds (V191,J15).
+  - Actions: Create account; Edit name/email/role/status/scope; Deactivate; Delete (soft default; hard confirm); Reset password → confirm dialog → auto-gen temp password (manual override optional) → PB update + one-time reveal modal w/ copy; deliver temp password offline; created account appears in list immediately after PB create succeeds (V191,J15,V208–V211).
+  - Reset password flow: Super Admin clicks Reset password → confirm → system generates cryptographically secure temp password (≥12 chars) or accepts manual entry → `users.update(id,{password,passwordConfirm,must_change_password:true})` → one-time modal shows temp password + Copy; modal copy warns offline delivery only; temp password never re-fetchable; ⊥ `requestPasswordReset`/`confirmPasswordReset`.
+  - Forced change: user w/ `must_change_password=true` logs in → redirect `/change-password` (AuthGuard blocks other routes); form fields current/temp password, new password, confirm; submit `users.update` w/ `oldPassword` + new password + `must_change_password:false`; success → intended route or `/dashboard` (V210,J17).
   - Create/Edit account dialog fields: name, email, password (create only), role, account_status, municipality for Municipality/Barangay roles, barangay for Barangay role; scope fields load active PB `locations` and clear invalid child values on role/municipality change (V195).
   - Province role policies: can approve/reject/request revision + process fund releases; ⊥ manage users; ⊥ system settings.
   - UI: Super Admin sees Users nav + role badge; Province/Municipality/Barangay hide Users nav and unavailable actions.
@@ -441,7 +447,7 @@ V112: Scholarship project category requires `number_of_students` numeric input >
 V113: PB optional number fields return `0` when unset — record schemas coerce `0|""|null`→`undefined` before positive/int parse; valid rows must not be dropped by `parseRecordList`.
 V114: PB additive migrations guard existing fields before `fields.add`; fresh DB initial snapshot + later migration must not duplicate fields.
 V115: Auth user has exactly one §C role + account_status + required scope fields for Barangay/Municipality roles; Inactive → login/session denied; first Super Admin = promoted existing PB auth user/admin.
-V116: Super Admin role → access `/users` route/nav + account create/edit/deactivate/delete/reset password email.
+V116: Super Admin role → access `/users` route/nav + account create/edit/deactivate/delete/admin-assisted temp password reset.
 V117: Province/Municipality/Barangay roles → `/users` route denied/redirected; Users nav hidden; user-management mutate APIs rejected.
 V118: PBAC policy check `(actor, action, resource)` uses code role→policy map + PB rules before admin mutate; deny → no PB write + user-visible forbidden state.
 V119: Province policy grants system-wide project read, approval actions, and fund release processing only; ⊥ manage users/system settings.
@@ -533,6 +539,11 @@ V204: Live PB schema audit via `/v1` shows every manifest collection has all §I
 V205: Role-scope checks distinguish project mutation from progress mutation: Municipality/Barangay scoped actors may `progress_updates.create` only for in-scope projects, while `projects.create|update|delete` stays denied and Projects UI hides project mutate affordances.
 V206: `/users` create/edit scope selects are dialog-safe and pointer-interactable in RTL/browser flows: role change reveals required Municipality/Barangay controls, option selection never leaves trigger/body `pointer-events:none`, and submit payload includes valid scope.
 V207: Approval request-revision flow completes deterministically under standard Vitest timeout: Province opens Request Revision, submits authority+notes, writes `approval_actions.action=request_revision`, moves project to `For Revision`, and emits no React `act`/suspense warnings.
+V208: Password recovery ⊥ SMTP/SMS/email reset link/OTP/self-service forgot-password route; only Super Admin admin-assisted temp password reset in `/users`.
+V209: Super Admin reset password → confirm dialog → PB `users.update(id,{password,passwordConfirm,must_change_password:true})` via `manageRule`; default auto-gen temp password ≥12 chars; manual entry optional; one-time reveal modal w/ Copy; temp password never returned again by API/UI; offline delivery copy in modal.
+V210: `users.must_change_password=true` → authenticated user ⊥ access admin modules until `/change-password` succeeds: `users.update` w/ `oldPassword` (temp) + new `password`/`passwordConfirm` + `must_change_password:false`; AuthGuard + login redirect enforce; `/change-password` ⊥ behind auth.
+V211: PB `users.manageRule` = Super Admin only (`@request.auth.role = "Super Admin"`); enables Super Admin password set w/o `oldPassword`; password change refreshes `tokenKey` → prior sessions invalid.
+V212: Reset password UI/tests/hooks ⊥ call `requestPasswordReset`/`confirmPasswordReset`; audit action remains `reset_password`; PB audit hook emits `reset_password` row when Super Admin sets temp password (not generic `update` only).
 
 ## §T
 
@@ -644,6 +655,10 @@ V207: Approval request-revision flow completes deterministically under standard 
 | T104 | x | fix J13 role-scope expectation and regress scoped progress vs project mutation split | V16,V19,V160,V169,V171,V205,J13,access-control.test.ts,j13-role-scope.test.tsx |
 | T105 | x | harden `/users` scoped role create/edit selects in dialog and remove pointer-event/timeout flake | V16,V19,V146,V181,V195,V206,user-management-module.test.tsx |
 | T106 | x | harden Province request-revision approval test/UI flow to be deterministic and warning-clean | V16,V19,V158,V167,V199,V207,approvals-module.test.tsx |
+| T107 | x | PB migration: `users.must_change_password` bool default false + `users.manageRule` Super Admin; manifest/schema/tests | V16,V133,V134,V211,manifest.test.ts,records.test.ts |
+| T108 | x | replace `/users` reset email w/ admin temp-password confirm+reveal dialog; red-first Vitest+RTL; ⊥ `requestPasswordReset` | V16,V19,V116,V120,V208,V209,V212,J6,user-management-module.test.tsx |
+| T109 | x | forced password change: `/change-password` form, AuthGuard redirect/block, login post-auth routing; Vitest+RTL journey J17 | V16,V19,V210,J17,change-password-form.test.tsx,auth-guard.test.tsx,j17-change-password.test.tsx |
+| T110 | x | PB audit hook: Super Admin temp password set → `activity_logs.action=reset_password`; redact password fields | V16,V124,V128,V212,audit-ownership.test.ts |
 
 ## §B
 
@@ -719,3 +734,4 @@ V207: Approval request-revision flow completes deterministically under standard 
 | B68 | 2026-06-26 | J13 expected Municipality `progress_updates.create` denied, contradicting scoped-progress RBAC that allows Municipality/Barangay progress updates while denying project mutation | update journey/source tests to assert project mutation denied but scoped progress mutation allowed only in-scope | V205,T104 |
 | B69 | 2026-06-26 | `/users` scoped role tests time out or hit `pointer-events:none` on Municipality/Barangay selects inside dialog, so scoped account create/edit cannot be trusted | make dialog-contained selects portal/cleanup safe and keep scope payload regressions warning-clean | V206,T105 |
 | B70 | 2026-06-26 | Province Request Revision approval test times out despite spec requiring request_revision action + For Revision transition | stabilize request-revision interaction/submit flow and keep Vitest/RTL output free of React act/suspense warnings | V207,T106 |
+| B71 | 2026-07-06 | `requestPasswordReset` depends on PB mailer/SMTP; deploy has no reliable email/SMS → reset emails never reach barangay/municipality users | admin-assisted temp password reset + forced change on login; ⊥ email/SMS recovery | V208–V212,T107–T110 |
