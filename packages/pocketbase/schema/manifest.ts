@@ -52,7 +52,7 @@ export type CollectionManifest = {
 export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
   {
     name: "users",
-    fields: ["name", "role", "account_status", "municipality", "barangay"],
+    fields: ["name", "role", "account_status", "municipality", "barangay", "must_change_password"],
   },
   {
     name: "projects",
