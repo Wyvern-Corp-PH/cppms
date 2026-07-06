@@ -122,6 +122,11 @@ const collectionFieldShapeRepairMigrationPath = resolve(
   "pb_migrations",
   "1740000024_collection_field_shape_repair.js"
 )
+const usersPasswordResetMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000026_users_password_reset_fields.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -251,6 +256,7 @@ describe("pb migration file", () => {
     budgetFundOptionCollectionsMigrationPath,
     dropdownOptionCollectionsMigrationPath,
     budgetFundOptionValueRepairMigrationPath,
+    usersPasswordResetMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -598,6 +604,14 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("For Revision")
     expect(migrationSource).toContain("Approved")
   })
+
+  it("adds users must_change_password field and Super Admin manageRule", () => {
+    const migrationSource = readFileSync(usersPasswordResetMigrationPath, "utf8")
+
+    expect(migrationSource).toContain("must_change_password")
+    expect(migrationSource).toContain("manageRule")
+    expect(migrationSource).toContain("Super Admin")
+  })
 })
 
 describe("PocketBase audit hook (V124-V130)", () => {
@@ -670,5 +684,10 @@ describe("PocketBase audit hook (V124-V130)", () => {
     expect(hookSource).toContain("authCollectionName")
     expect(hookSource).toContain("_superusers")
     expect(hookSource).toContain("actorUserId")
+  })
+
+  it("maps Super Admin temp password reset to reset_password audit action", () => {
+    expect(hookSource).toContain("must_change_password")
+    expect(hookSource).toContain("reset_password")
   })
 })

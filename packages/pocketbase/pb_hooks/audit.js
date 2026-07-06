@@ -10,6 +10,18 @@ const AUDITED_COLLECTIONS = [
 
 const ACTION_BY_COLLECTION = {
   approval_actions: (record) => record.get("action") || "create",
+  users: (record) => {
+    const original = record.original || record.originalCopy
+    if (!original || typeof original.get !== "function") {
+      return null
+    }
+    const wasMustChange = original.get("must_change_password") === true
+    const isMustChange = record.get("must_change_password") === true
+    if (!wasMustChange && isMustChange) {
+      return "reset_password"
+    }
+    return null
+  },
 }
 
 const STARTED_AT = new WeakMap()
@@ -20,7 +32,7 @@ const REQUEST_AUDITED_BY_KEY = new Set()
 const ERROR_AUDITED = new WeakSet()
 
 const AUDIT_FIELDS = {
-  users: ["email", "name", "role", "account_status"],
+  users: ["email", "name", "role", "account_status", "must_change_password"],
   projects: [
     "name",
     "category",
