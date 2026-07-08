@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { filterProjectsForUser } from "@workspace/pocketbase/domain/access-control"
+import { buildInactiveLocations } from "@workspace/pocketbase/domain/inactive-locations"
 import { computeBudgetSummary } from "@workspace/pocketbase/domain/budget-summary"
 import { resolveDeadlineStatus, deadlineStatusTone } from "@workspace/pocketbase/domain/deadline-status"
 import {
@@ -34,6 +35,11 @@ import {
   projectMatchesLocationFilters,
   type LocationFilterValue,
 } from "@/components/location-filter-controls"
+import {
+  buildParticipationStats,
+  ParticipationStatsPanel,
+} from "@/components/participation-stats-panel"
+import { InactiveLocationsPanel } from "@/components/inactive-locations-panel"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -160,6 +166,16 @@ export function DashboardModule() {
       ).length,
     [filteredProjects]
   )
+  const participationStats = useMemo(
+    () => buildParticipationStats(filteredProjects),
+    [filteredProjects]
+  )
+  const inactiveLocations = useMemo(
+    () => buildInactiveLocations(filteredProjects),
+    [filteredProjects]
+  )
+  const showInactiveLocationsPanel =
+    actor?.role === "Super Admin" || actor?.role === "Province"
 
   if (loading) {
     return (
@@ -265,6 +281,19 @@ export function DashboardModule() {
           </div>
         </div>
       </div>
+
+      <ParticipationStatsPanel
+        participation={participationStats.participation}
+        fundingYearBreakdown={participationStats.fundingYearBreakdown}
+        testIdPrefix="dashboard"
+      />
+
+      {showInactiveLocationsPanel ? (
+        <InactiveLocationsPanel
+          data={inactiveLocations}
+          testIdPrefix="dashboard-inactive-locations"
+        />
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {quickLinks.map((item) => {

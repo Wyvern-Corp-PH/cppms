@@ -12,7 +12,12 @@ const store = {
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     authStore: {
-      record: { id: "1", email: "admin@cppms.local" },
+      record: {
+        id: "1",
+        email: "admin@cppms.local",
+        role: "Province",
+        account_status: "Active",
+      },
       onChange: vi.fn(() => () => undefined),
       clear: vi.fn(),
     },
@@ -211,6 +216,89 @@ describe("DashboardModule (V9, V24)", () => {
       expect(screen.getByText("25% spent")).toBeInTheDocument()
       expect(screen.getByTitle(/City Bridge:/)).toBeInTheDocument()
       expect(screen.queryByTitle("Lasam School: Completed")).not.toBeInTheDocument()
+    })
+  })
+
+  it("shows barangay participation and funding-year breakdown stats", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2024,
+        total_budget: 100_000,
+        progress_pct: 75,
+      },
+      {
+        id: "p2",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "Lasam School",
+        category: "Education",
+        status: "Planning",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2022,
+        total_budget: 300_000,
+        progress_pct: 10,
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dashboard-total-barangays")).toHaveTextContent("820")
+      expect(screen.getByTestId("dashboard-active-barangays")).toHaveTextContent("2")
+      expect(screen.getByTestId("dashboard-participation-rate")).toHaveTextContent("0%")
+      expect(screen.getByTestId("dashboard-funding-year-2024")).toHaveTextContent(
+        "1 barangay still utilizing 2024 funds"
+      )
+      expect(screen.getByTestId("dashboard-funding-year-2022")).toHaveTextContent(
+        "1 barangay still utilizing 2022 funds"
+      )
+    })
+  })
+
+  it("shows inactive municipalities and barangays for provincial admins", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2024,
+        total_budget: 100_000,
+        progress_pct: 75,
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-panel")
+      ).toBeInTheDocument()
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-municipality-count")
+      ).toHaveTextContent("28")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-barangay-count")
+      ).toHaveTextContent("819")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-municipality-list")
+      ).toHaveTextContent("Abulug")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-barangay-list")
+      ).toHaveTextContent("Tuguegarao City — Centro 02")
     })
   })
 })
