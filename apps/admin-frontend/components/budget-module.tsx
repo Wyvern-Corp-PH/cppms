@@ -185,9 +185,11 @@ export function BudgetModule() {
   const canCreateAllocations = actor
     ? canAccess(actor, "budget_allocations.create")
     : true
-  const canCreateExpenses = actor
-    ? canAccess(actor, "budget_expenses.create")
-    : true
+  const canCreateExpenses =
+    actor &&
+    canAccess(actor, "budget_expenses.create") &&
+    actor.role !== "Barangay" &&
+    actor.role !== "Municipality"
 
   function clearAllocationUploads() {
     setMoaFiles([])

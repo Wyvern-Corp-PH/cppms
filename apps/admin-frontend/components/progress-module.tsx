@@ -26,6 +26,7 @@ import {
   parseRecordList,
   progressUpdateFormSchema,
   progressUpdateRecordSchema,
+  progressUpdateWithReleasedAmountFormSchema,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
@@ -63,6 +64,11 @@ import {
   type LocationFilterValue,
 } from "@/components/location-filter-controls"
 import { PageHeaderBand } from "@/components/page-header-band"
+import {
+  emptyReleasedAmountFormValue,
+  ReleasedAmountFields,
+  type ReleasedAmountFormValue,
+} from "@/components/released-amount-fields"
 import { SitePhoto } from "@/components/site-photo"
 import { SummaryCardRow } from "@/components/summary-card-row"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
@@ -135,6 +141,39 @@ function canUpdateProjectProgress(
   )
 }
 
+function requiresReleasedAmountForActor(
+  actor: ReturnType<typeof getPocketBase>["authStore"]["record"]
+) {
+  return actor?.role === "Barangay" || actor?.role === "Municipality"
+}
+
+function splitProgressFieldErrors(errors: Record<string, string>) {
+  const releasedAmountErrors: Record<string, string> = {}
+  const progressErrors: Record<string, string> = {}
+
+  for (const [key, message] of Object.entries(errors)) {
+    if (key.startsWith("releasedAmount.")) {
+      releasedAmountErrors[key.replace("releasedAmount.", "")] = message
+      continue
+    }
+    progressErrors[key] = message
+  }
+
+  return { progressErrors, releasedAmountErrors }
+}
+
+function toReleasedAmountInput(value: ReleasedAmountFormValue) {
+  return {
+    amount: value.amount,
+    year: value.releaseYear,
+    main_account: value.mainAccount,
+    sub_account: value.subAccount || undefined,
+    date: value.expenseDate,
+    receipt_number: value.receiptNumber || undefined,
+    description: value.expenseDescription || undefined,
+  }
+}
+
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
@@ -160,10 +199,17 @@ export function ProgressModule() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [releasedAmount, setReleasedAmount] = useState<ReleasedAmountFormValue>(
+    emptyReleasedAmountFormValue()
+  )
+  const [releasedAmountErrors, setReleasedAmountErrors] = useState<
+    Record<string, string>
+  >({})
   const actor = getPocketBase().authStore?.record
   const canCreateProgressUpdates = actor
     ? canAccess(actor, "progress_updates.create")
     : true
+  const requiresReleasedAmount = requiresReleasedAmountForActor(actor)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -263,6 +309,8 @@ export function ProgressModule() {
     setNotes("")
     setPhotos([])
     setCompletionDocs(emptyCompletionDocuments())
+    setReleasedAmount(emptyReleasedAmountFormValue())
+    setReleasedAmountErrors({})
     setFieldErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -297,19 +345,30 @@ export function ProgressModule() {
     }
 
     setFormError(null)
-    const parsed = progressUpdateFormSchema.safeParse({
+    const parseInput = {
       projectId: dialogProjectId,
       toPct,
       notes,
       sitePhoto: photos,
       completionDocs,
-    })
+      ...(requiresReleasedAmount
+        ? { releasedAmount: toReleasedAmountInput(releasedAmount) }
+        : {}),
+    }
+    const parsed = (
+      requiresReleasedAmount
+        ? progressUpdateWithReleasedAmountFormSchema
+        : progressUpdateFormSchema
+    ).safeParse(parseInput)
 
     if (!parsed.success) {
       const nextFieldErrors = fieldErrorsFromZod(parsed.error)
+      const { progressErrors, releasedAmountErrors: nextReleasedAmountErrors } =
+        splitProgressFieldErrors(nextFieldErrors)
       const nextFormError = firstZodError(parsed.error)
 
-      setFieldErrors(nextFieldErrors)
+      setFieldErrors(progressErrors)
+      setReleasedAmountErrors(nextReleasedAmountErrors)
       setFormError(
         Object.values(nextFieldErrors).includes(nextFormError)
           ? null
@@ -319,6 +378,7 @@ export function ProgressModule() {
     }
 
     setFieldErrors({})
+    setReleasedAmountErrors({})
     setSaving(true)
     const pb = getPocketBase()
     try {
@@ -351,6 +411,18 @@ export function ProgressModule() {
       }
 
       await pb.collection("progress_updates").create(formData)
+
+      if (
+        requiresReleasedAmount &&
+        "releasedAmount" in parsed.data &&
+        parsed.data.releasedAmount
+      ) {
+        await pb.collection("budget_expenses").create({
+          project: parsed.data.projectId,
+          ...parsed.data.releasedAmount,
+        })
+      }
+
       try {
         await pb.collection("projects").update(parsed.data.projectId, {
           progress_pct: parsed.data.toPct,
@@ -366,6 +438,7 @@ export function ProgressModule() {
       setDialogOpen(false)
       setPhotos([])
       setCompletionDocs(emptyCompletionDocuments())
+      setReleasedAmount(emptyReleasedAmountFormValue())
       await load()
     } catch (error) {
       setFormError(
@@ -512,7 +585,7 @@ export function ProgressModule() {
                     ) : null}
                   </ul>
                 ) : null}
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     size="sm"
@@ -699,6 +772,8 @@ export function ProgressModule() {
           if (!open) {
             setPhotos([])
             setCompletionDocs(emptyCompletionDocuments())
+            setReleasedAmount(emptyReleasedAmountFormValue())
+            setReleasedAmountErrors({})
             setFieldErrors({})
             setFormError(null)
           }
@@ -782,6 +857,22 @@ export function ProgressModule() {
                       />
                     )
                   })}
+                </div>
+              ) : null}
+              {requiresReleasedAmount ? (
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-sm font-medium">Released amount (required)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Record the funds released for this progress update.
+                  </p>
+                  <ReleasedAmountFields
+                    value={releasedAmount}
+                    onChange={setReleasedAmount}
+                    fieldErrors={releasedAmountErrors}
+                    idPrefix="progress-released"
+                    sectionTestId="progress-released-amount-fields"
+                    loadOptions={dialogOpen}
+                  />
                 </div>
               ) : null}
             </FieldGroup>

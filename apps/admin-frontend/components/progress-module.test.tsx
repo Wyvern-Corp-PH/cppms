@@ -7,6 +7,9 @@ const store = {
   updates: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
+  fundingYears: [] as Array<Record<string, unknown>>,
+  mainAccounts: [] as Array<Record<string, unknown>>,
+  subAccounts: [] as Array<Record<string, unknown>>,
   authRecord: {
     id: "current-user",
     email: "current@example.test",
@@ -18,6 +21,7 @@ const store = {
 
 const createMock = vi.fn()
 const updateMock = vi.fn()
+const expenseCreateMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
@@ -30,9 +34,17 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "progress_updates") return store.updates
         if (name === "locations") return store.locations
         if (name === "users") return store.users
+        if (name === "budget_funding_years") return store.fundingYears
+        if (name === "budget_fund_main_accounts") return store.mainAccounts
+        if (name === "budget_fund_sub_accounts") return store.subAccounts
         return []
       }),
-      create: createMock,
+      create: (payload: unknown) => {
+        if (name === "budget_expenses") {
+          return expenseCreateMock(payload)
+        }
+        return createMock(payload)
+      },
       update: updateMock,
     }),
   }),
@@ -126,6 +138,37 @@ describe("ProgressModule (V81, V84)", () => {
       },
     ]
     store.users = []
+    store.fundingYears = [
+      {
+        id: "fy1",
+        collectionId: "budget_funding_years",
+        collectionName: "budget_funding_years",
+        name: "2026",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.mainAccounts = [
+      {
+        id: "ma1",
+        collectionId: "budget_fund_main_accounts",
+        collectionName: "budget_fund_main_accounts",
+        name: "General Fund",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    store.subAccounts = [
+      {
+        id: "sa1",
+        collectionId: "budget_fund_sub_accounts",
+        collectionName: "budget_fund_sub_accounts",
+        name: "GF - Proper",
+        main_account: "General Fund",
+        active: true,
+        sort_order: 1,
+      },
+    ]
     store.authRecord = {
       id: "current-user",
       email: "current@example.test",
@@ -135,6 +178,7 @@ describe("ProgressModule (V81, V84)", () => {
     }
     createMock.mockReset().mockResolvedValue({})
     updateMock.mockReset().mockResolvedValue({})
+    expenseCreateMock.mockReset().mockResolvedValue({})
   })
 
   function makeFile(name: string, type = "application/pdf") {
@@ -186,6 +230,16 @@ describe("ProgressModule (V81, V84)", () => {
       account_status: "Active",
       ...barangayScope,
     }
+  }
+
+  async function fillRequiredReleasedAmount(
+    user: ReturnType<typeof userEvent.setup>
+  ) {
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
   }
 
   it("shows drag-and-drop site photo upload in update modal", async () => {
@@ -536,10 +590,19 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+        })
+      )
       expect(updateMock).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     })
@@ -610,10 +673,12 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
     })
     expect(
       screen.queryByText(/at least one file is required/i)
@@ -648,6 +713,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     expect(
@@ -688,10 +754,12 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site.jpg", "image/jpeg")
     )
     await uploadRequiredCompletionDocs(user)
+    await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
       expect(updateMock).toHaveBeenCalledWith("1", {
         progress_pct: 100,
         status: "Ready for Review",
@@ -755,10 +823,12 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-completion-liquidation_documents"),
       [makeFile("liquidation-1.pdf"), makeFile("liquidation-2.pdf")]
     )
+    await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
     })
     const payload = createMock.mock.calls[0]?.[0] as FormData
     expect(payload.getAll("site_photo")).toHaveLength(2)
@@ -798,5 +868,83 @@ describe("ProgressModule (V81, V84)", () => {
     expect(
       within(row).getByRole("button", { name: /view details/i })
     ).toBeInTheDocument()
+  })
+
+  it("submits progress and released amount together from the update modal", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
+
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.type(screen.getByLabelText(/^receipt number$/i), "007")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          receipt_number: "007",
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+        })
+      )
+    })
+  })
+
+  it("does not show embedded released amount fields for Province users", async () => {
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await screen.findByText("Bridge")
+    expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
   })
 })
