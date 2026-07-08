@@ -77,7 +77,7 @@ Cagayan PPMS — public read-only project monitoring + authenticated admin for t
 - Enums → `z.enum()` from manifest constants (§C Enums).
 - Public: parse-on-read (`safeParse` → fallback empty/skip bad row).
 - Admin: `safeParse` mutate payloads before `pb.collection().create|update`; form field errors from `ZodError`.
-- Login, approval approve/reject, progress update → shared schemas (V5, V6, V15).
+- Login, approval approve/reject, progress update (+ embedded released amount V216) → shared schemas (V5, V6, V15).
 
 **Enums**
 
@@ -148,6 +148,7 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 | ui lib | `packages/ui/components/*` (shadcn) |
 | zod | `packages/pocketbase/src/schemas/` — record + form schemas |
 | zod deps | `zod@4` in `@workspace/pocketbase`; apps import schemas only |
+| domain | `packages/pocketbase/src/domain/` — `inactive-locations.ts` (V221), `barangay-participation.ts` (V218,V219) |
 | `format-display-date.ts` | `formatDisplayDate` + `formatDisplayDateTime` — en-US `MMM D, YYYY` (V97) |
 | seed | `packages/pocketbase/scripts/seed-dev.ts`, `src/seed/dev-fixtures.ts`, `src/seed/cagayan-locations.ts`; `bun run seed:dev` |
 | deploy | `.github/workflows/deploy.yml` — GHCR build/push, direct EC2 `rsync`/`scp`, backup/smoke/rollback |
@@ -178,7 +179,10 @@ Canonical tree stored in `src/seed/cagayan-locations.ts`: 29 municipalities + 82
 |---|---|
 | `admin-shell.tsx` | sidebar + top bar + theme toggle → header band shell |
 | `theme-toggle.tsx` | sun/moon in admin top bar |
-| `dashboard-module.tsx` | KPI trend cards + widget grid |
+| `dashboard-module.tsx` | KPI trend cards + widget grid + participation/inactive-location panels |
+| `inactive-locations-panel.tsx` | dashboard panel — municipalities/barangays w/ zero projects (V221) |
+| `released-amount-fields.tsx` | shared V80 Released Amount field group; embedded in progress update + Budget modal |
+| `released-amount-dialog.tsx` | Budget-module Released Amount modal shell (Province/Super Admin) |
 | `projects-module.tsx` | project cards V72, filters V73, CRUD modal |
 | `budget-module.tsx` | 4 summary cards + breakdown + allocation/expense tabs |
 | `progress-module.tsx` | 4 summary cards + list + detail panel + update modal |
@@ -265,7 +269,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 **UI surfaces** (per module — detail in §V)
 
 - **App shell** (admin): icon sidebar + breadcrumb top bar + theme icon toggle + Sign out; ⊥ global search v1; page header band + optional Live pill; mobile drawer.
-- **Dashboard** (`/dashboard`): page header + alert if approval queue; visible filters — date/date range From/To, municipality, barangay; KPI cards w/ value + trend + footer line + drill chevron; 2×2 widgets — budget split, progress buckets, deadline heatmap (real project data), quick links; all dashboard metrics/widgets obey filters.
+- **Dashboard** (`/dashboard`): page header + alert if approval queue; visible filters — date/date range From/To, municipality, barangay; KPI cards w/ value + trend + footer line + drill chevron; 2×2 widgets — budget split, progress buckets, deadline heatmap (real project data), quick links; all dashboard metrics/widgets obey filters; barangay participation + funding-year breakdown panels (V218,V219); inactive locations panel — municipalities + barangays w/ zero projects, Super Admin/Province only (V221).
 
 **Projects** (`/projects`) — admin (V72–V74,V50,V172–V176,V187)
 
@@ -282,13 +286,13 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 - Allocations tab: cols project, amount (green/+), year, description, date, allocated_by display name; `+ Allocate` → modal (project, amount, year default current, description, Required documents section w/ labeled V102 uploads).
 - Released Amount tab: cols project, amount (red/−), year, main_account, sub_account, date, receipt_number, description; `+ Released Amount` → modal (project, amount, receipt_number, Fund Source section label only, Year dropdown, Main account dropdown, conditional child control per V157/V178/V190, expense date, description).
 
-**Progress** (`/progress`) — admin (V6,V7,V8,V81–V84,V150,V155,V199)
+**Progress** (`/progress`) — admin (V6,V7,V8,V81–V84,V150,V155,V199,V216)
 
 - Summary: 4 cards — Active Projects, On Track (≥50%), Needs Attention (<25%), Updates Today.
 - Filters: status, category, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` + `lgu_level` ⊥ filter.
-- List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress when actor may update scoped progress (Municipality own municipality or Barangay own barangay for Planning/Procurement/Ongoing/For Revision; admin where policy allows); Completed/Approved/Rejected read-only.
+- List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress when actor may update scoped progress (Municipality own municipality or Barangay own barangay for Planning/Procurement/Ongoing/For Revision; admin where policy allows); Completed/Approved/Rejected read-only; ⊥ standalone `Update released amount` CTA (V216).
 - Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by display name; latest revision note shown when status For Revision; Update Progress CTA bottom when actor may update per V199.
-- Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 multi-file upload; notes textarea; if target progress = 100%, completion docs V110 required before Save; Save + Cancel. Saving a project at 100% with required docs sets status Ready for Review for Province review.
+- Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 multi-file upload; notes textarea; Barangay/Municipality actors also see embedded Released Amount section (V80 fields, project locked, required every save) per V216; if target progress = 100%, completion docs V110 required before Save; Save + Cancel. Save submits `progress_updates.create` then `budget_expenses.create`; saving at 100% w/ required docs sets status Ready for Review for Province review.
 
 **Approvals** (`/approvals`) — admin only (V3,V4,V5,V13,V85–V87,V150,V155,V158,V159,V199)
 
@@ -327,8 +331,8 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
   - Reports: project/budget/progress/approval create/update/delete actions visible/exportable by Super Admin only.
 
 - **Public shell**: logo left; header right — theme toggle + Admin CTA (links admin login); ⊥ pill nav / module links (V100); landing full-bleed bands; footer Sections → `/projects`.
-- **Public landing** (`/`): centered hero + eyebrow badge + Admin CTA + admin portal preview frame (sidebar + projects list silhouette, live names when loaded) + subtle lavender radial; carousel recent N dup auto-scroll pause hover; enriched cards; accountability; ⊥ explore divide-y list (V31).
-- **Public /projects**: read-only projects list (V72,V73,V123); municipality + barangay filters; free-form `location` ⊥ filter; ⊥ Edit/Delete/New (V2,J3,J8).
+- **Public landing** (`/`): centered hero + eyebrow badge + Admin CTA + admin portal preview frame (sidebar + projects list silhouette, live names when loaded) + subtle lavender radial; carousel recent N dup auto-scroll pause hover; enriched cards; accountability + provincial participation/funding-year stats (V218,V219); ⊥ explore divide-y list (V31).
+- **Public /projects**: read-only projects list (V72,V73,V123); municipality + barangay filters; free-form `location` ⊥ filter; participation KPI header tiles + stats panel (V218,V219); ⊥ Edit/Delete/New (V2,J3,J8).
 - **Public module pages**: skeleton loading (V24); dashed empty + hint (V25); dark/light tokens (V60,V61); PB realtime + Live pill (V62–V67).
 
 ## §V
@@ -416,7 +420,7 @@ V80: Allocate modal: project, amount, year (default current), description, 3 doc
 V81: Progress summary = 4 cards: active projects (status ∈ Planning|Procurement|Ongoing|For Revision), on track (V8), needs attention (V7), updates today (progress_updates dated today).
 V82: Progress list row: status badge, location, lgu_level, progress %, dates, contractor, last_updated; inline preview last 3 updates + "View all N updates" link.
 V83: Progress detail panel: full project context + chronological update history; admin Update Progress CTA at bottom.
-V84: Progress update modal: slider 0–100% w/ markers 0/25/50/75/100; site_photo required (V6); notes textarea.
+V84: Progress update modal: slider 0–100% w/ markers 0/25/50/75/100; site_photo required (V6); notes textarea; Barangay/Municipality actors also see embedded Released Amount section (V80, project locked, required every save) per V216.
 V85: Approvals summary = 4 cards: pending approval count, for revision count, approved count, rejected count.
 V86: Approvals tabs: Completion Approval | For Revision | Approved | Rejected.
 V87: Approval queue card: budget utilization bar (spent + saved), progress update count, site photo carousel (V96) when photos on file.
@@ -479,7 +483,7 @@ V143: Admin project location comboboxes tolerate partial/legacy PB location rows
 V144: Dev seed includes role simulation users for Province, Municipality, Barangay, and inactive account; seed upserts by email, sets role/status/scope/password, and password is env-overridable via `SEED_SAMPLE_USER_PASSWORD`.
 V145: Dev seed demo activity runs through sample users: privileged sample auth creates demo project interactions; allocation/progress/approval rows are attributed to that sample user when relation fields exist.
 V146: Portal dropdown overlays (`Select`, `Popover`, `DropdownMenu`, `Combobox`) use shared `--z-overlay` token > `--z-modal`; raw `z-50` ⊥ in those primitives so dialog-contained selects/popovers render above dialog content.
-V147: Admin New/Edit Project municipality/barangay command lists are scrollable: list max-height respects popover/dialog available height at common zoom levels, uses `overflow-y-auto` + `overscroll-contain`; long Cagayan barangay lists never trap page/modal scroll.
+V147: Admin New/Edit Project municipality/barangay command lists are scrollable: list max-height respects popover/dialog available height at common zoom levels, uses `overflow-y-auto` + `overscroll-contain`; visible scrollbar or platform scroll affordance (⊥ `no-scrollbar` on location combobox lists); wheel + touch reach all options inside dialog-contained popovers; long Cagayan barangay lists never trap page/modal scroll.
 V148: Public `/projects` mirrors admin project location surface: no `lgu_level` filter/card display; filters are 2 dropdowns (`Municipality`, `Barangay`) from active location hierarchy; cards show municipality/barangay + free-form location + category.
 V149: Admin UI relation fields rendered to humans (`allocated_by`, `updated_by`, `approved_by`, audit actor/target where shown) resolve user id → user `name` then `email`; fallback id/placeholder only when user row unavailable.
 V150: Admin Budget/Progress/Approvals/Reports filters use project municipality+barangay hierarchy, not generic `location`/`lgu_level`: dropdowns load active PB `locations`; barangay disabled/All until municipality selected; selected barangay resets when municipality changes; filters combine w/ module status/category/project/year/date/search filters and apply to all visible summaries/tables/cards/exports.
@@ -548,6 +552,12 @@ V212: Reset password UI/tests/hooks ⊥ call `requestPasswordReset`/`confirmPass
 V213: Password entry UIs (`/change-password` new password, `/users` create initial password) show shared requirements via `FieldDescription` (`PASSWORD_REQUIREMENTS_TEXT`); zod min length = `PASSWORD_MIN_LENGTH` (8).
 V214: Temp password reveal modal Copy uses `copyTextToClipboard` (clipboard API + `execCommand` fallback); success → visible `Copied!` + updated aria-label; Vitest+RTL asserts clipboard write.
 V215: `users.updateRule` = Super Admin full update OR authenticated self-update when `@request.body.oldPassword:isset` (forced/voluntary password change w/o manageRule); repair migration `1740000027_users_self_password_update_rule.js`; ⊥ Super-Admin-only updateRule blocking V210.
+V216: Progress update modal (V84) embeds full Released Amount form section (V80 fields, project locked to project being updated) for Barangay/Municipality actors on in-scope editable projects; released amount required on every progress save; single Save submits `progress_updates.create` then `budget_expenses.create`; row visible in Budget Released Amount table; ⊥ standalone `Update released amount` CTA on Progress list/detail; ⊥ Budget-module `+ Released Amount` for Barangay/Municipality.
+V217: Barangay/Municipality scoped actors may `budget_expenses.create` only during in-scope progress update submit (V216); Province/Super Admin keep Budget-module fund-release path; update/delete `budget_expenses` stays Province/Super Admin only.
+V218: Dashboard admin + public surfaces show barangay participation stats: total barangays baseline 820 (V139), barangays w/ ≥1 project, barangays w/ no projects yet, participation rate %; copy may say `N out of 820 barangays have not created any projects yet`.
+V219: Dashboard admin + public surfaces show funding-year breakdown: per `projects.budget_year`, count unique barangays w/ active projects (status ∈ Planning|Procurement|Ongoing|For Revision); optional selected-year count copy `N barangays still utilizing YYYY funds`.
+V220: Released Amount fields shared (`released-amount-fields.tsx`) reused by Budget modal (`released-amount-dialog.tsx`) + Progress update modal embedded section; fields match V80 Fund Source section; Vitest+RTL covers progress save → `progress_updates.create` + `budget_expenses.create`.
+V221: Admin dashboard (Super Admin + Province only) shows Inactive Locations panel w/ two scrollable sections: (1) municipalities w/ zero projects (2) barangays w/ zero projects; baseline 29 municipalities + 820 barangays (V139); lists obey dashboard municipality/barangay filters; domain helper `inactive-locations.ts`; ⊥ on Municipality/Barangay dashboards.
 
 ## §T
 
@@ -665,6 +675,11 @@ V215: `users.updateRule` = Super Admin full update OR authenticated self-update 
 | T110 | x | PB audit hook: Super Admin temp password set → `activity_logs.action=reset_password`; redact password fields | V16,V124,V128,V212,audit-ownership.test.ts |
 | T111 | x | password requirements UI on password fields + fix temp password Copy w/ fallback/feedback; red-first Vitest+RTL | V16,V19,V181,V213,V214,password-policy.test.ts,copy-to-clipboard.test.ts,change-password-form.test.tsx,user-management-module.test.tsx |
 | T112 | x | PB repair migration: users self password updateRule for forced change (V210); manifest regression | V16,V133,V134,V210,V215,manifest.test.ts |
+| T113 | x | Progress → Released Amount: shared modal, Barangay/Municipality create policy + PB rule, progress CTA w/ locked project | V16,V19,V216,V217,progress-module.test.tsx,access-control.test.ts |
+| T114 | x | Dashboard + public participation/funding-year stats from `barangay-participation` domain | V16,V19,V218,V219,dashboard-module.test.tsx,public-projects.test.tsx,barangay-participation.test.ts |
+| T115 | x | embed required Released Amount (V80) in progress update modal; remove Progress standalone CTA; deny Budget +Released Amount for Barangay/Municipality; red-first Vitest+RTL+journey | V16,V19,V216,V217,V220,progress-module.test.tsx,forms.test.ts,access-control.test.ts,J18 |
+| T116 | x | inactive locations domain + dashboard panel (municipality + barangay sections); Super Admin/Province only | V16,V19,V221,dashboard-module.test.tsx,inactive-locations.test.ts,J19 |
+| T117 | x | fix project location combobox manual scroll: visible scrollbar, wheel/touch in dialog; remove no-scrollbar on location lists | V16,V19,V147,command.tsx,projects-module.test.tsx |
 
 ## §B
 
@@ -743,3 +758,5 @@ V215: `users.updateRule` = Super Admin full update OR authenticated self-update 
 | B71 | 2026-07-06 | `requestPasswordReset` depends on PB mailer/SMTP; deploy has no reliable email/SMS → reset emails never reach barangay/municipality users | admin-assisted temp password reset + forced change on login; ⊥ email/SMS recovery | V208–V212,T107–T110 |
 | B72 | 2026-07-06 | temp password Copy called `navigator.clipboard.writeText` only — no fallback/feedback → silent fail in dev/non-secure contexts; password UIs lacked visible requirements | `copyTextToClipboard` w/ execCommand fallback + Copied! state; `PasswordRequirements` + shared `PASSWORD_MIN_LENGTH` | V213,V214,T111 |
 | B73 | 2026-07-06 | `users.updateRule` Super Admin only after PBAC migrations; non–Super Admin forced change PATCH → PB 404 `sql: no rows in result set` despite valid temp password | migration `1740000027` adds self-update when `oldPassword` in body; keeps Super Admin full update | V210,V215,T112 |
+| B74 | 2026-07-09 | municipality/barangay popover in New Project dialog shows truncated list w/o scroll affordance; `no-scrollbar` hides scrollbar; wheel/touch may not reach lower options | remove `no-scrollbar` from location CommandList; ensure `overflow-y-auto` + all items reachable; Vitest+RTL scroll regression | V147,T117 |
+| B75 | 2026-07-09 | T113 landed standalone `Update released amount` CTA; user requires full V80 form embedded in progress update modal, required every save | amend V216; embed `released-amount-fields` in Update Progress modal; remove standalone CTA; deny Budget +Released Amount for scoped roles | V216,V217,T115 |
