@@ -149,36 +149,47 @@ export const budgetAllocationMutateSchema = z.object({
 
 const mainAccountsRequiringSubAccount = new Set(["General Fund", "Trust Fund"])
 
-export const budgetExpenseMutateSchema = z
-  .object({
-    project: z.string().min(1, "Project is required."),
-    amount: z.coerce.number().positive("Amount must be greater than zero."),
-    year: z.coerce.number().int().min(2000).max(2100),
-    main_account: z.string().trim().min(1, "Main account is required."),
-    sub_account: z.string().optional(),
-    date: z.string().min(1),
-    receipt_number: z.string().optional(),
-    description: z.string().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.main_account === "Others" && !value.sub_account?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["sub_account"],
-        message: "Other purpose is required.",
-      })
-    }
-    if (
-      mainAccountsRequiringSubAccount.has(value.main_account) &&
-      !value.sub_account?.trim()
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["sub_account"],
-        message: "Sub account is required.",
-      })
-    }
-  })
+const budgetExpenseBaseSchema = z.object({
+  project: z.string().min(1, "Project is required."),
+  amount: z.coerce.number().positive("Amount must be greater than zero."),
+  year: z.coerce.number().int().min(2000).max(2100),
+  main_account: z.string().trim().min(1, "Main account is required."),
+  sub_account: z.string().optional(),
+  date: z.string().min(1),
+  receipt_number: z.string().optional(),
+  description: z.string().optional(),
+})
+
+function refineBudgetExpenseSubAccount(
+  value: { main_account: string; sub_account?: string },
+  ctx: z.RefinementCtx
+) {
+  if (value.main_account === "Others" && !value.sub_account?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sub_account"],
+      message: "Other purpose is required.",
+    })
+  }
+  if (
+    mainAccountsRequiringSubAccount.has(value.main_account) &&
+    !value.sub_account?.trim()
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sub_account"],
+      message: "Sub account is required.",
+    })
+  }
+}
+
+export const budgetExpenseMutateSchema = budgetExpenseBaseSchema.superRefine(
+  refineBudgetExpenseSubAccount
+)
+
+export const releasedAmountInputSchema = budgetExpenseBaseSchema
+  .omit({ project: true })
+  .superRefine(refineBudgetExpenseSubAccount)
 
 export const progressUpdateFormSchema = z
   .object({
@@ -208,6 +219,11 @@ export const progressUpdateFormSchema = z
         })
       }
     }
+  })
+
+export const progressUpdateWithReleasedAmountFormSchema =
+  progressUpdateFormSchema.extend({
+    releasedAmount: releasedAmountInputSchema,
   })
 
 export const approvalFormSchema = z
@@ -297,5 +313,9 @@ export type BudgetAllocationMutateInput = z.infer<
 >
 export type BudgetExpenseMutateInput = z.infer<typeof budgetExpenseMutateSchema>
 export type ProgressUpdateFormInput = z.infer<typeof progressUpdateFormSchema>
+export type ProgressUpdateWithReleasedAmountFormInput = z.infer<
+  typeof progressUpdateWithReleasedAmountFormSchema
+>
+export type ReleasedAmountInput = z.infer<typeof releasedAmountInputSchema>
 export type ApprovalFormInput = z.infer<typeof approvalFormSchema>
 export type UserAccountFormInput = z.infer<typeof userAccountFormSchema>

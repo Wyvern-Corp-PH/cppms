@@ -148,6 +148,18 @@ describe("access control (V115-V121)", () => {
           municipality: "Tuguegarao City",
           barangay: "Centro 01",
         },
+        "budget_expenses.create"
+      )
+    ).toBe(true)
+    expect(
+      canAccess(
+        {
+          id: "b1",
+          role: "Barangay",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01",
+        },
         "projects.update"
       )
     ).toBe(false)

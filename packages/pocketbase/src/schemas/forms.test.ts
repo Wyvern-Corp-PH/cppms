@@ -6,6 +6,7 @@ import {
   changePasswordFormSchema,
   loginFormSchema,
   progressUpdateFormSchema,
+  progressUpdateWithReleasedAmountFormSchema,
   projectMutateSchema,
   userAccountFormSchema,
 } from "./forms"
@@ -195,6 +196,29 @@ describe("budgetExpenseMutateSchema (V34, V157)", () => {
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
+  it("requires released amount fields for scoped progress updates", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: {
+        amount: "",
+        year: "2026",
+        main_account: "",
+        date: "2026-07-09",
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const errors = fieldErrorsFromZod(result.error)
+      expect(errors["releasedAmount.amount"]).toMatch(/greater than zero/i)
+      expect(errors["releasedAmount.main_account"]).toMatch(/required/i)
+    }
   })
 })
 

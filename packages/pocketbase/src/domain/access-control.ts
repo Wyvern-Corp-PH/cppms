@@ -49,12 +49,14 @@ const BARANGAY_POLICIES: readonly PolicyKey[] = [
   "progress_updates.create",
   "progress_updates.update",
   "progress_updates.delete",
+  "budget_expenses.create",
 ]
 
 const MUNICIPALITY_POLICIES: readonly PolicyKey[] = [
   "progress_updates.create",
   "progress_updates.update",
   "progress_updates.delete",
+  "budget_expenses.create",
   "reports.view",
 ]
 
