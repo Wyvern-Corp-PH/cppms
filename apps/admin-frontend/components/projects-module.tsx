@@ -230,7 +230,7 @@ function LocationCombobox({
       >
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList className="max-h-[min(16rem,var(--radix-popover-content-available-height))] overscroll-contain">
+          <CommandList className="max-h-[min(16rem,var(--radix-popover-content-available-height))] overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
               <CommandItem

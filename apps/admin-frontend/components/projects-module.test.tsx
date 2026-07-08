@@ -587,6 +587,7 @@ describe("ProjectsModule (J4)", () => {
     expect(list).toHaveClass("overscroll-contain")
     expect(list?.className).toContain("max-h-[min(")
     expect(list).toHaveClass("overflow-y-auto")
+    expect(list?.className).not.toContain("no-scrollbar")
   })
 
   it("keeps status change dialog responsive at zoomed viewports", async () => {
