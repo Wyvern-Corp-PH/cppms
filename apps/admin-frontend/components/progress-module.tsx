@@ -410,17 +410,29 @@ export function ProgressModule() {
         appendCompletionDocuments(formData)
       }
 
-      await pb.collection("progress_updates").create(formData)
+      const progressRecord = await pb.collection("progress_updates").create(formData)
 
       if (
         requiresReleasedAmount &&
         "releasedAmount" in parsed.data &&
         parsed.data.releasedAmount
       ) {
-        await pb.collection("budget_expenses").create({
-          project: parsed.data.projectId,
-          ...parsed.data.releasedAmount,
-        })
+        try {
+          await pb.collection("budget_expenses").create({
+            project: parsed.data.projectId,
+            ...parsed.data.releasedAmount,
+          })
+        } catch (error) {
+          try {
+            await pb.collection("progress_updates").delete(progressRecord.id)
+          } catch (rollbackError) {
+            console.warn(
+              "Progress update saved, but released amount rollback failed.",
+              rollbackError
+            )
+          }
+          throw error
+        }
       }
 
       try {
