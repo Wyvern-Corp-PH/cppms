@@ -265,6 +265,7 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 | J14 | admin Projects import template + multi-file Excel upload partially imports valid rows and reports row/file errors | admin |
 | J15 | Super Admin creates user → new account appears in `/users` list without reload | admin |
 | J16 | Province requests revision on ready project → Barangay can update progress/details → resubmits to review queue | admin |
+| J18 | Barangay/Municipality progress update w/ embedded Released Amount → row appears in Budget Released Amount tab within actor scope | admin |
 
 **UI surfaces** (per module — detail in §V)
 
@@ -292,7 +293,15 @@ pb_hooks → server-side audit hook on user/project/budget/progress/approval/loc
 - Filters: status, category, municipality, barangay, date range From/To; barangay options scoped by municipality; free-form `location` + `lgu_level` ⊥ filter.
 - List per project: name, status badge, location, lgu_level, progress bar + %, start_date, target_end_date, contractor, last_updated; recent 3 updates inline (e.g. 80%→90%, notes, date) + "View all N updates"; View Details + Update Progress when actor may update scoped progress (Municipality own municipality or Barangay own barangay for Planning/Procurement/Ongoing/For Revision; admin where policy allows); Completed/Approved/Rejected read-only; ⊥ standalone `Update released amount` CTA (V216).
 - Detail panel (side): name, location, category, lgu_level, timeline, status, overall progress bar; chronological history — from%→to%, datetime, notes, site_photo?, updated_by display name; latest revision note shown when status For Revision; Update Progress CTA bottom when actor may update per V199.
-- Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 multi-file upload; notes textarea; Barangay/Municipality actors also see embedded Released Amount section (V80 fields, project locked, required every save) per V216; if target progress = 100%, completion docs V110 required before Save; Save + Cancel. Save submits `progress_updates.create` then `budget_expenses.create`; saving at 100% w/ required docs sets status Ready for Review for Province review.
+- Update Progress modal: project name + current %; slider 0–100% w/ markers 0/25/50/75/100; site_photo required (JPG,PNG,WebP) via V102 multi-file upload; notes textarea; Barangay/Municipality actors also see embedded Released Amount section (V80 fields, project locked, required every save) per V216; if target progress = 100%, completion docs V110 required before Save; Save + Cancel. Save submits `progress_updates.create` then `budget_expenses.create` (V222); synced row auto-appears in Budget Released Amount tab (V223); saving at 100% w/ required docs sets status Ready for Review for Province review.
+
+**Progress ↔ Budget auto-sync** — admin (V216–V217,V222–V225)
+
+- Trigger: Barangay Admin or Municipal Admin submits Update Progress modal w/ required embedded Released Amount (V216).
+- Effect: single Save creates `progress_updates` row then `budget_expenses` row — same `project`, V80 field mapping (`amount`, `year`, `main_account`, `sub_account`, `date`, `receipt_number`, `description`); ⊥ manual re-entry in Budget module.
+- Budget visibility: new row in Released Amount tab (V79 cols, red signed amount V10); Budget summary "Amount released" + breakdown spend (V75–V76) include synced row after module load/refetch or PB realtime (V64).
+- Access scope (V160,V217): Barangay sees synced rows for own barangay projects only; Municipality sees own municipality; Province/Super Admin see all; scoped actors ⊥ Budget-module `+ Released Amount` standalone path.
+- Province progress updates: embedded Released Amount ⊥; Province fund releases stay Budget-module modal only (V217).
 
 **Approvals** (`/approvals`) — admin only (V3,V4,V5,V13,V85–V87,V150,V155,V158,V159,V199)
 
@@ -558,6 +567,10 @@ V218: Dashboard admin + public surfaces show barangay participation stats: total
 V219: Dashboard admin + public surfaces show funding-year breakdown: per `projects.budget_year`, count unique barangays w/ active projects (status ∈ Planning|Procurement|Ongoing|For Revision); optional selected-year count copy `N barangays still utilizing YYYY funds`.
 V220: Released Amount fields shared (`released-amount-fields.tsx`) reused by Budget modal (`released-amount-dialog.tsx`) + Progress update modal embedded section; fields match V80 Fund Source section; Vitest+RTL covers progress save → `progress_updates.create` + `budget_expenses.create`.
 V221: Admin dashboard (Super Admin + Province only) shows Inactive Locations panel w/ two scrollable sections: (1) municipalities w/ zero projects (2) barangays w/ zero projects; baseline 29 municipalities + 820 barangays (V139); lists obey dashboard municipality/barangay filters; domain helper `inactive-locations.ts`; ⊥ on Municipality/Barangay dashboards.
+V222: Progress→Budget auto-sync: Barangay/Municipality Update Progress Save (V216) creates `progress_updates` then `budget_expenses` in one user action — same `project`, V80 field mapping via `toReleasedAmountInput`, project locked in embedded form; Province progress save ⊥ auto expense; ⊥ duplicate manual Budget entry for scoped roles.
+V223: Synced Released Amount row visibility: successful dual create → row in Budget Released Amount tab (V79) + included in Budget summary/breakdown aggregates (V75–V76); scoped list/filter per V160 — Barangay own barangay, Municipality own municipality, Province/Super Admin all; PB realtime/refetch (V64) updates Budget module without full page reload.
+V224: Sync fail-closed: if `budget_expenses.create` fails after `progress_updates.create`, UI shows user-visible error, Save dialog stays open, user may retry expense fields; compensating `progress_updates.delete` rolls back orphan progress row; delete failure → console.warn only.
+V225: Sync test coverage (TDD, Vitest+RTL, ⊥ Playwright/Cypress per §C): red-first component tests for Barangay + Municipality embedded save → both PB creates; `progress-module.test.tsx` asserts field mapping; journey J18 asserts Budget Released Amount tab shows synced row in-scope; budget-module scoped filter test covers cross-module visibility; selectors via role/label/`data-testid` (V19).
 
 ## §T
 
@@ -680,6 +693,9 @@ V221: Admin dashboard (Super Admin + Province only) shows Inactive Locations pan
 | T115 | x | embed required Released Amount (V80) in progress update modal; remove Progress standalone CTA; deny Budget +Released Amount for Barangay/Municipality; red-first Vitest+RTL+journey | V16,V19,V216,V217,V220,progress-module.test.tsx,forms.test.ts,access-control.test.ts,J18 |
 | T116 | x | inactive locations domain + dashboard panel (municipality + barangay sections); Super Admin/Province only | V16,V19,V221,dashboard-module.test.tsx,inactive-locations.test.ts,J19 |
 | T117 | x | fix project location combobox manual scroll: visible scrollbar, wheel/touch in dialog; remove no-scrollbar on location lists | V16,V19,V147,command.tsx,projects-module.test.tsx |
+| T118 | x | Vitest+RTL: Municipality actor progress save w/ embedded Released Amount → `budget_expenses.create` w/ V80 mapping | V16,V19,V216,V222,progress-module.test.tsx |
+| T119 | x | Journey J18: Barangay/Municipality progress update → Budget Released Amount tab shows synced row in actor scope | V16,V18,V19,V223,V225,J18,j18-progress-budget-sync.test.tsx |
+| T120 | x | Sync fail-closed + orphan repair: expense create failure surfaces error, dialog stays open; compensating delete for progress-only orphan | V16,V19,V224,progress-module.test.tsx |
 
 ## §B
 
@@ -760,3 +776,4 @@ V221: Admin dashboard (Super Admin + Province only) shows Inactive Locations pan
 | B73 | 2026-07-06 | `users.updateRule` Super Admin only after PBAC migrations; non–Super Admin forced change PATCH → PB 404 `sql: no rows in result set` despite valid temp password | migration `1740000027` adds self-update when `oldPassword` in body; keeps Super Admin full update | V210,V215,T112 |
 | B74 | 2026-07-09 | municipality/barangay popover in New Project dialog shows truncated list w/o scroll affordance; `no-scrollbar` hides scrollbar; wheel/touch may not reach lower options | remove `no-scrollbar` from location CommandList; ensure `overflow-y-auto` + all items reachable; Vitest+RTL scroll regression | V147,T117 |
 | B75 | 2026-07-09 | T113 landed standalone `Update released amount` CTA; user requires full V80 form embedded in progress update modal, required every save | amend V216; embed `released-amount-fields` in Update Progress modal; remove standalone CTA; deny Budget +Released Amount for scoped roles | V216,V217,T115 |
+| B76 | 2026-07-09 | T115 cites journey J18 but no `j18-*.test.tsx`; cross-module Budget visibility + Municipality actor sync tests incomplete; expense failure can orphan progress row | add V222–V225; T118–T120; J18 journey; fail-closed repair | V224,V225,T118,T119,T120 |
