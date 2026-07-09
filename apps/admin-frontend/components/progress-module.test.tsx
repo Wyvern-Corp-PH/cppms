@@ -22,6 +22,7 @@ const store = {
 const createMock = vi.fn()
 const updateMock = vi.fn()
 const expenseCreateMock = vi.fn()
+const deleteMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
@@ -46,6 +47,7 @@ vi.mock("@/lib/pocketbase", () => ({
         return createMock(payload)
       },
       update: updateMock,
+      delete: deleteMock,
     }),
   }),
 }))
@@ -176,9 +178,14 @@ describe("ProgressModule (V81, V84)", () => {
       role: "Province",
       account_status: "Active",
     }
-    createMock.mockReset().mockResolvedValue({})
+    createMock.mockReset().mockResolvedValue({
+      id: "pu-new",
+      collectionId: "updates",
+      collectionName: "progress_updates",
+    })
     updateMock.mockReset().mockResolvedValue({})
     expenseCreateMock.mockReset().mockResolvedValue({})
+    deleteMock.mockReset().mockResolvedValue({})
   })
 
   function makeFile(name: string, type = "application/pdf") {
@@ -229,6 +236,17 @@ describe("ProgressModule (V81, V84)", () => {
       role: "Barangay",
       account_status: "Active",
       ...barangayScope,
+    }
+  }
+
+  function useMunicipalityActor() {
+    store.authRecord = {
+      id: "municipality-user",
+      email: "municipality@example.test",
+      name: "Current Municipality User",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
     }
   }
 
@@ -946,5 +964,91 @@ describe("ProgressModule (V81, V84)", () => {
     await screen.findByText("Bridge")
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
     expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+  })
+
+  it("saves Municipality progress updates with embedded released amount sync", async () => {
+    const user = userEvent.setup()
+    useMunicipalityActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 40,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+        })
+      )
+    })
+  })
+
+  it("rolls back progress update and keeps dialog open when released amount sync fails", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    expenseCreateMock.mockRejectedValueOnce(new Error("Released amount sync failed"))
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+      expect(deleteMock).toHaveBeenCalledWith("pu-new")
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
+    })
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })
