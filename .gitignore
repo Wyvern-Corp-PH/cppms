@@ -47,6 +47,7 @@ next-env.d.ts
 
 #Cursor
 .cursor
+.runs
 AGENTS.md
 PLAYBOOK.md
 skills-lock.json

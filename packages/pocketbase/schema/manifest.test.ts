@@ -132,6 +132,11 @@ const usersSelfPasswordUpdateRuleMigrationPath = resolve(
   "pb_migrations",
   "1740000027_users_self_password_update_rule.js"
 )
+const budgetExpensesScopedCreateRuleMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000028_budget_expenses_scoped_create_rule.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -629,6 +634,31 @@ describe("collection access rules (V14, T8)", () => {
     expect(migrationSource).toContain("@request.auth.id = id")
     expect(migrationSource).toContain("@request.body.oldPassword:isset = true")
     expect(migrationSource).toContain("Super Admin")
+  })
+
+  it("widens budget_expenses createRule for scoped Municipality and Barangay (V217)", () => {
+    const migrationSource = readFileSync(
+      budgetExpensesScopedCreateRuleMigrationPath,
+      "utf8"
+    )
+
+    expect(migrationSource).toContain("budget_expenses")
+    expect(migrationSource).toContain("createRule")
+    expect(migrationSource).toContain('role = "Municipality"')
+    expect(migrationSource).toContain('role = "Barangay"')
+    expect(migrationSource).toContain("project.municipality = @request.auth.municipality")
+    expect(migrationSource).toContain(
+      "project.barangay = @request.auth.barangay"
+    )
+    expect(migrationSource).toContain(
+      "expenses.createRule = BUDGET_EXPENSE_CREATE_RULE"
+    )
+    expect(migrationSource).toContain(
+      "expenses.updateRule = SUPER_ADMIN_OR_PROVINCE_RULE"
+    )
+    expect(migrationSource).toContain(
+      "expenses.deleteRule = SUPER_ADMIN_OR_PROVINCE_RULE"
+    )
   })
 })
 
