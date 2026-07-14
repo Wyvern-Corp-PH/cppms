@@ -47,3 +47,6 @@ next-env.d.ts
 
 #Cursor
 .cursor
+AGENTS.md
+PLAYBOOK.md
+skills-lock.json
