@@ -1,5 +1,5 @@
 # Monorepo deps — cached until lockfiles change
-FROM oven/bun:canary-alpine AS deps
+FROM oven/bun:1.3.13-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/admin-frontend/package.json ./apps/admin-frontend/
@@ -11,7 +11,7 @@ COPY packages/pocketbase/package.json ./packages/pocketbase/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 
-FROM oven/bun:canary-alpine AS base
+FROM oven/bun:1.3.13-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache wget
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,7 +20,7 @@ COPY apps ./apps
 COPY packages ./packages
 
 # -------- Development (source + node_modules from compose volumes) --------
-FROM oven/bun:canary-alpine AS development
+FROM oven/bun:1.3.13-alpine AS development
 RUN apk add --no-cache wget
 WORKDIR /app
 ENV HOSTNAME=0.0.0.0
