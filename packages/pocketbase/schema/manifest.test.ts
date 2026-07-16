@@ -42,6 +42,16 @@ const rulesMigrationPath = resolve(
 const seedScriptPath = resolve(packageRoot, "scripts", "seed-dev.ts")
 const auditHookPath = resolve(packageRoot, "pb_hooks", "audit.js")
 const auditHookEntrypointPath = resolve(packageRoot, "pb_hooks", "audit.pb.js")
+const syncProgressHookPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "sync-project-progress.js"
+)
+const syncProgressHookEntrypointPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "sync-project-progress.pb.js"
+)
 const appliedHistoryRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -737,5 +747,23 @@ describe("PocketBase audit hook (V124-V130)", () => {
   it("maps Super Admin temp password reset to reset_password audit action", () => {
     expect(hookSource).toContain("must_change_password")
     expect(hookSource).toContain("reset_password")
+  })
+})
+
+describe("PocketBase sync-project-progress hook", () => {
+  const hookSource = readFileSync(syncProgressHookPath, "utf8")
+  const hookEntrypointSource = readFileSync(syncProgressHookEntrypointPath, "utf8")
+
+  it("syncs project progress_pct after progress_updates create/update", () => {
+    expect(hookEntrypointSource).toContain("sync-project-progress.js")
+    expect(hookEntrypointSource).toContain("onRecordAfterCreateSuccess")
+    expect(hookEntrypointSource).toContain("onRecordAfterUpdateSuccess")
+    expect(hookEntrypointSource).toContain("progress_updates")
+    expect(hookSource).toContain("syncProjectFromProgressUpdate")
+    expect(hookSource).toContain("latestProgressUpdate")
+    expect(hookSource).toContain("findRecordsByFilter")
+    expect(hookSource).toContain('project.set("progress_pct"')
+    expect(hookSource).toContain("Ready for Review")
+    expect(hookSource).toContain("app.save")
   })
 })
