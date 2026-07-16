@@ -5,7 +5,46 @@ import {
   countActiveProjects,
   countProgressBuckets,
   countUpdatesToday,
+  effectiveProgressPct,
+  projectProgressPatchFromUpdate,
 } from "./progress-summary"
+
+describe("effectiveProgressPct", () => {
+  it("should prefer latest update to_pct when project progress_pct is stale", () => {
+    expect(
+      effectiveProgressPct({ progress_pct: 0 }, [{ to_pct: 86 }])
+    ).toBe(86)
+  })
+
+  it("should fall back to project progress_pct when there are no updates", () => {
+    expect(effectiveProgressPct({ progress_pct: 40 }, [])).toBe(40)
+  })
+
+  it("should use the first update when multiple are provided newest-first", () => {
+    expect(
+      effectiveProgressPct({ progress_pct: 10 }, [
+        { to_pct: 78 },
+        { to_pct: 40 },
+      ])
+    ).toBe(78)
+  })
+})
+
+describe("projectProgressPatchFromUpdate", () => {
+  it("should set progress_pct to to_pct and keep status below 100", () => {
+    expect(projectProgressPatchFromUpdate(86, "Ongoing")).toEqual({
+      progress_pct: 86,
+      status: "Ongoing",
+    })
+  })
+
+  it("should set status Ready for Review when to_pct reaches 100", () => {
+    expect(projectProgressPatchFromUpdate(100, "Ongoing")).toEqual({
+      progress_pct: 100,
+      status: "Ready for Review",
+    })
+  })
+})
 
 describe("countProgressBuckets (V7, V8)", () => {
   it("counts needs attention below 25%", () => {

@@ -6,6 +6,24 @@ export type ProgressBuckets = {
   other: number
 }
 
+/** Updates must be newest-first (same order as Progress module). */
+export function effectiveProgressPct(
+  project: Pick<ProjectRecord, "progress_pct">,
+  updates: readonly Pick<ProgressUpdateRecord, "to_pct">[]
+): number {
+  return updates[0]?.to_pct ?? project.progress_pct ?? 0
+}
+
+export function projectProgressPatchFromUpdate(
+  toPct: number,
+  currentStatus: ProjectRecord["status"]
+): Pick<ProjectRecord, "progress_pct" | "status"> {
+  return {
+    progress_pct: toPct,
+    status: toPct >= 100 ? "Ready for Review" : currentStatus,
+  }
+}
+
 export const ACTIVE_PROJECT_STATUSES = [
   "Planning",
   "Procurement",
