@@ -6,6 +6,7 @@ import * as XLSX from "xlsx"
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import {
   filterProjects,
   projectLocationDisplayParts,
@@ -16,10 +17,15 @@ import {
   fieldErrorsFromZod,
   locationRecordSchema,
   parseRecordList,
+  progressUpdateRecordSchema,
   projectMutateSchema,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
-import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
+import type {
+  LocationRecord,
+  ProgressUpdateRecord,
+  ProjectRecord,
+} from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -266,6 +272,7 @@ function LocationCombobox({
 
 function ProjectCard({
   project,
+  progressPct,
   onEdit,
   onDelete,
   onStatusOpen,
@@ -273,6 +280,7 @@ function ProjectCard({
   canDelete,
 }: {
   project: ProjectRecord
+  progressPct: number
   onEdit: () => void
   onDelete: () => void
   onStatusOpen: () => void
@@ -316,12 +324,10 @@ function ProjectCard({
           ) : null}
           <div className="space-y-1">
             <Progress
-              value={project.progress_pct ?? 0}
+              value={progressPct}
               aria-label={`${project.name} progress`}
             />
-            <span className="text-xs text-muted-foreground">
-              {project.progress_pct ?? 0}%
-            </span>
+            <span className="text-xs text-muted-foreground">{progressPct}%</span>
           </div>
         </div>
         {hasActions ? (
@@ -363,6 +369,9 @@ function ProjectCard({
 
 export function ProjectsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
+  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdateRecord[]>(
+    []
+  )
   const [locations, setLocations] = useState<LocationRecord[]>([])
   const [statusOptions, setStatusOptions] = useState<string[]>([...PROJECT_STATUS])
   const [categoryOptions, setCategoryOptions] = useState<string[]>([
@@ -405,49 +414,88 @@ export function ProjectsModule() {
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
-    const pb = getPocketBase()
-    const [rows, nextStatusOptions, nextCategoryOptions] = await Promise.all([
-      pb.collection("projects").getFullList(),
-      loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
-        (options) =>
-          options.length > 0
-            ? options
-            : loadSelectFieldOptions(pb, "projects", "status", PROJECT_STATUS)
-      ),
-      loadOptionRecordNames(pb, "project_category_options", PROJECT_CATEGORY).then(
-        (options) =>
-          options.length > 0
-            ? options
-            : loadSelectFieldOptions(pb, "projects", "category", PROJECT_CATEGORY)
-      ),
-    ])
-    setProjects(parseRecordList(projectRecordSchema, rows))
-    setStatusOptions(nextStatusOptions)
-    setCategoryOptions(nextCategoryOptions)
     try {
-      const locationRows = await pb.collection("locations").getFullList()
-      setLocations(
-        parseRecordList(locationRecordSchema, locationRows)
-          .filter((location) => location.active)
-          .sort(
-            (a, b) =>
-              (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
-              a.name.localeCompare(b.name)
-          )
+      const pb = getPocketBase()
+      const [rows, updateRows, nextStatusOptions, nextCategoryOptions] =
+        await Promise.all([
+          pb.collection("projects").getFullList(),
+          pb.collection("progress_updates").getFullList(),
+          loadOptionRecordNames(
+            pb,
+            "project_status_options",
+            PROJECT_STATUS
+          ).then((options) =>
+            options.length > 0
+              ? options
+              : loadSelectFieldOptions(pb, "projects", "status", PROJECT_STATUS)
+          ),
+          loadOptionRecordNames(
+            pb,
+            "project_category_options",
+            PROJECT_CATEGORY
+          ).then((options) =>
+            options.length > 0
+              ? options
+              : loadSelectFieldOptions(
+                  pb,
+                  "projects",
+                  "category",
+                  PROJECT_CATEGORY
+                )
+          ),
+        ])
+      setProjects(parseRecordList(projectRecordSchema, rows))
+      const parsedUpdates = parseRecordList(
+        progressUpdateRecordSchema,
+        updateRows
       )
-    } catch {
-      setLocations([])
+      parsedUpdates.sort((a, b) => {
+        const aKey = a.created ?? a.updated_at ?? a.id
+        const bKey = b.created ?? b.updated_at ?? b.id
+        return bKey.localeCompare(aKey)
+      })
+      setProgressUpdates(parsedUpdates)
+      setStatusOptions(nextStatusOptions)
+      setCategoryOptions(nextCategoryOptions)
+      try {
+        const locationRows = await pb.collection("locations").getFullList()
+        setLocations(
+          parseRecordList(locationRecordSchema, locationRows)
+            .filter((location) => location.active)
+            .sort(
+              (a, b) =>
+                (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+                a.name.localeCompare(b.name)
+            )
+        )
+      } catch {
+        setLocations([])
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => {
     void loadProjects()
   }, [loadProjects])
 
-  const { live } = usePocketBaseRealtime(["projects"], () => {
-    void loadProjects()
-  })
+  const { live } = usePocketBaseRealtime(
+    ["projects", "progress_updates"],
+    () => {
+      void loadProjects()
+    }
+  )
+
+  const progressByProjectId = useMemo(() => {
+    const map = new Map<string, ProgressUpdateRecord[]>()
+    for (const update of progressUpdates) {
+      const list = map.get(update.project) ?? []
+      list.push(update)
+      map.set(update.project, list)
+    }
+    return map
+  }, [progressUpdates])
 
   const filtered = useMemo(
     () =>
@@ -945,6 +993,10 @@ export function ProjectsModule() {
             <ProjectCard
               key={project.id}
               project={project}
+              progressPct={effectiveProgressPct(
+                project,
+                progressByProjectId.get(project.id) ?? []
+              )}
               onEdit={() => openEdit(project)}
               onDelete={() => void handleDelete(project)}
               onStatusOpen={() => setStatusTarget(project)}

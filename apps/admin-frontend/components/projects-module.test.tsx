@@ -9,6 +9,7 @@ const xlsxState = {
 
 const store = {
   projects: [] as Array<Record<string, unknown>>,
+  progressUpdates: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
   projectStatusOptions: [] as Array<Record<string, unknown>>,
   projectCategoryOptions: [] as Array<Record<string, unknown>>,
@@ -43,13 +44,15 @@ vi.mock("@/lib/pocketbase", () => ({
       getFullList: vi.fn(async () =>
         name === "projects"
           ? store.projects
-          : name === "locations"
-            ? store.locations
-            : name === "project_status_options"
-              ? store.projectStatusOptions
-              : name === "project_category_options"
-                ? store.projectCategoryOptions
-            : []
+          : name === "progress_updates"
+            ? store.progressUpdates
+            : name === "locations"
+              ? store.locations
+              : name === "project_status_options"
+                ? store.projectStatusOptions
+                : name === "project_category_options"
+                  ? store.projectCategoryOptions
+                  : []
       ),
       create: createMock,
       update: updateMock,
@@ -101,6 +104,7 @@ describe("ProjectsModule (J4)", () => {
 
   beforeEach(() => {
     store.projects = []
+    store.progressUpdates = []
     store.projectStatusOptions = [
       {
         id: "status1",
@@ -809,5 +813,67 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.queryByText("Edit")).not.toBeInTheDocument()
     expect(screen.queryByText("Change status")).not.toBeInTheDocument()
     expect(screen.queryByText("Delete")).not.toBeInTheDocument()
+  })
+
+  it("should show latest progress update percent when project progress_pct is stale", async () => {
+    store.projects = [
+      {
+        id: "vm00o40loqw6i10",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "SK Scholarship",
+        description: "Barangay Scholars",
+        category: "Scholarship",
+        status: "Ongoing",
+        municipality: "Abulug",
+        barangay: "Alinunu",
+        location: "Abulug",
+        lgu_level: "Barangay",
+        contractor: "Sa tabi tabi",
+        start_date: "2026-07-12",
+        target_end_date: "2026-07-16",
+        budget_year: 2026,
+        total_budget: 100_000,
+        progress_pct: 0,
+        number_of_students: 5,
+      },
+    ]
+    store.progressUpdates = [
+      {
+        id: "older",
+        collectionId: "pu",
+        collectionName: "progress_updates",
+        created: "2026-07-10 02:56:07.875Z",
+        updated: "2026-07-10 02:56:07.875Z",
+        project: "vm00o40loqw6i10",
+        from_pct: 0,
+        to_pct: 40,
+        notes: "Midway",
+        updated_at: "2026-07-10 02:56:07.875Z",
+      },
+      {
+        id: "500a4qb5btctsij",
+        collectionId: "pu",
+        collectionName: "progress_updates",
+        created: "2026-07-16 02:56:07.875Z",
+        updated: "2026-07-16 02:56:07.875Z",
+        project: "vm00o40loqw6i10",
+        from_pct: 0,
+        to_pct: 86,
+        notes: "Almost complete!",
+        updated_at: "2026-07-16 02:56:07.875Z",
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    const card = await screen.findByTestId("project-card-vm00o40loqw6i10")
+    expect(card).toHaveTextContent("86%")
+    expect(card).not.toHaveTextContent("40%")
+    expect(
+      screen.getByRole("progressbar", { name: /sk scholarship progress/i })
+    ).toBeInTheDocument()
   })
 })
