@@ -16,7 +16,10 @@ import {
   displayUserRef,
   type UserDisplayRecord,
 } from "@workspace/pocketbase/domain/user-display"
-import { buildProgressSummaryCards } from "@workspace/pocketbase/domain/progress-summary"
+import {
+  buildProgressSummaryCards,
+  effectiveProgressPct,
+} from "@workspace/pocketbase/domain/progress-summary"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
   type CompletionDocumentField,
@@ -122,13 +125,6 @@ function lastUpdatedLabel(updates: ProgressUpdateRecord[]): string {
   const latest = updates[0]
   if (!latest) return "—"
   return formatDisplayDateTime(latest.updated_at ?? latest.created)
-}
-
-function effectiveProgressPct(
-  project: ProjectRecord,
-  updates: ProgressUpdateRecord[]
-): number {
-  return updates[0]?.to_pct ?? project.progress_pct ?? 0
 }
 
 function canUpdateProjectProgress(
