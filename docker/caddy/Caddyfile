@@ -25,6 +25,10 @@
     }
 }
 
-{$DOMAIN::80} {
+{$DOMAIN} {
     import routes
+}
+
+:80 {
+	import routes
 }
