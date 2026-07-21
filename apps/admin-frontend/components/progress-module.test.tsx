@@ -1188,4 +1188,138 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
+
+  it("shows existingNames for site photo and completion docs on For Revision open (T2/V3/V11)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 100 })]
+    store.updates = [
+      latestProgressUpdate({
+        to_pct: 100,
+        certification_completion: ["cert-on-record.pdf"],
+        certificate_acceptance: ["accept-on-record.pdf"],
+        proof_payment_barangay: ["pay-on-record.pdf"],
+        acknowledgment_completion: ["ack-on-record.pdf"],
+        audit_documents: ["audit-on-record.pdf"],
+        verification_documents: ["verify-on-record.pdf"],
+        liquidation_documents: ["liq-on-record.pdf"],
+      }),
+    ]
+    store.expenses = [latestExpense()]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+
+    const dialog = await screen.findByRole("dialog")
+    expect(
+      within(dialog).getByText(/on record: site-on-record\.jpg/i)
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(/on record: cert-on-record\.pdf/i)
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(/on record: liq-on-record\.pdf/i)
+    ).toBeInTheDocument()
+  })
+
+  it("saves For Revision without new files when server filenames exist (T2/V3/V12)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 75 })]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [latestExpense()]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(createMock).not.toHaveBeenCalled()
+    const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      FormData,
+    ]
+    expect(updateId).toBe("pu-latest")
+    expect(payload.get("to_pct")).toBe("75")
+    expect(payload.get("notes")).toBe("Prior revision notes")
+    expect(payload.get("from_pct")).toBeNull()
+    expect(payload.getAll("site_photo")).toHaveLength(0)
+  })
+
+  it("includes new site_photo File[] on For Revision update when user picks files", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 75 })]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [latestExpense()]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("replacement-site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(createMock).not.toHaveBeenCalled()
+    const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      FormData,
+    ]
+    expect(updateId).toBe("pu-latest")
+    const sitePhotos = payload.getAll("site_photo")
+    expect(sitePhotos).toHaveLength(1)
+    expect(sitePhotos[0]).toBeInstanceOf(File)
+    expect((sitePhotos[0] as File).name).toBe("replacement-site.jpg")
+  })
+
+  it("still requires site photo File[] on non-revision create path (T2/V12)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(await screen.findByText(/site photo is required/i)).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+  })
 })
