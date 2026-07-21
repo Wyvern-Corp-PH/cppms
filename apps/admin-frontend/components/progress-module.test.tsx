@@ -1,4 +1,4 @@
-﻿import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -1461,5 +1461,57 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
     })
     expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  it("keeps blank open and create save path for non–For Revision projects (T4/V6)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    store.updates = [
+      latestProgressUpdate({
+        notes: "Should not prefill Ongoing",
+        to_pct: 60,
+      }),
+    ]
+    store.expenses = [latestExpense({ amount: 9999, receipt_number: "SKIP" })]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/update notes/i)).toHaveValue("")
+    expect(within(dialog).getByText(/Progress: 60%/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
+    expect(
+      within(dialog).queryByText(/on record: site-on-record\.jpg/i)
+    ).not.toBeInTheDocument()
+
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).not.toHaveBeenCalled()
   })
 })
