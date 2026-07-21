@@ -76,6 +76,10 @@ describe("production deploy workflow", () => {
       path.join(rootDir, "scripts/render-deploy-env.mjs"),
       "utf8"
     )
+    const deployRemote = await readFile(
+      path.join(rootDir, "scripts/deploy-remote.sh"),
+      "utf8"
+    )
     const caddyfile = await readFile(
       path.join(rootDir, "docker/caddy/Caddyfile.prod"),
       "utf8"
@@ -83,9 +87,15 @@ describe("production deploy workflow", () => {
 
     expect(workflow).not.toMatch(/required=\([\s\S]*\n\s+DOMAIN\n/)
     expect(envRenderer).toContain("OPTIONAL_KEYS = [\"DOMAIN\"")
-    expect(envRenderer).toContain('values.DOMAIN = ":80"')
-    expect(caddyfile).toContain("{$DOMAIN::80}")
-    expect(caddyfile).not.toMatch(/\n:80\s+\{/)
+    expect(envRenderer).not.toContain('values.DOMAIN = ":80"')
+    expect(envRenderer).toContain('values.DOMAIN === ":80"')
+    expect(envRenderer).toContain("values.DOMAIN = publicIp")
+    expect(caddyfile).toContain("{$DOMAIN}")
+    expect(caddyfile).not.toContain("{$DOMAIN::80}")
+    expect(caddyfile).toMatch(/\n:80\s+\{/)
+    expect(deployRemote).toContain("reset_caddy_state_if_caddyfile_changed")
+    expect(deployRemote).toContain("cppms_caddy_data")
+    expect(deployRemote).toContain("cppms_caddy_config")
   })
 
   it("authenticates backups with the running PocketBase container env", async () => {

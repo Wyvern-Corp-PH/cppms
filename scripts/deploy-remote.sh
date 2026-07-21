@@ -48,6 +48,44 @@ if [[ -n "${IMAGE_TAG:-}" && "${IMAGE_TAG}" != "dev" && -n "${GHCR_REGISTRY:-}" 
   PULL_ONLY=true
 fi
 
+STATE_DIR=".deploy"
+CADDYFILE_PATH="docker/caddy/Caddyfile.prod"
+CADDYFILE_HASH_FILE="${STATE_DIR}/caddyfile.sha256"
+
+caddyfile_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$CADDYFILE_PATH" | awk '{print $1}'
+    return
+  fi
+  sha256 -q "$CADDYFILE_PATH"
+}
+
+reset_caddy_state_if_caddyfile_changed() {
+  if [[ ! -f "$CADDYFILE_PATH" ]]; then
+    echo "[deploy] missing $CADDYFILE_PATH; skipping caddy volume reset check" >&2
+    return 0
+  fi
+
+  mkdir -p "$STATE_DIR"
+  local new_hash old_hash
+  new_hash="$(caddyfile_sha256)"
+  old_hash=""
+  if [[ -f "$CADDYFILE_HASH_FILE" ]]; then
+    old_hash="$(tr -d '[:space:]' < "$CADDYFILE_HASH_FILE")"
+  fi
+
+  if [[ "$new_hash" == "$old_hash" ]]; then
+    echo "[deploy] Caddyfile unchanged (${new_hash:0:12}...); keeping caddy volumes"
+    return 0
+  fi
+
+  echo "[deploy] Caddyfile changed (${old_hash:-none} -> ${new_hash:0:12}...); resetting caddy data/config volumes..."
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" stop caddy >/dev/null 2>&1 || true
+  docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" rm -f caddy >/dev/null 2>&1 || true
+  docker_cmd volume rm -f cppms_caddy_data cppms_caddy_config >/dev/null 2>&1 || true
+  printf '%s\n' "$new_hash" > "${CADDYFILE_HASH_FILE}.pending"
+}
+
 dump_stack_diagnostics() {
   echo "--- docker compose ps ---"
   docker_cmd compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -a 2>&1 || true
@@ -59,6 +97,8 @@ dump_stack_diagnostics() {
 
 WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT_SEC:-420}"
 CADDY_PORT="${CADDY_HTTP_PORT:-80}"
+
+reset_caddy_state_if_caddyfile_changed
 
 wait_for_http() {
   local url="$1"
@@ -125,10 +165,14 @@ if ! wait_for_http "http://127.0.0.1:${CADDY_PORT}/v1/api/health" 90; then
   exit 1
 fi
 
-STATE_DIR=".deploy"
 mkdir -p "$STATE_DIR"
 if [[ -n "${IMAGE_TAG:-}" ]]; then
   printf '%s\n' "$IMAGE_TAG" > "${STATE_DIR}/current-image-tag"
+fi
+if [[ -f "${CADDYFILE_HASH_FILE}.pending" ]]; then
+  mv "${CADDYFILE_HASH_FILE}.pending" "$CADDYFILE_HASH_FILE"
+elif [[ -f "$CADDYFILE_PATH" && ! -f "$CADDYFILE_HASH_FILE" ]]; then
+  caddyfile_sha256 > "$CADDYFILE_HASH_FILE"
 fi
 
 echo "Pruning dangling images..."

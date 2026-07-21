@@ -37,13 +37,20 @@ for (const key of OPTIONAL_KEYS) {
   }
 }
 
-if (!values.DOMAIN) {
-  values.DOMAIN = ":80";
-}
-
 const publicIp = process.env.EC2_HOST?.trim();
 if (publicIp && !values.ORIGINS.includes(publicIp)) {
   values.ORIGINS = `${values.ORIGINS},http://${publicIp}`;
+}
+
+// Intentional Caddyfile has both `{$DOMAIN}` and `:80`. Never use DOMAIN=:80 —
+// that makes two identical site addresses and Caddy refuses to start.
+// IP-only bootstrap: use the EC2 host as the DOMAIN site label when unset.
+if (!values.DOMAIN || values.DOMAIN === ":80") {
+  if (publicIp) {
+    values.DOMAIN = publicIp;
+  } else {
+    delete values.DOMAIN;
+  }
 }
 
 const keys = [...REQUIRED_KEYS, ...OPTIONAL_KEYS.filter((key) => values[key])];

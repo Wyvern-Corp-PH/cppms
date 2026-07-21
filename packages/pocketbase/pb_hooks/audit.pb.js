@@ -1,6 +1,4 @@
-const hooksDir = globalThis.__hooks
-
-const audit = require(`${hooksDir}/audit.js`)
+const audit = require(`${globalThis.__hooks}/audit.js`)
 
 for (const collection of audit.AUDITED_COLLECTIONS) {
   globalThis.onRecordCreate((event) => {
