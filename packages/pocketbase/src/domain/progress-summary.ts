@@ -24,6 +24,58 @@ export function projectProgressPatchFromUpdate(
   }
 }
 
+/** Statuses where local actors may still open Update Progress (before % gate). */
+export const EDITABLE_PROGRESS_STATUSES = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+] as const satisfies readonly ProjectRecord["status"][]
+
+/** Stuck rows eligible for SA/Province heal + repair migration (⊥ For Revision). */
+export const STUCK_AT_100_PROGRESS_STATUSES = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+] as const satisfies readonly ProjectRecord["status"][]
+
+/**
+ * Shared Update Progress CTA gate (list + detail + openUpdateModal).
+ * Hide when effective ≥ 100 except For Revision resubmit; Ready|Completed|Rejected
+ * are excluded via EDITABLE_PROGRESS_STATUSES.
+ */
+export function canShowUpdateProgress(options: {
+  status: string
+  effectivePct: number
+  canCreateProgressUpdates: boolean
+}): boolean {
+  if (!options.canCreateProgressUpdates) return false
+  if (
+    !(EDITABLE_PROGRESS_STATUSES as readonly string[]).includes(options.status)
+  ) {
+    return false
+  }
+  if (
+    options.effectivePct >= 100 &&
+    options.status !== "For Revision"
+  ) {
+    return false
+  }
+  return true
+}
+
+export function isStuckAt100NeedingReadyForReview(options: {
+  status: string
+  effectivePct: number
+}): boolean {
+  return (
+    options.effectivePct >= 100 &&
+    (STUCK_AT_100_PROGRESS_STATUSES as readonly string[]).includes(
+      options.status
+    )
+  )
+}
+
 export const ACTIVE_PROJECT_STATUSES = [
   "Planning",
   "Procurement",

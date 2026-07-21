@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildProgressSummaryCards,
+  canShowUpdateProgress,
   countActiveProjects,
   countProgressBuckets,
   countUpdatesToday,
   effectiveProgressPct,
+  isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "./progress-summary"
 
@@ -43,6 +45,98 @@ describe("projectProgressPatchFromUpdate", () => {
       progress_pct: 100,
       status: "Ready for Review",
     })
+  })
+
+  it("should set Ready for Review when For Revision resubmits at 100", () => {
+    expect(projectProgressPatchFromUpdate(100, "For Revision")).toEqual({
+      progress_pct: 100,
+      status: "Ready for Review",
+    })
+  })
+})
+
+describe("canShowUpdateProgress (V4)", () => {
+  it("should show Update Progress when editable status and below 100", () => {
+    expect(
+      canShowUpdateProgress({
+        status: "Ongoing",
+        effectivePct: 86,
+        canCreateProgressUpdates: true,
+      })
+    ).toBe(true)
+  })
+
+  it("should hide Update Progress when effective ≥100 and not For Revision", () => {
+    expect(
+      canShowUpdateProgress({
+        status: "Planning",
+        effectivePct: 100,
+        canCreateProgressUpdates: true,
+      })
+    ).toBe(false)
+    expect(
+      canShowUpdateProgress({
+        status: "Ongoing",
+        effectivePct: 100,
+        canCreateProgressUpdates: true,
+      })
+    ).toBe(false)
+  })
+
+  it("should show Update Progress for For Revision even at 100", () => {
+    expect(
+      canShowUpdateProgress({
+        status: "For Revision",
+        effectivePct: 100,
+        canCreateProgressUpdates: true,
+      })
+    ).toBe(true)
+  })
+
+  it("should hide Update Progress for Ready for Review, Completed, Rejected", () => {
+    for (const status of [
+      "Ready for Review",
+      "Completed",
+      "Rejected",
+    ] as const) {
+      expect(
+        canShowUpdateProgress({
+          status,
+          effectivePct: 50,
+          canCreateProgressUpdates: true,
+        })
+      ).toBe(false)
+    }
+  })
+
+  it("should hide when actor cannot create progress updates", () => {
+    expect(
+      canShowUpdateProgress({
+        status: "Ongoing",
+        effectivePct: 10,
+        canCreateProgressUpdates: false,
+      })
+    ).toBe(false)
+  })
+})
+
+describe("isStuckAt100NeedingReadyForReview (V6/V7)", () => {
+  it("should flag Planning|Procurement|Ongoing at ≥100", () => {
+    expect(
+      isStuckAt100NeedingReadyForReview({
+        status: "Planning",
+        effectivePct: 100,
+      })
+    ).toBe(true)
+  })
+
+  it("should not flag For Revision at 100", () => {
+    expect(
+      isStuckAt100NeedingReadyForReview({
+        status: "For Revision",
+        effectivePct: 100,
+      })
+    ).toBe(false)
   })
 })
 
