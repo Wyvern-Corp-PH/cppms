@@ -323,7 +323,7 @@ async function seedDemoProjects(
       if (fixture.progress.to_pct >= 100) {
         appendCompletionDocuments(formData)
       }
-      // progress_updates.createRule is Mun|Barangay only (1740000019); Province sample
+      // progress_updates.createRule includes SA|Province|Mun|Barangay (1740000030); Province sample
       // admin cannot create. Seed as _superusers so demo rows still land.
       try {
         await pb
