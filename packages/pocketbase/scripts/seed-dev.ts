@@ -109,7 +109,11 @@ async function ensureAppUser() {
     console.log(`Created app user ${adminEmail}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!/unique|already|exists/i.test(message)) {
+    const alreadyExists = await pb
+      .collection("users")
+      .getFirstListItem(`email="${adminEmail}"`)
+      .catch(() => null)
+    if (!alreadyExists && !/unique|already|exists/i.test(message)) {
       console.warn(`App user create skipped: ${message}`)
     }
   }
@@ -319,7 +323,12 @@ async function seedDemoProjects(
       if (fixture.progress.to_pct >= 100) {
         appendCompletionDocuments(formData)
       }
+      // progress_updates.createRule is Mun|Barangay only (1740000019); Province sample
+      // admin cannot create. Seed as _superusers so demo rows still land.
       try {
+        await pb
+          .collection("_superusers")
+          .authWithPassword(adminEmail, adminPassword)
         await pb.collection("progress_updates").create(formData)
       } catch (error) {
         const data =
@@ -327,6 +336,10 @@ async function seedDemoProjects(
             ? JSON.stringify((error as { data?: unknown }).data)
             : String(error)
         console.warn(`  ! progress update skipped for ${fixture.project.name}: ${data}`)
+      } finally {
+        await pb
+          .collection("users")
+          .authWithPassword(SAMPLE_ADMIN_EMAIL, sampleUserPassword)
       }
     }
 
