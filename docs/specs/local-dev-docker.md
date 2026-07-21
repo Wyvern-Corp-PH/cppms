@@ -13,9 +13,11 @@ Local dev stack: PocketBase + admin/public Next.js via `docker compose`; commitl
 - `.env.local` = local secrets (gitignored); `.env.sample` = committed template.
 - `bun run docker:dev` = `compose up --build` (no `--watch`; bind mounts + Next HMR).
 - `.next` lives on bind mount (gitignored) — ⊥ named volume for frontends in dev (V69).
-- `bun run docker:clean-cache` = wipe `.next` in running frontend containers if routes 404.
+- `bun run docker:dev:clean-cache` = wipe `.next` in running frontend containers if routes 404.
 - `bun run seed:dev` = insert demo PocketBase records (V70); `seed:dev:force` replaces `Demo:` rows.
-- optional `bun run docker:watch` = `compose watch pocketbase` (pb_hooks restart).
+- `bun run seed:docker:dev` / `seed:docker:prod` = same seed via Compose `seed` profile (`:force` variants use `SEED_ARGS=--force`).
+- optional `bun run docker:dev:watch` = `compose watch pocketbase` (pb_hooks restart).
+- Script naming: `docker:<env>:…`, `seed:docker:<env>:…` (`env` = `dev` \| `prod`); host seed = `seed:dev`.
 - commitlint `@commitlint/*@21`; semantic-release `25.x`; husky `commit-msg` hook.
 
 ## §I
@@ -53,10 +55,10 @@ V7: `bun run docker:dev` exits 0; admin/public/pocketbase containers running.
 | T5 | x | semantic-release 25 + changelog/git plugins | V5 |
 | T6 | x | root `.dockerignore` | V3 |
 | T7 | x | verify `docker compose up --build` on host | V1,V2 |
-| T8 | x | fix `docker:dev` script: drop global `--watch`; add `docker:watch` | V7 |
+| T8 | x | fix `docker:dev` script: drop global `--watch`; add `docker:dev:watch` | V7 |
 
 ## §B
 
 | id | date | cause | fix |
 |---|---|---|---|
-| B1 | 2026-06-15 | `up --watch` w/o `develop` on all services → exit 1 | `docker:dev` = up only; `docker:watch` pb optional | V7 |
+| B1 | 2026-06-15 | `up --watch` w/o `develop` on all services → exit 1 | `docker:dev` = up only; `docker:dev:watch` pb optional | V7 |

@@ -701,12 +701,12 @@ V225: Sync test coverage (TDD, Vitest+RTL, ⊥ Playwright/Cypress per §C): red-
 
 | id | date | cause | fix |
 |---|---|---|---|
-| B1 | 2026-06-15 | `docker:dev` used `compose up --watch`; caddy/frontends lack `develop.watch` → exit 1 | default `docker:dev` = `up --build` only; bind mounts + Next HMR; optional `docker:watch` for pb | V37 |
+| B1 | 2026-06-15 | `docker:dev` used `compose up --watch`; caddy/frontends lack `develop.watch` → exit 1 | default `docker:dev` = `up --build` only; bind mounts + Next HMR; optional `docker:dev:watch` for pb | V37 |
 | B2 | 2026-06-15 | PB default autoCancellation cancels duplicate in-flight GETs on React Strict Mode remount → ClientResponseError 0 in admin modules | `createPocketBaseClient` sets `autoCancellation(false)` | V38 |
 | B3 | 2026-06-15 | Grammarly etc inject `data-gr-*` on `<body>` before hydration → React body attr mismatch | `suppressHydrationWarning` on `<body>` in both root layouts | V39 |
 | B4 | 2026-06-15 | `progress_updates.getFullList({ sort: '-created' })` → 400 in dev | fetch unsorted; sort client-side by `created` desc | T28 |
 | B5 | 2026-06-15 | PB unset optional selects (`approval_status`, `lgu_level`) return `""`; zod enum `.optional()` rejects `""` → `parseRecordList` drops all rows → empty UI despite API data | `pbEmptyAsUndefined` preprocess on optional enum/relation fields in record schemas | V68 |
-| B6 | 2026-06-15 | `admin_next_cache`/`public_next_cache` named volumes shadow bind mount `.next` → stale turbopack route manifest → `/dashboard` etc 404 while `/login` 200 | drop `.next` named volumes from compose dev; `docker:clean-cache` script | V69 |
+| B6 | 2026-06-15 | `admin_next_cache`/`public_next_cache` named volumes shadow bind mount `.next` → stale turbopack route manifest → `/dashboard` etc 404 while `/login` 200 | drop `.next` named volumes from compose dev; `docker:dev:clean-cache` script | V69 |
 | B7 | 2026-06-15 | PB list API omits `created`/`updated`; `baseRecordSchema` required both → `parseRecordList` dropped 100% rows → empty UI all modules | `created`/`updated` optional in `baseRecordSchema`; sort fallbacks use `id` | V71 |
 | B8 | 2026-06-17 | budget allocate modal kept `moaFile`/`supportingFiles` in state after cancel → stale picks on reopen | `clearAllocationUploads` on `onOpenChange(false)` + before open | V104 |
 | B9 | 2026-06-17 | allocation/expense rows rendered sign helper + PHP formatter → `+100000 ₱100,000` confusing duplicate amount | `formatAllocationAmount` / `formatExpenseAmount` return signed comma value; table cells render helper only | V106 |

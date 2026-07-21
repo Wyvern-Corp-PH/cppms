@@ -45,7 +45,7 @@ PocketBase runs inside `docker-compose.local.yml`. Migrations and hooks are bind
 
 ```bash
 bun run docker:dev          # from repo root
-bun run seed:dev:docker     # insert demo records
+bun run seed:docker:dev     # insert demo records
 ```
 
 ### Scripts
@@ -54,7 +54,7 @@ bun run seed:dev:docker     # insert demo records
 bun run test                # Vitest unit tests
 bun run typecheck           # tsc --noEmit
 bun run seed:dev            # seed against POCKETBASE_INTERNAL_URL / localhost
-bun run seed:dev --force    # replace existing Demo: rows
+bun run seed:dev:force      # replace existing Demo: rows
 ```
 
 Environment variables (see root `.env.sample`):

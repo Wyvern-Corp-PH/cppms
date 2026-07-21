@@ -129,18 +129,27 @@ Open:
 ### 5. Seed demo data (optional)
 
 ```bash
-bun run seed:dev:docker
-# or, with stack running on host:
+bun run seed:docker:dev
+# or, with PocketBase reachable from the host:
 bun run seed:dev
 ```
 
-Force-replace demo rows: append `:force` to either command.
+Force-replace demo rows: `seed:dev:force`, `seed:docker:dev:force`, `seed:docker:prod:force`.
+
+Against a running `docker:prod` stack:
+
+```bash
+bun run seed:docker:prod
+bun run seed:docker:prod:force
+```
 
 Full Docker details: [docs/specs/local-dev-docker.md](docs/specs/local-dev-docker.md)
 
 ## Development
 
 ### Root scripts
+
+Convention: `docker:<env>:…` and `seed:docker:<env>:…` where `<env>` is `dev` or `prod`. Host demo seed stays `seed:dev`. Caddy log helpers are env-agnostic (`docker:caddy:logs*`).
 
 | Command | Description |
 |---|---|
@@ -149,10 +158,13 @@ Full Docker details: [docs/specs/local-dev-docker.md](docs/specs/local-dev-docke
 | `bun run test` | Run Vitest across workspace |
 | `bun run lint` | ESLint via Turborepo |
 | `bun run typecheck` | TypeScript check |
-| `bun run docker:dev` | Docker Compose up (build) |
-| `bun run docker:down` | Stop Docker stack |
-| `bun run docker:clean-cache` | Clear `.next` in frontend containers |
-| `bun run seed:dev` | Insert demo PocketBase records |
+| `bun run docker:dev` | Local Compose up (build) |
+| `bun run docker:prod` | Prod Compose up (detached, recreate) |
+| `bun run docker:dev:down` / `docker:prod:down` | Stop stack |
+| `bun run docker:dev:clean-cache` | Clear `.next` in local frontend containers |
+| `bun run seed:dev` | Host seed via `.env.local` |
+| `bun run seed:docker:dev` / `seed:docker:prod` | Seed via Compose `seed` profile |
+| `bun run seed:*:force` | Force-replace `Demo:` rows |
 
 ### Filter to one app
 

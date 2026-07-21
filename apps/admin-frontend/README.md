@@ -45,7 +45,7 @@ Credentials: `POCKETBASE_ADMIN_EMAIL` / `POCKETBASE_ADMIN_PASSWORD` in `.env.loc
 
 ```bash
 bun run docker:dev           # repo root
-bun run seed:dev:docker      # optional demo data
+bun run seed:docker:dev      # optional demo data
 ```
 
 ## Auth
