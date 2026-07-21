@@ -122,11 +122,7 @@ export function ChangePasswordForm() {
           <FieldError>{fieldErrors.passwordConfirm}</FieldError>
         </Field>
       </FieldGroup>
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <FieldError>{error}</FieldError> : null}
       <Button type="submit" disabled={submitting}>
         {submitting ? "Updating…" : "Update password"}
       </Button>
