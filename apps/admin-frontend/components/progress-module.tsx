@@ -747,15 +747,11 @@ export function ProgressModule() {
         progressRecordId = progressRecord.id
       }
 
-      if (
-        requiresReleasedAmount &&
-        "releasedAmount" in parsed.data &&
-        parsed.data.releasedAmount
-      ) {
+      if (requiresReleasedAmount) {
         await syncReleasedAmountExpense({
           pb,
           projectId: parsed.data.projectId,
-          releasedAmount: parsed.data.releasedAmount,
+          releasedAmount: toReleasedAmountInput(releasedAmount),
           latestExpense,
           latestUpdate,
           progressRecordId,
