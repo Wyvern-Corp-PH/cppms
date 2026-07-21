@@ -1322,4 +1322,144 @@ describe("ProgressModule (V81, V84)", () => {
     expect(createMock).not.toHaveBeenCalled()
     expect(progressUpdateMock).not.toHaveBeenCalled()
   })
+
+  it("updates latest progress row and skips identical expense on For Revision save (T3/V4/V5/V9)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [latestExpense()]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.clear(screen.getByLabelText(/update notes/i))
+    await user.type(screen.getByLabelText(/update notes/i), "Revised notes only")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      expect(projectUpdateMock).toHaveBeenCalledWith("1", {
+        progress_pct: 75,
+        status: "For Revision",
+      })
+    })
+    expect(createMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    const payload = progressUpdateMock.mock.calls[0]?.[1] as FormData
+    expect(payload.get("notes")).toBe("Revised notes only")
+    expect(payload.get("from_pct")).toBeNull()
+  })
+
+  it("creates progress update when For Revision has empty history (T3/V5)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 25 })]
+    store.updates = []
+    store.expenses = []
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it("creates expense when For Revision released amount differs from latest (T3/V4)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [latestExpense()]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const amount = screen.getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "2000")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 2000,
+        })
+      )
+    })
+  })
+
+  it("creates expense when For Revision has no prior expense (T3/V9)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it("keeps dialog open and does not delete progress when expense fails after For Revision update (T3/V7)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+    expenseCreateMock.mockRejectedValueOnce(new Error("Released amount sync failed"))
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
+    })
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
 })
