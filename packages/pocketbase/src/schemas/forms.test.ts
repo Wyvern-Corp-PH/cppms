@@ -6,6 +6,8 @@ import {
   changePasswordFormSchema,
   loginFormSchema,
   progressUpdateFormSchema,
+  progressUpdateRevisionFormSchema,
+  progressUpdateRevisionWithReleasedAmountFormSchema,
   progressUpdateWithReleasedAmountFormSchema,
   projectMutateSchema,
   userAccountFormSchema,
@@ -369,6 +371,110 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
           makeFile("liquidation-1.pdf"),
           makeFile("liquidation-2.pdf"),
         ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+})
+
+describe("progressUpdateRevisionFormSchema (V12)", () => {
+  it("accepts empty File[] when server filenames cover site photo", () => {
+    const result = progressUpdateRevisionFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects empty File[] without server site photo names", () => {
+    const result = progressUpdateRevisionFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: [],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).sitePhoto).toMatch(/required/i)
+    }
+  })
+
+  it("accepts empty completion File[] at 100% when server filenames cover each V110 field", () => {
+    const result = progressUpdateRevisionFormSchema.safeParse({
+      projectId: "1",
+      toPct: 100,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+      completionDocs: {
+        certification_completion: [],
+        certificate_acceptance: [],
+        proof_payment_barangay: [],
+        acknowledgment_completion: [],
+        audit_documents: [],
+        verification_documents: [],
+        liquidation_documents: [],
+      },
+      existingCompletionDocNames: {
+        certification_completion: ["cert.pdf"],
+        certificate_acceptance: ["accept.pdf"],
+        proof_payment_barangay: ["pay.pdf"],
+        acknowledgment_completion: ["ack.pdf"],
+        audit_documents: ["audit.pdf"],
+        verification_documents: ["verify.pdf"],
+        liquidation_documents: ["liq.pdf"],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("still requires completion docs at 100% when server names missing", () => {
+    const result = progressUpdateRevisionFormSchema.safeParse({
+      projectId: "1",
+      toPct: 100,
+      sitePhoto: [makeFile("site.jpg")],
+      existingSitePhotoNames: [],
+      completionDocs: {},
+      existingCompletionDocNames: {
+        certification_completion: ["cert.pdf"],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const errors = fieldErrorsFromZod(result.error)
+      expect(errors.acknowledgment_completion).toMatch(/required/i)
+      expect(errors.liquidation_documents).toMatch(/required/i)
+    }
+  })
+
+  it("create path schema still requires site photo File min(1)", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it("accepts revision payload with released amount when files covered by server names", () => {
+    const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+      releasedAmount: {
+        amount: 1500,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
       },
     })
 
