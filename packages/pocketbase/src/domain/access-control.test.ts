@@ -76,14 +76,14 @@ describe("access control (V115-V121)", () => {
     ).toBe(false)
   })
 
-  it("grants Province approval and fund-release actions but not system settings", () => {
+  it("grants Province approval, progress updates, and fund-release actions but not system settings", () => {
     const policy = getRolePolicy("Province")
 
     expect(policy).toContain("approval_actions.create")
     expect(policy).toContain("budget_expenses.create")
-    expect(policy).not.toContain("progress_updates.create")
-    expect(policy).not.toContain("progress_updates.update")
-    expect(policy).not.toContain("progress_updates.delete")
+    expect(policy).toContain("progress_updates.create")
+    expect(policy).toContain("progress_updates.update")
+    expect(policy).toContain("progress_updates.delete")
     expect(policy).not.toContain("system_settings.update")
     expect(
       canAccess(
@@ -96,16 +96,31 @@ describe("access control (V115-V121)", () => {
         { id: "u2", role: "Province", account_status: "Active" },
         "progress_updates.create"
       )
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  it("denies approval actions to Barangay and Municipality users", () => {
+  it("grants Super Admin approval and progress updates per action matrix", () => {
+    const policy = getRolePolicy("Super Admin")
+
+    expect(policy).toContain("approval_actions.create")
+    expect(policy).toContain("progress_updates.create")
+    expect(policy).toContain("users.update")
+    expect(policy).toContain("activity_logs.view")
     expect(
       canAccess(
         { id: "s1", role: "Super Admin", account_status: "Active" },
         "approval_actions.create"
       )
-    ).toBe(false)
+    ).toBe(true)
+    expect(
+      canAccess(
+        { id: "s1", role: "Super Admin", account_status: "Active" },
+        "progress_updates.create"
+      )
+    ).toBe(true)
+  })
+
+  it("denies approval actions to Barangay and Municipality users", () => {
     expect(
       canAccess(
         { id: "b1", role: "Barangay", account_status: "Active" },

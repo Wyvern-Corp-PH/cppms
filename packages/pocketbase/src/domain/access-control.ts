@@ -70,13 +70,17 @@ const PROVINCE_POLICIES: readonly PolicyKey[] = [
   "budget_expenses.create",
   "budget_expenses.update",
   "budget_expenses.delete",
+  "progress_updates.create",
+  "progress_updates.update",
+  "progress_updates.delete",
   "approval_actions.create",
   "reports.view",
   "reports.export",
 ]
 
+/** Action matrix SoT: Super Admin = Province ops + users/locations/audit/settings. */
 const SUPER_ADMIN_POLICIES: readonly PolicyKey[] = [
-  ...PROVINCE_POLICIES.filter((policy) => policy !== "approval_actions.create"),
+  ...PROVINCE_POLICIES,
   "users.create",
   "users.update",
   "users.delete",
