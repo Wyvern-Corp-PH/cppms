@@ -1061,4 +1061,131 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
+
+  function revisionProject(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Revision Bridge",
+      category: "Infrastructure",
+      status: "For Revision",
+      budget_year: 2026,
+      progress_pct: 75,
+      ...barangayScope,
+      ...overrides,
+    }
+  }
+
+  function latestProgressUpdate(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "pu-latest",
+      collectionId: "updates",
+      collectionName: "progress_updates",
+      created: "2026-07-20T12:00:00.000Z",
+      updated: "",
+      project: "1",
+      from_pct: 50,
+      to_pct: 75,
+      notes: "Prior revision notes",
+      site_photo: ["site-on-record.jpg"],
+      certification_completion: [],
+      certificate_acceptance: [],
+      proof_payment_barangay: [],
+      acknowledgment_completion: [],
+      audit_documents: [],
+      verification_documents: [],
+      liquidation_documents: [],
+      ...overrides,
+    }
+  }
+
+  function latestExpense(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "be-latest",
+      collectionId: "budget_expenses",
+      collectionName: "budget_expenses",
+      created: "2026-07-20T12:00:00.000Z",
+      updated: "",
+      project: "1",
+      amount: 1500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "GF - Proper",
+      date: "2026-07-20",
+      receipt_number: "R-100",
+      description: "Prior release",
+      ...overrides,
+    }
+  }
+
+  it("prefills For Revision progress modal from latest progress update and expense (T1/V1/V8)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [
+      latestProgressUpdate({
+        id: "pu-older",
+        created: "2026-07-10T12:00:00.000Z",
+        to_pct: 40,
+        notes: "Older notes",
+      }),
+      latestProgressUpdate(),
+    ]
+    store.expenses = [
+      latestExpense({
+        id: "be-older",
+        created: "2026-07-10T12:00:00.000Z",
+        amount: 500,
+        receipt_number: "OLD",
+      }),
+      latestExpense(),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/update notes/i)).toHaveValue(
+      "Prior revision notes"
+    )
+    expect(within(dialog).getByText(/Progress: 75%/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1500)
+    expect(within(dialog).getByLabelText(/^receipt number$/i)).toHaveValue("R-100")
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText(/^main account$/i)).toHaveTextContent(
+        "General Fund"
+      )
+    })
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("keeps empty create defaults when For Revision has no prior progress updates (T1/V2)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 25 })]
+    store.updates = []
+    store.expenses = []
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/update notes/i)).toHaveValue("")
+    expect(within(dialog).getByText(/Progress: 25%/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
 })
