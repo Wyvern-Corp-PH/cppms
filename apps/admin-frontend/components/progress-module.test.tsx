@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+﻿import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
+  expenses: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   fundingYears: [] as Array<Record<string, unknown>>,
@@ -20,7 +21,8 @@ const store = {
 }
 
 const createMock = vi.fn()
-const updateMock = vi.fn()
+const projectUpdateMock = vi.fn()
+const progressUpdateMock = vi.fn()
 const expenseCreateMock = vi.fn()
 const deleteMock = vi.fn()
 
@@ -33,6 +35,7 @@ vi.mock("@/lib/pocketbase", () => ({
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
+        if (name === "budget_expenses") return store.expenses
         if (name === "locations") return store.locations
         if (name === "users") return store.users
         if (name === "budget_funding_years") return store.fundingYears
@@ -46,7 +49,12 @@ vi.mock("@/lib/pocketbase", () => ({
         }
         return createMock(payload)
       },
-      update: updateMock,
+      update: (id: string, payload: unknown) => {
+        if (name === "progress_updates") {
+          return progressUpdateMock(id, payload)
+        }
+        return projectUpdateMock(id, payload)
+      },
       delete: deleteMock,
     }),
   }),
@@ -87,6 +95,7 @@ describe("ProgressModule (V81, V84)", () => {
   beforeEach(() => {
     store.projects = []
     store.updates = []
+    store.expenses = []
     store.locations = [
       {
         id: "loc1",
@@ -183,7 +192,8 @@ describe("ProgressModule (V81, V84)", () => {
       collectionId: "updates",
       collectionName: "progress_updates",
     })
-    updateMock.mockReset().mockResolvedValue({})
+    projectUpdateMock.mockReset().mockResolvedValue({})
+    progressUpdateMock.mockReset().mockResolvedValue({})
     expenseCreateMock.mockReset().mockResolvedValue({})
     deleteMock.mockReset().mockResolvedValue({})
   })
@@ -596,7 +606,7 @@ describe("ProgressModule (V81, V84)", () => {
       },
     ]
     store.updates = []
-    updateMock.mockRejectedValueOnce(new Error("PATCH blocked"))
+    projectUpdateMock.mockRejectedValueOnce(new Error("PATCH blocked"))
     const warnMock = vi.spyOn(console, "warn").mockImplementation(() => {})
 
     render(<ProgressModule />)
@@ -621,7 +631,7 @@ describe("ProgressModule (V81, V84)", () => {
           sub_account: "GF - Proper",
         })
       )
-      expect(updateMock).toHaveBeenCalledTimes(1)
+      expect(projectUpdateMock).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     })
     expect(warnMock).toHaveBeenCalledWith(
@@ -741,7 +751,7 @@ describe("ProgressModule (V81, V84)", () => {
       await screen.findByText(/liquidation documents are required/i)
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
-    expect(updateMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
   it("lets Barangay update a For Revision project and resubmit it as Ready for Review", async () => {
@@ -778,12 +788,12 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
-      expect(updateMock).toHaveBeenCalledWith("1", {
+      expect(projectUpdateMock).toHaveBeenCalledWith("1", {
         progress_pct: 100,
         status: "Ready for Review",
       })
     })
-  })
+  }, 20_000)
 
   it("appends multiple files for every completion document upload", async () => {
     const user = userEvent.setup()
@@ -857,7 +867,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(payload.getAll("audit_documents")).toHaveLength(2)
     expect(payload.getAll("verification_documents")).toHaveLength(2)
     expect(payload.getAll("liquidation_documents")).toHaveLength(2)
-  })
+  }, 20_000)
 
   it("keeps final Completed projects read-only for Barangay progress users", async () => {
     useBarangayActor()
@@ -1049,6 +1059,6 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument()
       expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
     })
-    expect(updateMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 })

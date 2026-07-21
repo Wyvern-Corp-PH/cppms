@@ -23,16 +23,20 @@ import {
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
   type CompletionDocumentField,
+  budgetExpenseRecordSchema,
   fieldErrorsFromZod,
   firstZodError,
   locationRecordSchema,
   parseRecordList,
   progressUpdateFormSchema,
   progressUpdateRecordSchema,
+  progressUpdateRevisionFormSchema,
+  progressUpdateRevisionWithReleasedAmountFormSchema,
   progressUpdateWithReleasedAmountFormSchema,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
+  BudgetExpenseRecord,
   LocationRecord,
   ProgressUpdateRecord,
   ProjectRecord,
@@ -170,9 +174,124 @@ function toReleasedAmountInput(value: ReleasedAmountFormValue) {
   }
 }
 
+function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
+  return values.flatMap((value) => {
+    if (Array.isArray(value)) {
+      return value.filter((name) => Boolean(name.trim()))
+    }
+    return value?.trim() ? [value] : []
+  })
+}
+
+function recordRecencyKey(row: {
+  created?: string
+  updated_at?: string
+  id: string
+}) {
+  return row.created ?? row.updated_at ?? row.id
+}
+
+function compareByRecencyDesc<
+  T extends { created?: string; updated_at?: string; id: string },
+>(a: T, b: T) {
+  return recordRecencyKey(b).localeCompare(recordRecencyKey(a))
+}
+
+function latestByCreated<
+  T extends { created?: string; updated_at?: string; id: string },
+>(rows: T[]): T | undefined {
+  if (rows.length === 0) return undefined
+  return [...rows].sort(compareByRecencyDesc)[0]
+}
+
+function progressUpdateFormSchemaFor(options: {
+  revision: boolean
+  withReleasedAmount: boolean
+}) {
+  if (options.revision && options.withReleasedAmount) {
+    return progressUpdateRevisionWithReleasedAmountFormSchema
+  }
+  if (options.revision) {
+    return progressUpdateRevisionFormSchema
+  }
+  if (options.withReleasedAmount) {
+    return progressUpdateWithReleasedAmountFormSchema
+  }
+  return progressUpdateFormSchema
+}
+
+async function rollbackCreatedProgressUpdate(
+  pb: ReturnType<typeof getPocketBase>,
+  progressRecordId: string
+) {
+  try {
+    await pb.collection("progress_updates").delete(progressRecordId)
+  } catch (rollbackError) {
+    console.warn(
+      "Progress update saved, but released amount rollback failed.",
+      rollbackError
+    )
+  }
+}
+
+function releasedAmountFormFromExpense(
+  expense: BudgetExpenseRecord
+): ReleasedAmountFormValue {
+  return {
+    amount: String(expense.amount),
+    releaseYear: String(expense.year),
+    mainAccount: expense.main_account,
+    subAccount: expense.sub_account ?? "",
+    receiptNumber: expense.receipt_number ?? "",
+    expenseDate: expense.date,
+    expenseDescription: expense.description ?? "",
+  }
+}
+
+function coerceComparable(value: unknown) {
+  if (value === undefined || value === null) return ""
+  return String(value)
+}
+
+function releasedAmountEqualsLatest(
+  submitted: ReturnType<typeof toReleasedAmountInput>,
+  latest: BudgetExpenseRecord | undefined
+) {
+  if (!latest) return false
+  return (
+    Number(submitted.amount) === Number(latest.amount) &&
+    Number(submitted.year) === Number(latest.year) &&
+    coerceComparable(submitted.main_account) ===
+      coerceComparable(latest.main_account) &&
+    coerceComparable(submitted.sub_account) ===
+      coerceComparable(latest.sub_account) &&
+    coerceComparable(submitted.date) === coerceComparable(latest.date) &&
+    coerceComparable(submitted.receipt_number) ===
+      coerceComparable(latest.receipt_number) &&
+    coerceComparable(submitted.description) ===
+      coerceComparable(latest.description)
+  )
+}
+
+function existingCompletionDocNamesFromUpdate(
+  update: ProgressUpdateRecord | undefined
+) {
+  if (!update) return undefined
+  return {
+    certification_completion: namesOnRecord(update.certification_completion),
+    certificate_acceptance: namesOnRecord(update.certificate_acceptance),
+    proof_payment_barangay: namesOnRecord(update.proof_payment_barangay),
+    acknowledgment_completion: namesOnRecord(update.acknowledgment_completion),
+    audit_documents: namesOnRecord(update.audit_documents),
+    verification_documents: namesOnRecord(update.verification_documents),
+    liquidation_documents: namesOnRecord(update.liquidation_documents),
+  }
+}
+
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -192,6 +311,12 @@ export function ProgressModule() {
   const [completionDocs, setCompletionDocs] = useState<CompletionDocumentState>(
     emptyCompletionDocuments()
   )
+  const [existingSitePhotoNames, setExistingSitePhotoNames] = useState<
+    string[]
+  >([])
+  const [existingCompletionDocNames, setExistingCompletionDocNames] = useState<
+    ReturnType<typeof existingCompletionDocNamesFromUpdate>
+  >(undefined)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -201,9 +326,18 @@ export function ProgressModule() {
   const [releasedAmountErrors, setReleasedAmountErrors] = useState<
     Record<string, string>
   >({})
+  const [expensesLoadError, setExpensesLoadError] = useState<string | null>(
+    null
+  )
+  const [loadError, setLoadError] = useState<string | null>(null)
   const actor = getPocketBase().authStore?.record
   const canCreateProgressUpdates = actor
     ? canAccess(actor, "progress_updates.create")
+    : true
+  // Same roles that have create also have update in ROLE_POLICIES; create remains
+  // the intentional UI gate, but mutation sites re-check the matching capability.
+  const canUpdateProgressUpdates = actor
+    ? canAccess(actor, "progress_updates.update")
     : true
   const requiresReleasedAmount = requiresReleasedAmountForActor(actor)
 
@@ -211,25 +345,49 @@ export function ProgressModule() {
     setLoading(true)
     try {
       const pb = getPocketBase()
-      const [projectRows, updateRows, locationRows, userRows] = await Promise.all([
-        pb.collection("projects").getFullList(),
-        pb.collection("progress_updates").getFullList(),
-        pb.collection("locations").getFullList().catch(() => []),
-        pb.collection("users").getFullList().catch(() => []),
-      ])
+      const [projectRows, updateRows, expenseResult, locationRows, userRows] =
+        await Promise.all([
+          pb.collection("projects").getFullList(),
+          pb.collection("progress_updates").getFullList(),
+          pb
+            .collection("budget_expenses")
+            .getFullList()
+            .then(
+              (rows) => ({ ok: true as const, rows }),
+              (error: unknown) => ({ ok: false as const, error })
+            ),
+          pb.collection("locations").getFullList().catch(() => []),
+          pb.collection("users").getFullList().catch(() => []),
+        ])
       const parsedUpdates = parseRecordList(
         progressUpdateRecordSchema,
         updateRows
       )
-      parsedUpdates.sort((a, b) => {
-        const aKey = a.created ?? a.updated_at ?? a.id
-        const bKey = b.created ?? b.updated_at ?? b.id
-        return bKey.localeCompare(aKey)
-      })
+      parsedUpdates.sort(compareByRecencyDesc)
       setProjects(parseRecordList(projectRecordSchema, projectRows))
       setLocations(parseRecordList(locationRecordSchema, locationRows))
       setUpdates(parsedUpdates)
       setUsers(userRows as UserDisplayRecord[])
+
+      if (expenseResult.ok) {
+        const parsedExpenses = parseRecordList(
+          budgetExpenseRecordSchema,
+          expenseResult.rows
+        )
+        parsedExpenses.sort(compareByRecencyDesc)
+        setExpenses(parsedExpenses)
+        setExpensesLoadError(null)
+        setLoadError(null)
+      } else {
+        console.warn("Failed to load budget expenses.", expenseResult.error)
+        setExpensesLoadError(
+          "Unable to load released amount history. Refresh before saving a progress update."
+        )
+        setLoadError(
+          "Unable to load released amount history. Refresh before saving a progress update."
+        )
+        // Keep previous expenses — do not treat load failure as empty history.
+      }
     } finally {
       setLoading(false)
     }
@@ -240,7 +398,7 @@ export function ProgressModule() {
   }, [load])
 
   const { live } = usePocketBaseRealtime(
-    ["projects", "progress_updates"],
+    ["projects", "progress_updates", "budget_expenses"],
     () => {
       void load()
     }
@@ -293,19 +451,63 @@ export function ProgressModule() {
     [selected, updates]
   )
 
+  function revisionContextFor(project: ProjectRecord) {
+    const isForRevision = project.status === "For Revision"
+    const projectUpdates = updates.filter(
+      (update) => update.project === project.id
+    )
+    const projectExpenses = expenses.filter(
+      (expense) => expense.project === project.id
+    )
+    const latestUpdate = isForRevision
+      ? latestByCreated(projectUpdates)
+      : undefined
+    const latestExpense = isForRevision
+      ? latestByCreated(projectExpenses)
+      : undefined
+    return {
+      isForRevision,
+      projectUpdates,
+      projectExpenses,
+      latestUpdate,
+      latestExpense,
+    }
+  }
+
   function openUpdateModal(project: ProjectRecord) {
     if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
       return
     }
-    const projectUpdates = updates.filter(
-      (update) => update.project === project.id
-    )
+    if (expensesLoadError && requiresReleasedAmount) {
+      setFormError(expensesLoadError)
+      setLoadError(expensesLoadError)
+      return
+    }
+    const { latestUpdate, latestExpense } = revisionContextFor(project)
+
     setDialogProjectId(project.id)
-    setToPct(effectiveProgressPct(project, projectUpdates))
-    setNotes("")
+    setToPct(
+      latestUpdate
+        ? latestUpdate.to_pct
+        : effectiveProgressPct(
+            project,
+            updates.filter((update) => update.project === project.id)
+          )
+    )
+    setNotes(latestUpdate?.notes ?? "")
     setPhotos([])
     setCompletionDocs(emptyCompletionDocuments())
-    setReleasedAmount(emptyReleasedAmountFormValue())
+    setExistingSitePhotoNames(
+      latestUpdate ? namesOnRecord(latestUpdate.site_photo) : []
+    )
+    setExistingCompletionDocNames(
+      existingCompletionDocNamesFromUpdate(latestUpdate)
+    )
+    setReleasedAmount(
+      latestExpense
+        ? releasedAmountFormFromExpense(latestExpense)
+        : emptyReleasedAmountFormValue()
+    )
     setReleasedAmountErrors({})
     setFieldErrors({})
     setFormError(null)
@@ -335,27 +537,165 @@ export function ProgressModule() {
     }
   }
 
+  function validateProgressUpdateInput(options: {
+    projectId: string
+    revision: boolean
+    latestUpdate: ProgressUpdateRecord | undefined
+  }) {
+    const existingSitePhotoNamesFromRecord = options.latestUpdate
+      ? namesOnRecord(options.latestUpdate.site_photo)
+      : []
+    const existingCompletionDocNamesFromRecord =
+      existingCompletionDocNamesFromUpdate(options.latestUpdate)
+
+    const parseInput = {
+      projectId: options.projectId,
+      toPct,
+      notes,
+      sitePhoto: photos,
+      completionDocs,
+      ...(options.revision
+        ? {
+            existingSitePhotoNames: existingSitePhotoNamesFromRecord,
+            existingCompletionDocNames: existingCompletionDocNamesFromRecord,
+          }
+        : {}),
+      ...(requiresReleasedAmount
+        ? { releasedAmount: toReleasedAmountInput(releasedAmount) }
+        : {}),
+    }
+
+    return progressUpdateFormSchemaFor({
+      revision: options.revision,
+      withReleasedAmount: requiresReleasedAmount,
+    }).safeParse(parseInput)
+  }
+
+  function buildProgressUpdateFormData(
+    parsed: {
+      projectId: string
+      toPct: number
+      notes?: string
+      sitePhoto: File[]
+    },
+    latestUpdate: ProgressUpdateRecord | undefined
+  ) {
+    const formData = new FormData()
+    formData.append("project", parsed.projectId)
+    formData.append("to_pct", String(parsed.toPct))
+    if (latestUpdate) {
+      formData.append("notes", parsed.notes ?? "")
+    } else if (parsed.notes) {
+      formData.append("notes", parsed.notes)
+    }
+    for (const file of parsed.sitePhoto) {
+      formData.append("site_photo", file)
+    }
+    if (parsed.toPct >= 100) {
+      appendCompletionDocuments(formData)
+    }
+    return formData
+  }
+
+  async function syncReleasedAmountExpense(options: {
+    pb: ReturnType<typeof getPocketBase>
+    projectId: string
+    releasedAmount: ReturnType<typeof toReleasedAmountInput>
+    latestExpense: BudgetExpenseRecord | undefined
+    latestUpdate: ProgressUpdateRecord | undefined
+    progressRecordId: string | undefined
+  }) {
+    const shouldCreateExpense = !releasedAmountEqualsLatest(
+      options.releasedAmount,
+      options.latestExpense
+    )
+    if (!shouldCreateExpense) {
+      return
+    }
+
+    try {
+      await options.pb.collection("budget_expenses").create({
+        project: options.projectId,
+        ...options.releasedAmount,
+      })
+    } catch (error) {
+      console.warn("Released amount sync failed after progress save.", {
+        projectId: options.projectId,
+        progressUpdateId: options.progressRecordId,
+        revisionUpdate: Boolean(options.latestUpdate),
+        error,
+      })
+      if (!options.latestUpdate && options.progressRecordId) {
+        await rollbackCreatedProgressUpdate(
+          options.pb,
+          options.progressRecordId
+        )
+      }
+      throw error
+    }
+  }
+
+  async function patchProjectAfterProgressSave(options: {
+    pb: ReturnType<typeof getPocketBase>
+    projectId: string
+    toPct: number
+    currentStatus: string
+  }) {
+    try {
+      await options.pb.collection("projects").update(options.projectId, {
+        progress_pct: options.toPct,
+        status:
+          options.toPct >= 100 ? "Ready for Review" : options.currentStatus,
+      })
+    } catch (error) {
+      console.warn(
+        "Progress update saved, but project summary did not update.",
+        error
+      )
+    }
+  }
+
+  function resetProgressDialogState() {
+    setDialogOpen(false)
+    setPhotos([])
+    setCompletionDocs(emptyCompletionDocuments())
+    setExistingSitePhotoNames([])
+    setExistingCompletionDocNames(undefined)
+    setReleasedAmount(emptyReleasedAmountFormValue())
+  }
+
   async function saveUpdate() {
     if (!canCreateProgressUpdates) {
       return
     }
 
     setFormError(null)
-    const parseInput = {
-      projectId: dialogProjectId,
-      toPct,
-      notes,
-      sitePhoto: photos,
-      completionDocs,
-      ...(requiresReleasedAmount
-        ? { releasedAmount: toReleasedAmountInput(releasedAmount) }
-        : {}),
+    const project = scopedProjects.find((row) => row.id === dialogProjectId)
+    if (!project) {
+      setFormError("Project is required.")
+      return
     }
-    const parsed = (
-      requiresReleasedAmount
-        ? progressUpdateWithReleasedAmountFormSchema
-        : progressUpdateFormSchema
-    ).safeParse(parseInput)
+    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
+      setFormError("This project is read-only for progress updates.")
+      return
+    }
+
+    const { projectUpdates, latestUpdate, latestExpense } =
+      revisionContextFor(project)
+    const useRevisionValidation = Boolean(
+      project.status === "For Revision" && latestUpdate
+    )
+
+    if (requiresReleasedAmount && expensesLoadError) {
+      setFormError(expensesLoadError)
+      return
+    }
+
+    const parsed = validateProgressUpdateInput({
+      projectId: dialogProjectId,
+      revision: useRevisionValidation,
+      latestUpdate,
+    })
 
     if (!parsed.success) {
       const nextFieldErrors = fieldErrorsFromZod(parsed.error)
@@ -373,80 +713,63 @@ export function ProgressModule() {
       return
     }
 
+    // Create capability is the intentional UI gate. Immediately before mutate,
+    // re-check create vs update to match the PB operation (same role policies).
+    const canMutateThisPath = latestUpdate
+      ? canUpdateProgressUpdates
+      : canCreateProgressUpdates
+    if (!canUpdateProjectProgress(project, canMutateThisPath)) {
+      setFormError("This project is read-only for progress updates.")
+      return
+    }
+
     setFieldErrors({})
     setReleasedAmountErrors({})
     setSaving(true)
     const pb = getPocketBase()
     try {
-      const project = projects.find((row) => row.id === parsed.data.projectId)
-      if (!project) {
-        setFormError("Project is required.")
-        return
-      }
-      if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
-        setFormError("This project is read-only for progress updates.")
-        return
-      }
-      const projectUpdates = updates.filter(
-        (update) => update.project === project.id
-      )
+      const formData = buildProgressUpdateFormData(parsed.data, latestUpdate)
+      let progressRecordId: string | undefined
 
-      const formData = new FormData()
-      formData.append("project", parsed.data.projectId)
-      formData.append(
-        "from_pct",
-        String(effectiveProgressPct(project, projectUpdates))
-      )
-      formData.append("to_pct", String(parsed.data.toPct))
-      if (parsed.data.notes) formData.append("notes", parsed.data.notes)
-      for (const file of parsed.data.sitePhoto) {
-        formData.append("site_photo", file)
+      if (latestUpdate) {
+        await pb
+          .collection("progress_updates")
+          .update(latestUpdate.id, formData)
+        progressRecordId = latestUpdate.id
+      } else {
+        formData.append(
+          "from_pct",
+          String(effectiveProgressPct(project, projectUpdates))
+        )
+        const progressRecord = await pb
+          .collection("progress_updates")
+          .create(formData)
+        progressRecordId = progressRecord.id
       }
-      if (parsed.data.toPct >= 100) {
-        appendCompletionDocuments(formData)
-      }
-
-      const progressRecord = await pb.collection("progress_updates").create(formData)
 
       if (
         requiresReleasedAmount &&
         "releasedAmount" in parsed.data &&
         parsed.data.releasedAmount
       ) {
-        try {
-          await pb.collection("budget_expenses").create({
-            project: parsed.data.projectId,
-            ...parsed.data.releasedAmount,
-          })
-        } catch (error) {
-          try {
-            await pb.collection("progress_updates").delete(progressRecord.id)
-          } catch (rollbackError) {
-            console.warn(
-              "Progress update saved, but released amount rollback failed.",
-              rollbackError
-            )
-          }
-          throw error
-        }
-      }
-
-      try {
-        await pb.collection("projects").update(parsed.data.projectId, {
-          progress_pct: parsed.data.toPct,
-          status: parsed.data.toPct >= 100 ? "Ready for Review" : project.status,
+        await syncReleasedAmountExpense({
+          pb,
+          projectId: parsed.data.projectId,
+          releasedAmount: parsed.data.releasedAmount,
+          latestExpense,
+          latestUpdate,
+          progressRecordId,
         })
-      } catch (error) {
-        console.warn(
-          "Progress update saved, but project summary did not update.",
-          error
-        )
       }
 
-      setDialogOpen(false)
-      setPhotos([])
-      setCompletionDocs(emptyCompletionDocuments())
-      setReleasedAmount(emptyReleasedAmountFormValue())
+      await patchProjectAfterProgressSave({
+        pb,
+        projectId: parsed.data.projectId,
+        toPct: parsed.data.toPct,
+        currentStatus: project.status,
+      })
+
+      resetProgressDialogState()
       await load()
     } catch (error) {
       setFormError(
@@ -486,6 +809,12 @@ export function ProgressModule() {
         context="Site updates and completion percentages."
         live={live}
       />
+
+      {loadError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {loadError}
+        </p>
+      ) : null}
 
       <SummaryCardRow
         cards={[
@@ -780,6 +1109,8 @@ export function ProgressModule() {
           if (!open) {
             setPhotos([])
             setCompletionDocs(emptyCompletionDocuments())
+            setExistingSitePhotoNames([])
+            setExistingCompletionDocNames(undefined)
             setReleasedAmount(emptyReleasedAmountFormValue())
             setReleasedAmountErrors({})
             setFieldErrors({})
@@ -842,6 +1173,7 @@ export function ProgressModule() {
                 multiple
                 files={photos}
                 onChange={setPhotos}
+                existingNames={existingSitePhotoNames}
                 error={fieldErrors.sitePhoto}
               />
               {toPct >= 100 ? (
@@ -860,6 +1192,9 @@ export function ProgressModule() {
                         files={completionDocs[doc.field]}
                         onChange={(files) =>
                           setCompletionDocument(doc.field, files)
+                        }
+                        existingNames={
+                          existingCompletionDocNames?.[doc.field] ?? []
                         }
                         error={fieldErrors[doc.field]}
                       />
