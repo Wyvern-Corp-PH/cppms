@@ -147,6 +147,16 @@ const budgetExpensesScopedCreateRuleMigrationPath = resolve(
   "pb_migrations",
   "1740000028_budget_expenses_scoped_create_rule.js"
 )
+const stuck100ReadyForReviewMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000029_repair_stuck_100pct_ready_for_review.js"
+)
+const saProvinceProgressApprovalRulesMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000030_sa_province_progress_approval_rules.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -765,5 +775,59 @@ describe("PocketBase sync-project-progress hook", () => {
     expect(hookSource).toContain('project.set("progress_pct"')
     expect(hookSource).toContain("Ready for Review")
     expect(hookSource).toContain("app.save")
+  })
+
+  it("sets Ready for Review when to_pct ≥ 100 including For Revision resubmit (V5)", () => {
+    expect(hookSource).toContain("pct >= 100")
+    expect(hookSource).toContain('"Ready for Review"')
+    expect(hookSource).toContain("console.error")
+    expect(hookSource).toContain(
+      "Progress update saved, but project summary did not sync."
+    )
+  })
+})
+
+describe("PocketBase repair stuck 100% → Ready for Review migration (V7)", () => {
+  const migrationSource = readFileSync(stuck100ReadyForReviewMigrationPath, "utf8")
+
+  it("repairs Planning|Procurement|Ongoing when effectivePct ≥ 100", () => {
+    expect(migrationSource).toContain("Planning")
+    expect(migrationSource).toContain("Procurement")
+    expect(migrationSource).toContain("Ongoing")
+    expect(migrationSource).toContain("Ready for Review")
+    expect(migrationSource).toContain("progress_pct")
+    expect(migrationSource).toContain("to_pct")
+    expect(migrationSource).toContain("Math.max")
+    expect(migrationSource).not.toContain("For Revision")
+  })
+
+  it("paginates all stuck rows and surfaces query failures (⊥ hard-cap 500 / catch→[])", () => {
+    expect(migrationSource).toContain("offset")
+    expect(migrationSource).toMatch(/while\s*\(/)
+    expect(migrationSource).toContain("PAGE_SIZE")
+    expect(migrationSource).toContain("STUCK_AT_100_PROGRESS_STATUSES")
+    expect(migrationSource).not.toMatch(/catch\s*\{\s*return\s*\[\]/)
+  })
+})
+
+describe("PocketBase SA/Province progress + approval rules (action matrix)", () => {
+  const migrationSource = readFileSync(
+    saProvinceProgressApprovalRulesMigrationPath,
+    "utf8"
+  )
+
+  it("widens progress_updates mutate to SA|Province|Mun|Barangay scope", () => {
+    expect(migrationSource).toContain("PROGRESS_MUTATE_RULE")
+    expect(migrationSource).toContain("SUPER_ADMIN_OR_PROVINCE_RULE")
+    expect(migrationSource).toContain("LOCAL_PROGRESS_MUTATE_RULE")
+    expect(migrationSource).toContain("progressUpdates.createRule")
+  })
+
+  it("widens approval_actions mutate to Super Admin or Province", () => {
+    expect(migrationSource).toContain("approvalActions.createRule")
+    expect(migrationSource).toContain("SUPER_ADMIN_OR_PROVINCE_RULE")
+    expect(migrationSource).not.toMatch(
+      /approvalActions\.createRule\s*=\s*PROVINCE_RULE\s*$/m
+    )
   })
 })
