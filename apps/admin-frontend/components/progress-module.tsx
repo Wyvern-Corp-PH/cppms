@@ -18,7 +18,10 @@ import {
 } from "@workspace/pocketbase/domain/user-display"
 import {
   buildProgressSummaryCards,
+  canShowUpdateProgress,
   effectiveProgressPct,
+  isStuckAt100NeedingReadyForReview,
+  projectProgressPatchFromUpdate,
 } from "@workspace/pocketbase/domain/progress-summary"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
@@ -53,8 +56,11 @@ import {
 } from "@workspace/ui/components/dialog"
 import {
   Field,
+  FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
+  FieldSet,
 } from "@workspace/ui/components/field"
 import { Progress } from "@workspace/ui/components/progress"
 import { Slider } from "@workspace/ui/components/slider"
@@ -82,12 +88,6 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
-const EDITABLE_PROGRESS_STATUSES = [
-  "Planning",
-  "Procurement",
-  "Ongoing",
-  "For Revision",
-] as const
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
@@ -133,12 +133,14 @@ function lastUpdatedLabel(updates: ProgressUpdateRecord[]): string {
 
 function canUpdateProjectProgress(
   project: ProjectRecord,
-  canCreateProgressUpdates: boolean
+  canCreateProgressUpdates: boolean,
+  projectUpdates: ProgressUpdateRecord[]
 ) {
-  return (
-    canCreateProgressUpdates &&
-    (EDITABLE_PROGRESS_STATUSES as readonly string[]).includes(project.status)
-  )
+  return canShowUpdateProgress({
+    status: project.status,
+    effectivePct: effectiveProgressPct(project, projectUpdates),
+    canCreateProgressUpdates,
+  })
 }
 
 function requiresReleasedAmountForActor(
@@ -173,6 +175,8 @@ function toReleasedAmountInput(value: ReleasedAmountFormValue) {
     description: value.expenseDescription || undefined,
   }
 }
+
+type ReleasedAmountPayload = ReturnType<typeof toReleasedAmountInput>
 
 function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
   return values.flatMap((value) => {
@@ -232,6 +236,54 @@ async function rollbackCreatedProgressUpdate(
       rollbackError
     )
   }
+}
+
+/** Optional Super Admin/Province load heal — ⊥ Mun/Barangay client repair. */
+async function healStuckProjectsAt100(
+  pb: ReturnType<typeof getPocketBase>,
+  projects: ProjectRecord[],
+  updates: ProgressUpdateRecord[]
+): Promise<ProjectRecord[]> {
+  const healActor = pb.authStore?.record
+  if (!healActor || !canAccess(healActor, "projects.update")) {
+    return projects
+  }
+
+  const stuck = projects.filter((project) => {
+    const projectUpdates = updates.filter(
+      (update) => update.project === project.id
+    )
+    return isStuckAt100NeedingReadyForReview({
+      status: project.status,
+      effectivePct: effectiveProgressPct(project, projectUpdates),
+    })
+  })
+  if (stuck.length === 0) {
+    return projects
+  }
+
+  await Promise.all(
+    stuck.map(async (project) => {
+      const projectUpdates = updates.filter(
+        (update) => update.project === project.id
+      )
+      const patch = projectProgressPatchFromUpdate(
+        effectiveProgressPct(project, projectUpdates),
+        project.status
+      )
+      try {
+        await pb.collection("projects").update(project.id, patch)
+      } catch (error) {
+        console.warn("Stuck 100% project heal failed.", {
+          projectId: project.id,
+          error,
+        })
+      }
+    })
+  )
+
+  const refreshed = await pb.collection("projects").getFullList()
+  return parseRecordList(projectRecordSchema, refreshed)
 }
 
 function releasedAmountFormFromExpense(
@@ -333,12 +385,15 @@ export function ProgressModule() {
   const actor = getPocketBase().authStore?.record
   const canCreateProgressUpdates = actor
     ? canAccess(actor, "progress_updates.create")
-    : true
+    : false
   // Same roles that have create also have update in ROLE_POLICIES; create remains
   // the intentional UI gate, but mutation sites re-check the matching capability.
   const canUpdateProgressUpdates = actor
     ? canAccess(actor, "progress_updates.update")
-    : true
+    : false
+  const canPatchProjects = actor
+    ? canAccess(actor, "projects.update")
+    : false
   const requiresReleasedAmount = requiresReleasedAmountForActor(actor)
 
   const load = useCallback(async () => {
@@ -364,7 +419,13 @@ export function ProgressModule() {
         updateRows
       )
       parsedUpdates.sort(compareByRecencyDesc)
-      setProjects(parseRecordList(projectRecordSchema, projectRows))
+      const parsedProjects = await healStuckProjectsAt100(
+        pb,
+        parseRecordList(projectRecordSchema, projectRows),
+        parsedUpdates
+      )
+
+      setProjects(parsedProjects)
       setLocations(parseRecordList(locationRecordSchema, locationRows))
       setUpdates(parsedUpdates)
       setUsers(userRows as UserDisplayRecord[])
@@ -475,7 +536,16 @@ export function ProgressModule() {
   }
 
   function openUpdateModal(project: ProjectRecord) {
-    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
+    const projectUpdates = updates.filter(
+      (update) => update.project === project.id
+    )
+    if (
+      !canUpdateProjectProgress(
+        project,
+        canCreateProgressUpdates,
+        projectUpdates
+      )
+    ) {
       return
     }
     if (expensesLoadError && requiresReleasedAmount) {
@@ -600,7 +670,7 @@ export function ProgressModule() {
   async function syncReleasedAmountExpense(options: {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
-    releasedAmount: ReturnType<typeof toReleasedAmountInput>
+    releasedAmount: ReleasedAmountPayload
     latestExpense: BudgetExpenseRecord | undefined
     latestUpdate: ProgressUpdateRecord | undefined
     progressRecordId: string | undefined
@@ -639,14 +709,18 @@ export function ProgressModule() {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
     toPct: number
-    currentStatus: string
+    currentStatus: ProjectRecord["status"]
   }) {
+    // Primary Ready-for-Review path is sync-project-progress hook.
+    // Optional belt: only actors with projects.update (SA/Province).
+    if (!canPatchProjects) {
+      return
+    }
     try {
-      await options.pb.collection("projects").update(options.projectId, {
-        progress_pct: options.toPct,
-        status:
-          options.toPct >= 100 ? "Ready for Review" : options.currentStatus,
-      })
+      await options.pb.collection("projects").update(
+        options.projectId,
+        projectProgressPatchFromUpdate(options.toPct, options.currentStatus)
+      )
     } catch (error) {
       console.warn(
         "Progress update saved, but project summary did not update.",
@@ -664,6 +738,66 @@ export function ProgressModule() {
     setReleasedAmount(emptyReleasedAmountFormValue())
   }
 
+  async function persistProgressUpdate(options: {
+    project: ProjectRecord
+    projectUpdates: ProgressUpdateRecord[]
+    latestUpdate: ProgressUpdateRecord | undefined
+    latestExpense: BudgetExpenseRecord | undefined
+    parsed: {
+      projectId: string
+      toPct: number
+      notes?: string
+      sitePhoto: File[]
+      releasedAmount?: ReleasedAmountPayload
+    }
+  }) {
+    const pb = getPocketBase()
+    const formData = buildProgressUpdateFormData(
+      options.parsed,
+      options.latestUpdate
+    )
+    let progressRecordId: string | undefined
+
+    if (options.latestUpdate) {
+      await pb
+        .collection("progress_updates")
+        .update(options.latestUpdate.id, formData)
+      progressRecordId = options.latestUpdate.id
+    } else {
+      formData.append(
+        "from_pct",
+        String(effectiveProgressPct(options.project, options.projectUpdates))
+      )
+      const progressRecord = await pb
+        .collection("progress_updates")
+        .create(formData)
+      progressRecordId = progressRecord.id
+    }
+
+    if (requiresReleasedAmount) {
+      await syncReleasedAmountExpense({
+        pb,
+        projectId: options.parsed.projectId,
+        releasedAmount:
+          options.parsed.releasedAmount ??
+          toReleasedAmountInput(releasedAmount),
+        latestExpense: options.latestExpense,
+        latestUpdate: options.latestUpdate,
+        progressRecordId,
+      })
+    }
+
+    await patchProjectAfterProgressSave({
+      pb,
+      projectId: options.parsed.projectId,
+      toPct: options.parsed.toPct,
+      currentStatus: options.project.status,
+    })
+
+    resetProgressDialogState()
+    await load()
+  }
+
   async function saveUpdate() {
     if (!canCreateProgressUpdates) {
       return
@@ -675,16 +809,18 @@ export function ProgressModule() {
       setFormError("Project is required.")
       return
     }
-    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
+    const { projectUpdates, latestUpdate, latestExpense } =
+      revisionContextFor(project)
+    if (
+      !canUpdateProjectProgress(
+        project,
+        canCreateProgressUpdates,
+        projectUpdates
+      )
+    ) {
       setFormError("This project is read-only for progress updates.")
       return
     }
-
-    const { projectUpdates, latestUpdate, latestExpense } =
-      revisionContextFor(project)
-    const useRevisionValidation = Boolean(
-      project.status === "For Revision" && latestUpdate
-    )
 
     if (requiresReleasedAmount && expensesLoadError) {
       setFormError(expensesLoadError)
@@ -693,7 +829,7 @@ export function ProgressModule() {
 
     const parsed = validateProgressUpdateInput({
       projectId: dialogProjectId,
-      revision: useRevisionValidation,
+      revision: Boolean(project.status === "For Revision" && latestUpdate),
       latestUpdate,
     })
 
@@ -718,7 +854,9 @@ export function ProgressModule() {
     const canMutateThisPath = latestUpdate
       ? canUpdateProgressUpdates
       : canCreateProgressUpdates
-    if (!canUpdateProjectProgress(project, canMutateThisPath)) {
+    if (
+      !canUpdateProjectProgress(project, canMutateThisPath, projectUpdates)
+    ) {
       setFormError("This project is read-only for progress updates.")
       return
     }
@@ -726,47 +864,14 @@ export function ProgressModule() {
     setFieldErrors({})
     setReleasedAmountErrors({})
     setSaving(true)
-    const pb = getPocketBase()
     try {
-      const formData = buildProgressUpdateFormData(parsed.data, latestUpdate)
-      let progressRecordId: string | undefined
-
-      if (latestUpdate) {
-        await pb
-          .collection("progress_updates")
-          .update(latestUpdate.id, formData)
-        progressRecordId = latestUpdate.id
-      } else {
-        formData.append(
-          "from_pct",
-          String(effectiveProgressPct(project, projectUpdates))
-        )
-        const progressRecord = await pb
-          .collection("progress_updates")
-          .create(formData)
-        progressRecordId = progressRecord.id
-      }
-
-      if (requiresReleasedAmount) {
-        await syncReleasedAmountExpense({
-          pb,
-          projectId: parsed.data.projectId,
-          releasedAmount: toReleasedAmountInput(releasedAmount),
-          latestExpense,
-          latestUpdate,
-          progressRecordId,
-        })
-      }
-
-      await patchProjectAfterProgressSave({
-        pb,
-        projectId: parsed.data.projectId,
-        toPct: parsed.data.toPct,
-        currentStatus: project.status,
+      await persistProgressUpdate({
+        project,
+        projectUpdates,
+        latestUpdate,
+        latestExpense,
+        parsed: parsed.data,
       })
-
-      resetProgressDialogState()
-      await load()
     } catch (error) {
       setFormError(
         error instanceof Error
@@ -927,7 +1032,11 @@ export function ProgressModule() {
                   >
                     View details
                   </Button>
-                  {canUpdateProjectProgress(project, canCreateProgressUpdates) ? (
+                  {canUpdateProjectProgress(
+                    project,
+                    canCreateProgressUpdates,
+                    projectUpdates
+                  ) ? (
                     <Button
                       type="button"
                       size="sm"
@@ -1001,7 +1110,11 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              {canUpdateProjectProgress(selected, canCreateProgressUpdates) ? (
+              {canUpdateProjectProgress(
+                selected,
+                canCreateProgressUpdates,
+                selectedUpdates
+              ) ? (
                 <Button
                   type="button"
                   className="w-full"
@@ -1079,7 +1192,11 @@ export function ProgressModule() {
                   ))}
                 </ul>
               </div>
-              {canUpdateProjectProgress(selected, canCreateProgressUpdates) ? (
+              {canUpdateProjectProgress(
+                selected,
+                canCreateProgressUpdates,
+                selectedUpdates
+              ) ? (
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1131,89 +1248,97 @@ export function ProgressModule() {
             </DialogHeader>
             <FieldGroup>
               {formError ? (
-                <p className="text-destructive text-sm" role="alert">
-                  {formError}
-                </p>
+                <FieldError>{formError}</FieldError>
               ) : null}
               <p className="text-sm">
                 {dialogProject?.name} — current {dialogProgress}%
               </p>
-              <Field>
-                <FieldLabel>Progress: {toPct}%</FieldLabel>
-                <Slider
-                  value={[toPct]}
-                  onValueChange={(value) => setToPct(value[0] ?? 0)}
-                  max={100}
-                  step={1}
-                />
-                <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                  {SLIDER_MARKERS.map((marker) => (
-                    <span key={marker}>{marker}%</span>
-                  ))}
-                </div>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
-                <Textarea
-                  id="update-notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </Field>
-              <DocumentUploadField
-                id="site-photo"
-                label="Site photo (required)"
-                accept={IMAGE_UPLOAD_ACCEPT}
-                helperText="JPG, PNG, WebP"
-                dropZoneText="Click to upload or drag an image here"
-                multiple
-                files={photos}
-                onChange={setPhotos}
-                existingNames={existingSitePhotoNames}
-                error={fieldErrors.sitePhoto}
-              />
-              {toPct >= 100 ? (
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-sm font-medium">Completion documents</p>
-                  <p className="text-xs text-muted-foreground">
-                    Required before saving a 100% progress update.
-                  </p>
-                  {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
-                    return (
-                      <DocumentUploadField
-                        key={doc.field}
-                        id={`completion-${doc.field}`}
-                        label={doc.label}
-                        multiple={doc.multiple}
-                        files={completionDocs[doc.field]}
-                        onChange={(files) =>
-                          setCompletionDocument(doc.field, files)
-                        }
-                        existingNames={
-                          existingCompletionDocNames?.[doc.field] ?? []
-                        }
-                        error={fieldErrors[doc.field]}
-                      />
-                    )
-                  })}
-                </div>
-              ) : null}
-              {requiresReleasedAmount ? (
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-sm font-medium">Released amount (required)</p>
-                  <p className="text-xs text-muted-foreground">
-                    Record the funds released for this progress update.
-                  </p>
-                  <ReleasedAmountFields
-                    value={releasedAmount}
-                    onChange={setReleasedAmount}
-                    fieldErrors={releasedAmountErrors}
-                    idPrefix="progress-released"
-                    sectionTestId="progress-released-amount-fields"
-                    loadOptions={dialogOpen}
+              <FieldSet>
+                <Field data-invalid={Boolean(fieldErrors.toPct)}>
+                  <FieldLabel>Progress: {toPct}%</FieldLabel>
+                  <Slider
+                    value={[toPct]}
+                    onValueChange={(value) => setToPct(value[0] ?? 0)}
+                    max={100}
+                    step={1}
+                    aria-invalid={Boolean(fieldErrors.toPct)}
                   />
-                </div>
-              ) : null}
+                  <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                    {SLIDER_MARKERS.map((marker) => (
+                      <span key={marker}>{marker}%</span>
+                    ))}
+                  </div>
+                  <FieldError>{fieldErrors.toPct}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(fieldErrors.notes)}>
+                  <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
+                  <Textarea
+                    id="update-notes"
+                    value={notes}
+                    aria-invalid={Boolean(fieldErrors.notes)}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                  <FieldError>{fieldErrors.notes}</FieldError>
+                </Field>
+                <DocumentUploadField
+                  id="site-photo"
+                  label="Site photo (required)"
+                  accept={IMAGE_UPLOAD_ACCEPT}
+                  helperText="JPG, PNG, WebP"
+                  dropZoneText="Click to upload or drag an image here"
+                  multiple
+                  files={photos}
+                  onChange={setPhotos}
+                  existingNames={existingSitePhotoNames}
+                  error={fieldErrors.sitePhoto}
+                />
+                {toPct >= 100 ? (
+                  <FieldSet className="space-y-2 border-t pt-3">
+                    <FieldDescription className="text-sm font-medium text-foreground">
+                      Completion documents
+                    </FieldDescription>
+                    <FieldDescription>
+                      Required before saving a 100% progress update.
+                    </FieldDescription>
+                    {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
+                      return (
+                        <DocumentUploadField
+                          key={doc.field}
+                          id={`completion-${doc.field}`}
+                          label={doc.label}
+                          multiple={doc.multiple}
+                          files={completionDocs[doc.field]}
+                          onChange={(files) =>
+                            setCompletionDocument(doc.field, files)
+                          }
+                          existingNames={
+                            existingCompletionDocNames?.[doc.field] ?? []
+                          }
+                          error={fieldErrors[doc.field]}
+                        />
+                      )
+                    })}
+                  </FieldSet>
+                ) : null}
+                {requiresReleasedAmount ? (
+                  <FieldSet className="space-y-2 border-t pt-3">
+                    <FieldDescription className="text-sm font-medium text-foreground">
+                      Released amount (required)
+                    </FieldDescription>
+                    <FieldDescription>
+                      Record the funds released for this progress update.
+                    </FieldDescription>
+                    <ReleasedAmountFields
+                      value={releasedAmount}
+                      onChange={setReleasedAmount}
+                      fieldErrors={releasedAmountErrors}
+                      idPrefix="progress-released"
+                      sectionTestId="progress-released-amount-fields"
+                      loadOptions={dialogOpen}
+                    />
+                  </FieldSet>
+                ) : null}
+              </FieldSet>
             </FieldGroup>
             <DialogFooter>
               <Button

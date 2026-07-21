@@ -587,7 +587,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
-  it("saves a progress update even when the project meter PATCH fails", async () => {
+  it("saves a progress update without client projects.update for Barangay (hook owns Ready for Review)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -606,8 +606,6 @@ describe("ProgressModule (V81, V84)", () => {
       },
     ]
     store.updates = []
-    projectUpdateMock.mockRejectedValueOnce(new Error("PATCH blocked"))
-    const warnMock = vi.spyOn(console, "warn").mockImplementation(() => {})
 
     render(<ProgressModule />)
 
@@ -631,14 +629,9 @@ describe("ProgressModule (V81, V84)", () => {
           sub_account: "GF - Proper",
         })
       )
-      expect(projectUpdateMock).toHaveBeenCalledTimes(1)
+      expect(projectUpdateMock).not.toHaveBeenCalled()
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     })
-    expect(warnMock).toHaveBeenCalledWith(
-      "Progress update saved, but project summary did not update.",
-      expect.any(Error)
-    )
-    warnMock.mockRestore()
   })
 
   it("shows a Zod validation message when saving without a site photo", async () => {
@@ -725,7 +718,7 @@ describe("ProgressModule (V81, V84)", () => {
         updated: "",
         name: "Bridge",
         category: "Infrastructure",
-        status: "Ongoing",
+        status: "For Revision",
         budget_year: 2026,
         progress_pct: 100,
         ...barangayScope,
@@ -754,7 +747,245 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
-  it("lets Barangay update a For Revision project and resubmit it as Ready for Review", async () => {
+  it("hides Update Progress when effective progress is ≥100 except For Revision (V4)", async () => {
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+      {
+        id: "ready",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Ready Row",
+        category: "Infrastructure",
+        status: "Ready for Review",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+      {
+        id: "revision",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Row",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const stuckRow = await screen.findByTestId("progress-row-stuck")
+    expect(
+      within(stuckRow).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+
+    const readyRow = await screen.findByTestId("progress-row-ready")
+    expect(
+      within(readyRow).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+
+    const revisionRow = await screen.findByTestId("progress-row-revision")
+    expect(
+      within(revisionRow).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
+  })
+
+  it("hides Update Progress in detail panel when ≥100 except For Revision (V4)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+      {
+        id: "revision",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Row",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const stuckRow = await screen.findByTestId("progress-row-stuck")
+    await user.click(
+      within(stuckRow).getByRole("button", { name: /view details/i })
+    )
+
+    const stuckDetail = await screen.findByRole("dialog")
+    expect(
+      within(stuckDetail).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId("progress-detail-panel")).queryByRole(
+        "button",
+        { name: /update progress/i, hidden: true }
+      )
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /close/i }))
+
+    const revisionRow = await screen.findByTestId("progress-row-revision")
+    await user.click(
+      within(revisionRow).getByRole("button", { name: /view details/i })
+    )
+
+    const revisionDetail = await screen.findByRole("dialog")
+    expect(
+      within(revisionDetail).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId("progress-detail-panel")).getByRole("button", {
+        name: /update progress/i,
+        hidden: true,
+      })
+    ).toBeInTheDocument()
+  })
+
+  it("blocks openUpdateModal for ≥100 Planning and opens for For Revision (V4)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+      {
+        id: "revision",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Row",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    expect(
+      screen.queryByRole("dialog", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+
+    const stuckRow = await screen.findByTestId("progress-row-stuck")
+    expect(
+      within(stuckRow).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+
+    const revisionRow = await screen.findByTestId("progress-row-revision")
+    await user.click(
+      within(revisionRow).getByRole("button", { name: /update progress/i })
+    )
+
+    expect(
+      await screen.findByRole("dialog", { name: /update progress/i })
+    ).toBeInTheDocument()
+  })
+
+  it("heals stuck 100% projects on load for Province (V6)", async () => {
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 100,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(projectUpdateMock).toHaveBeenCalledWith(
+        "stuck",
+        expect.objectContaining({
+          progress_pct: 100,
+          status: "Ready for Review",
+        })
+      )
+    })
+  })
+
+  it("does not heal stuck 100% projects on load for Barangay (V6)", async () => {
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await screen.findByTestId("progress-row-stuck")
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it("lets Barangay update a For Revision project without client projects.update (hook owns Ready for Review)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -788,10 +1019,7 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
-      expect(projectUpdateMock).toHaveBeenCalledWith("1", {
-        progress_pct: 100,
-        status: "Ready for Review",
-      })
+      expect(projectUpdateMock).not.toHaveBeenCalled()
     })
   }, 20_000)
 
@@ -807,7 +1035,7 @@ describe("ProgressModule (V81, V84)", () => {
         updated: "",
         name: "Bridge",
         category: "Infrastructure",
-        status: "Ongoing",
+        status: "For Revision",
         budget_year: 2026,
         progress_pct: 100,
         ...barangayScope,
@@ -1343,10 +1571,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     await waitFor(() => {
       expect(progressUpdateMock).toHaveBeenCalledTimes(1)
-      expect(projectUpdateMock).toHaveBeenCalledWith("1", {
-        progress_pct: 75,
-        status: "For Revision",
-      })
+      expect(projectUpdateMock).not.toHaveBeenCalled()
     })
     expect(createMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
