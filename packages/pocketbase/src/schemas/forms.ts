@@ -226,6 +226,72 @@ export const progressUpdateWithReleasedAmountFormSchema =
     releasedAmount: releasedAmountInputSchema,
   })
 
+const revisionSitePhotoListSchema = z.preprocess(
+  (value) => (value instanceof File ? [value] : (value ?? [])),
+  z.array(uploadedFileSchema)
+)
+
+const existingCompletionDocNamesSchema = z
+  .object({
+    certification_completion: z.array(z.string()).optional(),
+    certificate_acceptance: z.array(z.string()).optional(),
+    proof_payment_barangay: z.array(z.string()).optional(),
+    acknowledgment_completion: z.array(z.string()).optional(),
+    audit_documents: z.array(z.string()).optional(),
+    verification_documents: z.array(z.string()).optional(),
+    liquidation_documents: z.array(z.string()).optional(),
+  })
+  .optional()
+
+export const progressUpdateRevisionFormSchema = z
+  .object({
+    projectId: z.string().min(1, "Project is required."),
+    toPct: z.number().min(0).max(100),
+    notes: z.string().optional(),
+    sitePhoto: revisionSitePhotoListSchema,
+    completionDocs: completionDocsSchema.optional(),
+    existingSitePhotoNames: z.array(z.string()).optional(),
+    existingCompletionDocNames: existingCompletionDocNamesSchema,
+  })
+  .superRefine((value, ctx) => {
+    const hasNewSitePhoto = value.sitePhoto.length > 0
+    const hasExistingSitePhoto = (value.existingSitePhotoNames?.length ?? 0) > 0
+    if (!hasNewSitePhoto && !hasExistingSitePhoto) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sitePhoto"],
+        message: "Site photo is required.",
+      })
+    }
+
+    if (value.toPct < 100) {
+      return
+    }
+
+    for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
+      const fieldValue = value.completionDocs?.[doc.field]
+      const hasNew = Array.isArray(fieldValue)
+        ? fieldValue.length > 0
+        : Boolean(fieldValue)
+      const hasExisting =
+        (value.existingCompletionDocNames?.[doc.field]?.length ?? 0) > 0
+      if (!hasNew && !hasExisting) {
+        ctx.addIssue({
+          code: "custom",
+          path: [doc.field],
+          message: doc.label.endsWith("Documents")
+            ? `${doc.label} are required.`
+            : `${doc.label} is required.`,
+        })
+      }
+    }
+  })
+
+export const progressUpdateRevisionWithReleasedAmountFormSchema =
+  progressUpdateRevisionFormSchema.extend({
+    releasedAmount: releasedAmountInputSchema,
+  })
+
 export const approvalFormSchema = z
   .object({
     action: approvalActionSchema,
@@ -315,6 +381,12 @@ export type BudgetExpenseMutateInput = z.infer<typeof budgetExpenseMutateSchema>
 export type ProgressUpdateFormInput = z.infer<typeof progressUpdateFormSchema>
 export type ProgressUpdateWithReleasedAmountFormInput = z.infer<
   typeof progressUpdateWithReleasedAmountFormSchema
+>
+export type ProgressUpdateRevisionFormInput = z.infer<
+  typeof progressUpdateRevisionFormSchema
+>
+export type ProgressUpdateRevisionWithReleasedAmountFormInput = z.infer<
+  typeof progressUpdateRevisionWithReleasedAmountFormSchema
 >
 export type ReleasedAmountInput = z.infer<typeof releasedAmountInputSchema>
 export type ApprovalFormInput = z.infer<typeof approvalFormSchema>
