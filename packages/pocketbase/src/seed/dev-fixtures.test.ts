@@ -134,6 +134,59 @@ describe("dev seed fixtures (V70)", () => {
     expect(seedScriptSource).toContain('collection("approval_actions").create')
   })
 
+  it("should create progress_updates as _superusers when createRule denies Province", () => {
+    const progressBlock = seedScriptSource.slice(
+      seedScriptSource.indexOf("if (fixture.progress)"),
+      seedScriptSource.indexOf("if (fixture.project.approval_status")
+    )
+    expect(progressBlock).toContain('collection("progress_updates").create')
+    expect(progressBlock).toContain('collection("_superusers")')
+    expect(progressBlock).toContain("authWithPassword(adminEmail, adminPassword)")
+    expect(progressBlock).toContain(
+      "authWithPassword(SAMPLE_ADMIN_EMAIL, sampleUserPassword)"
+    )
+  })
+
+  it("should keep root docker/seed scripts on docker:<env> and seed:docker:<env> naming", () => {
+    const rootPackageJson = JSON.parse(
+      readFileSync(resolve(packageRoot, "../../package.json"), "utf8")
+    ) as { scripts: Record<string, string> }
+    const scripts = rootPackageJson.scripts
+    const names = Object.keys(scripts)
+
+    for (const env of ["dev", "prod"] as const) {
+      expect(scripts[`docker:${env}`]).toBeTruthy()
+      expect(scripts[`docker:${env}:down`]).toBeTruthy()
+      expect(scripts[`docker:${env}:config`]).toBeTruthy()
+      expect(scripts[`docker:${env}:caddy:restart`]).toBeTruthy()
+      expect(scripts[`docker:${env}:caddy:reset`]).toBeTruthy()
+
+      expect(scripts[`seed:docker:${env}`]).toContain(`docker-compose.${env === "dev" ? "local" : "prod"}.yml`)
+      expect(scripts[`seed:docker:${env}`]).toContain("--profile seed")
+      expect(scripts[`seed:docker:${env}`]).toContain("run --rm seed")
+      expect(scripts[`seed:docker:${env}:force`]).toContain("SEED_ARGS=--force")
+    }
+
+    expect(scripts["docker:dev:watch"]).toContain("watch pocketbase")
+    expect(scripts["docker:dev:clean-cache"]).toContain("admin-frontend")
+    expect(scripts["seed:dev"]).toContain("seed-dev.ts")
+    expect(scripts["seed:dev:force"]).toContain("--force")
+
+    // Reject legacy inconsistent names
+    for (const legacy of [
+      "docker:down",
+      "docker:config",
+      "docker:watch",
+      "docker:clean-cache",
+      "docker:caddy:restart",
+      "docker:caddy:restart:prod",
+      "seed:dev:docker",
+      "seed:dev:docker:prod",
+    ]) {
+      expect(names).not.toContain(legacy)
+    }
+  })
+
   it("seeds budget expenses with fund source fields", () => {
     for (const fixture of DEV_SEED_FIXTURES) {
       for (const expense of fixture.expenses) {
