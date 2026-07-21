@@ -7,7 +7,9 @@
  * STUCK_STATUSES mirrors domain STUCK_AT_100_PROGRESS_STATUSES +
  * isStuckAt100NeedingReadyForReview (packages/pocketbase/src/domain/progress-summary.ts).
  * PB migrations cannot import TS — keep this list in sync.
- * Latest to_pct uses sort "-created" (newest-first), same as effectiveProgressPct.
+ *
+ * Note: migration findRecordsByFilter rejects sort field "created" (PB serve
+ * error). Fetch unsorted and pick newest via created/updated/id in JS.
  */
 
 const migrate = globalThis.migrate
@@ -44,16 +46,33 @@ function findRecords(app, collectionName, filter, sort = "", pageSize = PAGE_SIZ
   return records
 }
 
+function recordRecencyKey(row) {
+  return String(row.get("created") || row.get("updated") || row.id || "")
+}
+
 function latestToPct(app, projectId) {
+  const safeId = String(projectId).replace(/[^a-zA-Z0-9]/g, "")
   const rows = findRecords(
     app,
     "progress_updates",
-    `project = "${String(projectId).replace(/[^a-zA-Z0-9]/g, "")}"`,
-    "-created",
-    1
+    `project = "${safeId}"`,
+    "",
+    PAGE_SIZE
   )
-  if (!rows[0]) return null
-  const value = Number(rows[0].get("to_pct"))
+  if (!rows.length) return null
+
+  let newest = rows[0]
+  let newestKey = recordRecencyKey(newest)
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]
+    const key = recordRecencyKey(row)
+    if (key > newestKey) {
+      newest = row
+      newestKey = key
+    }
+  }
+
+  const value = Number(newest.get("to_pct"))
   return Number.isFinite(value) ? value : null
 }
 
