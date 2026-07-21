@@ -51,8 +51,12 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
+  Field,
+  FieldDescription,
+  FieldError,
   FieldGroup,
-  FieldLabel as Label,
+  FieldLabel,
+  FieldSet,
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -394,6 +398,7 @@ export function ProjectsModule() {
   const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState<string | null>(null)
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importFiles, setImportFiles] = useState<File[]>([])
@@ -401,10 +406,17 @@ export function ProjectsModule() {
     null
   )
   const [importing, setImporting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const actor = getPocketBase().authStore?.record
-  const canCreateProjects = actor ? canAccess(actor, "projects.create") : true
-  const canUpdateProjects = actor ? canAccess(actor, "projects.update") : true
-  const canDeleteProjects = actor ? canAccess(actor, "projects.delete") : true
+  const canCreateProjects = actor
+    ? canAccess(actor, "projects.create")
+    : false
+  const canUpdateProjects = actor
+    ? canAccess(actor, "projects.update")
+    : false
+  const canDeleteProjects = actor
+    ? canAccess(actor, "projects.delete")
+    : false
 
   function clearUploadFiles() {
     setMoaFiles([])
@@ -535,6 +547,7 @@ export function ProjectsModule() {
     setResolutionFiles([])
     setSupportingFiles([])
     setFieldErrors({})
+    setFormError(null)
     setDialogOpen(true)
   }
 
@@ -580,10 +593,12 @@ export function ProjectsModule() {
     setResolutionFiles([])
     setSupportingFiles([])
     setFieldErrors({})
+    setFormError(null)
     setDialogOpen(true)
   }
 
   async function handleSave() {
+    setFormError(null)
     const parsed = projectMutateSchema.safeParse({
       name: form.name,
       description: form.description,
@@ -610,44 +625,58 @@ export function ProjectsModule() {
     }
 
     if (editing ? !canUpdateProjects : !canCreateProjects) {
+      setFormError(
+        editing
+          ? "You do not have permission to update projects."
+          : "You do not have permission to create projects."
+      )
       return
     }
 
     setFieldErrors({})
+    setSaving(true)
     const pb = getPocketBase()
     const hasFiles =
       moaFiles.length > 0 || resolutionFiles.length > 0 || supportingFiles.length > 0
 
-    if (hasFiles) {
-      const formData = new FormData()
-      for (const [key, value] of Object.entries(parsed.data)) {
-        if (value !== undefined && value !== null) {
-          formData.append(key, String(value))
+    try {
+      if (hasFiles) {
+        const formData = new FormData()
+        for (const [key, value] of Object.entries(parsed.data)) {
+          if (value !== undefined && value !== null) {
+            formData.append(key, String(value))
+          }
         }
-      }
-      for (const file of moaFiles) {
-        formData.append("moa_file", file)
-      }
-      for (const file of resolutionFiles) {
-        formData.append("resolution_file", file)
-      }
-      for (const file of supportingFiles) {
-        formData.append("supporting_docs", file)
-      }
+        for (const file of moaFiles) {
+          formData.append("moa_file", file)
+        }
+        for (const file of resolutionFiles) {
+          formData.append("resolution_file", file)
+        }
+        for (const file of supportingFiles) {
+          formData.append("supporting_docs", file)
+        }
 
-      if (editing) {
-        await pb.collection("projects").update(editing.id, formData)
+        if (editing) {
+          await pb.collection("projects").update(editing.id, formData)
+        } else {
+          await pb.collection("projects").create(formData)
+        }
+      } else if (editing) {
+        await pb.collection("projects").update(editing.id, parsed.data)
       } else {
-        await pb.collection("projects").create(formData)
+        await pb.collection("projects").create(parsed.data)
       }
-    } else if (editing) {
-      await pb.collection("projects").update(editing.id, parsed.data)
-    } else {
-      await pb.collection("projects").create(parsed.data)
-    }
 
-    setDialogOpen(false)
-    await loadProjects()
+      setDialogOpen(false)
+      await loadProjects()
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to save project."
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleImportProjects() {
@@ -1029,8 +1058,8 @@ export function ProjectsModule() {
             <div className="rounded-lg border p-3 text-sm text-muted-foreground">
               Required headers: {PROJECT_IMPORT_HEADERS.join(", ")}.
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="project-import-file">Excel files</Label>
+            <Field>
+              <FieldLabel htmlFor="project-import-file">Excel files</FieldLabel>
               <Input
                 id="project-import-file"
                 type="file"
@@ -1041,7 +1070,7 @@ export function ProjectsModule() {
                   setImportResult(null)
                 }}
               />
-            </div>
+            </Field>
             {importResult ? (
               <div className="rounded-lg border p-3 text-sm" role="status">
                 <p className="font-medium">{formatImportSummary(importResult)}</p>
@@ -1096,259 +1125,274 @@ export function ProjectsModule() {
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
-            <div className="space-y-1">
-              <Label htmlFor="project-name">Project name</Label>
-              <Input
-                id="project-name"
-                value={form.name}
-                aria-invalid={Boolean(fieldErrors.name)}
-                onChange={(event) =>
-                  setForm({ ...form, name: event.target.value })
-                }
-              />
-              {fieldErrors.name ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {fieldErrors.name}
-                </p>
+            {formError ? <FieldError>{formError}</FieldError> : null}
+            <FieldSet>
+              <Field data-invalid={Boolean(fieldErrors.name)}>
+                <FieldLabel htmlFor="project-name">Project name</FieldLabel>
+                <Input
+                  id="project-name"
+                  value={form.name}
+                  aria-invalid={Boolean(fieldErrors.name)}
+                  onChange={(event) =>
+                    setForm({ ...form, name: event.target.value })
+                  }
+                />
+                <FieldError>{fieldErrors.name}</FieldError>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="project-description">Description</FieldLabel>
+                <Textarea
+                  id="project-description"
+                  value={form.description}
+                  onChange={(event) =>
+                    setForm({ ...form, description: event.target.value })
+                  }
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field data-invalid={Boolean(fieldErrors.category)}>
+                  <FieldLabel>Category</FieldLabel>
+                  <Select
+                    value={form.category}
+                    onValueChange={(value) => {
+                      const nextCategory = value as ProjectRecord["category"]
+                      setForm({
+                        ...form,
+                        category: nextCategory,
+                        number_of_students:
+                          nextCategory === "Scholarship"
+                            ? form.number_of_students
+                            : "",
+                      })
+                    }}
+                  >
+                    <SelectTrigger
+                      aria-label="Category"
+                      aria-invalid={Boolean(fieldErrors.category)}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{fieldErrors.category}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(fieldErrors.status)}>
+                  <FieldLabel>Status</FieldLabel>
+                  <Select
+                    value={form.status}
+                    onValueChange={(value) =>
+                      setForm({
+                        ...form,
+                        status: value as ProjectRecord["status"],
+                      })
+                    }
+                  >
+                    <SelectTrigger aria-invalid={Boolean(fieldErrors.status)}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{fieldErrors.status}</FieldError>
+                </Field>
+              </div>
+              {form.category === "Scholarship" ? (
+                <Field data-invalid={Boolean(fieldErrors.number_of_students)}>
+                  <FieldLabel htmlFor="project-number-of-students">
+                    Number of Students
+                  </FieldLabel>
+                  <Input
+                    id="project-number-of-students"
+                    type="number"
+                    min={1}
+                    value={form.number_of_students}
+                    aria-invalid={Boolean(fieldErrors.number_of_students)}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        number_of_students: event.target.value,
+                      })
+                    }
+                  />
+                  <FieldError>{fieldErrors.number_of_students}</FieldError>
+                </Field>
               ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="project-description">Description</Label>
-              <Textarea
-                id="project-description"
-                value={form.description}
-                onChange={(event) =>
-                  setForm({ ...form, description: event.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Category</Label>
-                <Select
-                  value={form.category}
-                  onValueChange={(value) => {
-                    const nextCategory = value as ProjectRecord["category"]
-                    setForm({
-                      ...form,
-                      category: nextCategory,
-                      number_of_students:
-                        nextCategory === "Scholarship"
-                          ? form.number_of_students
-                          : "",
-                    })
-                  }}
-                >
-                  <SelectTrigger aria-label="Category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categoryOptions.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Municipality</FieldLabel>
+                  <LocationCombobox
+                    label="Municipality"
+                    placeholder="Select municipality"
+                    searchPlaceholder="Search municipalities..."
+                    emptyMessage="No municipalities found."
+                    value={form.municipality}
+                    choices={municipalityChoices}
+                    open={municipalityPickerOpen}
+                    onOpenChange={setMunicipalityPickerOpen}
+                    onSelect={(value) =>
+                      setForm({
+                        ...form,
+                        municipality: value,
+                        barangay:
+                          value === form.municipality ? form.barangay : "",
+                      })
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Barangay</FieldLabel>
+                  <LocationCombobox
+                    label="Barangay"
+                    placeholder="Select barangay"
+                    searchPlaceholder="Search barangays..."
+                    emptyMessage={
+                      form.municipality
+                        ? "No barangays found."
+                        : "Select municipality first."
+                    }
+                    value={form.barangay}
+                    choices={barangayChoices}
+                    open={barangayPickerOpen}
+                    onOpenChange={setBarangayPickerOpen}
+                    onSelect={(value) =>
+                      setForm({
+                        ...form,
+                        barangay: value,
+                      })
+                    }
+                    disabled={!form.municipality}
+                  />
+                </Field>
               </div>
-              <div className="space-y-1">
-                <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(value) =>
-                    setForm({
-                      ...form,
-                      status: value as ProjectRecord["status"],
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {form.category === "Scholarship" ? (
-              <div className="space-y-1">
-                <Label htmlFor="project-number-of-students">
-                  Number of Students
-                </Label>
+              <Field>
+                <FieldLabel htmlFor="project-location">Location</FieldLabel>
                 <Input
-                  id="project-number-of-students"
-                  type="number"
-                  min={1}
-                  value={form.number_of_students}
-                  aria-invalid={Boolean(fieldErrors.number_of_students)}
+                  id="project-location"
+                  value={form.location}
                   onChange={(event) =>
-                    setForm({ ...form, number_of_students: event.target.value })
+                    setForm({ ...form, location: event.target.value })
                   }
                 />
-                {fieldErrors.number_of_students ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    {fieldErrors.number_of_students}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Municipality</Label>
-                <LocationCombobox
-                  label="Municipality"
-                  placeholder="Select municipality"
-                  searchPlaceholder="Search municipalities..."
-                  emptyMessage="No municipalities found."
-                  value={form.municipality}
-                  choices={municipalityChoices}
-                  open={municipalityPickerOpen}
-                  onOpenChange={setMunicipalityPickerOpen}
-                  onSelect={(value) =>
-                    setForm({
-                      ...form,
-                      municipality: value,
-                      barangay:
-                        value === form.municipality ? form.barangay : "",
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Barangay</Label>
-                <LocationCombobox
-                  label="Barangay"
-                  placeholder="Select barangay"
-                  searchPlaceholder="Search barangays..."
-                  emptyMessage={
-                    form.municipality
-                      ? "No barangays found."
-                      : "Select municipality first."
-                  }
-                  value={form.barangay}
-                  choices={barangayChoices}
-                  open={barangayPickerOpen}
-                  onOpenChange={setBarangayPickerOpen}
-                  onSelect={(value) =>
-                    setForm({
-                      ...form,
-                      barangay: value,
-                    })
-                  }
-                  disabled={!form.municipality}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="project-location">Location</Label>
-              <Input
-                id="project-location"
-                value={form.location}
-                onChange={(event) =>
-                  setForm({ ...form, location: event.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="project-contractor">Contractor</Label>
-              <Input
-                id="project-contractor"
-                value={form.contractor}
-                onChange={(event) =>
-                  setForm({ ...form, contractor: event.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="project-start">Start date</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
                 <Input
-                  id="project-start"
-                  type="date"
-                  value={form.start_date}
+                  id="project-contractor"
+                  value={form.contractor}
                   onChange={(event) =>
-                    setForm({ ...form, start_date: event.target.value })
+                    setForm({ ...form, contractor: event.target.value })
                   }
                 />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="project-start">Start date</FieldLabel>
+                  <Input
+                    id="project-start"
+                    type="date"
+                    value={form.start_date}
+                    onChange={(event) =>
+                      setForm({ ...form, start_date: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="project-end">Target end date</FieldLabel>
+                  <Input
+                    id="project-end"
+                    type="date"
+                    value={form.target_end_date}
+                    onChange={(event) =>
+                      setForm({ ...form, target_end_date: event.target.value })
+                    }
+                  />
+                </Field>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="project-end">Target end date</Label>
-                <Input
-                  id="project-end"
-                  type="date"
-                  value={form.target_end_date}
-                  onChange={(event) =>
-                    setForm({ ...form, target_end_date: event.target.value })
-                  }
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field data-invalid={Boolean(fieldErrors.budget_year)}>
+                  <FieldLabel htmlFor="project-year">Budget year</FieldLabel>
+                  <Input
+                    id="project-year"
+                    type="number"
+                    value={form.budget_year}
+                    aria-invalid={Boolean(fieldErrors.budget_year)}
+                    onChange={(event) =>
+                      setForm({ ...form, budget_year: event.target.value })
+                    }
+                  />
+                  <FieldError>{fieldErrors.budget_year}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(fieldErrors.total_budget)}>
+                  <FieldLabel htmlFor="project-budget">
+                    Total budget (PHP)
+                  </FieldLabel>
+                  <Input
+                    id="project-budget"
+                    type="number"
+                    value={form.total_budget}
+                    aria-invalid={Boolean(fieldErrors.total_budget)}
+                    onChange={(event) =>
+                      setForm({ ...form, total_budget: event.target.value })
+                    }
+                  />
+                  <FieldError>{fieldErrors.total_budget}</FieldError>
+                </Field>
+              </div>
+              <FieldSet className="space-y-2 border-t pt-3">
+                <FieldDescription className="text-sm font-medium text-foreground">
+                  Required documents
+                </FieldDescription>
+                <DocumentUploadField
+                  id="moa-file"
+                  label="Memorandum of Agreement"
+                  files={moaFiles}
+                  existingNames={namesOnRecord(editing?.moa_file)}
+                  onChange={setMoaFiles}
                 />
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="project-year">Budget year</Label>
-                <Input
-                  id="project-year"
-                  type="number"
-                  value={form.budget_year}
-                  aria-invalid={Boolean(fieldErrors.budget_year)}
-                  onChange={(event) =>
-                    setForm({ ...form, budget_year: event.target.value })
-                  }
+                <DocumentUploadField
+                  id="resolution-file"
+                  label="Resolution"
+                  files={resolutionFiles}
+                  existingNames={namesOnRecord(editing?.resolution_file)}
+                  onChange={setResolutionFiles}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="project-budget">Total budget (PHP)</Label>
-                <Input
-                  id="project-budget"
-                  type="number"
-                  value={form.total_budget}
-                  onChange={(event) =>
-                    setForm({ ...form, total_budget: event.target.value })
-                  }
+                <DocumentUploadField
+                  id="supporting-file"
+                  label="Supporting project documents"
+                  multiple
+                  files={supportingFiles}
+                  existingNames={editing?.supporting_docs ?? []}
+                  onChange={setSupportingFiles}
                 />
-              </div>
-            </div>
-            <div className="space-y-2 border-t pt-3">
-              <p className="text-sm font-medium">Required documents</p>
-              <DocumentUploadField
-                id="moa-file"
-                label="Memorandum of Agreement"
-                files={moaFiles}
-                existingNames={namesOnRecord(editing?.moa_file)}
-                onChange={setMoaFiles}
-              />
-              <DocumentUploadField
-                id="resolution-file"
-                label="Resolution"
-                files={resolutionFiles}
-                existingNames={namesOnRecord(editing?.resolution_file)}
-                onChange={setResolutionFiles}
-              />
-              <DocumentUploadField
-                id="supporting-file"
-                label="Supporting project documents"
-                multiple
-                files={supportingFiles}
-                existingNames={editing?.supporting_docs ?? []}
-                onChange={setSupportingFiles}
-              />
-            </div>
+              </FieldSet>
+            </FieldSet>
           </FieldGroup>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => setDialogOpen(false)}
+              disabled={saving}
             >
               Cancel
             </Button>
-            <Button type="button" onClick={() => void handleSave()}>
-              Save
+            <Button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

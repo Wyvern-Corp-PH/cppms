@@ -4,6 +4,13 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
+    authStore: {
+      record: {
+        id: "sa1",
+        role: "Super Admin",
+        account_status: "Active",
+      },
+    },
     collection: () => ({
       getFullList: vi.fn(async () => []),
       create: vi.fn(),

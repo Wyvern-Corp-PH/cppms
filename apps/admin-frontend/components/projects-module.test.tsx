@@ -815,6 +815,102 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.queryByText("Delete")).not.toBeInTheDocument()
   })
 
+  it("shows Edit in ⋮ and saves project updates for Province (V1/V2)", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "province-1",
+      role: "Province",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        total_budget: 200_000,
+        progress_pct: 25,
+      },
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByRole("heading", { name: /edit project/i })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText(/project name/i))
+    await user.type(screen.getByLabelText(/project name/i), "Bridge Renamed")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({ name: "Bridge Renamed" })
+      )
+    })
+  })
+
+  it("shows Edit and surfaces save errors for Super Admin (V2)", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "sa1",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        total_budget: 200_000,
+        progress_pct: 25,
+      },
+    ]
+    updateMock.mockRejectedValueOnce(new Error("Failed to update record."))
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    expect(
+      await screen.findByText(/failed to update record/i)
+    ).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /edit project/i })).toBeInTheDocument()
+  })
+
   it("should show latest progress update percent when project progress_pct is stale", async () => {
     store.projects = [
       {
