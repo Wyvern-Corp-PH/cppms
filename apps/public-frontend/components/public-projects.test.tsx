@@ -273,7 +273,11 @@ describe("PublicProjects (V2, J3)", () => {
         /Tuguegarao City \/ Centro 01 \(Bagumbayan\) · East bank approach · Infrastructure/
       )
     ).toBeInTheDocument()
-    expect(screen.queryByText(/Barangay/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        /East bank approach · Infrastructure · Barangay/
+      )
+    ).not.toBeInTheDocument()
   })
 
   it("still renders projects when the locations collection is unavailable", async () => {

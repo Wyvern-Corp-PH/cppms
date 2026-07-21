@@ -17,8 +17,12 @@ import {
 } from "@workspace/pocketbase/schemas"
 import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
 import {
   Select,
@@ -195,77 +199,104 @@ export function PublicProjects() {
         kpis={[{ label: "Total", value: String(projects.length) }]}
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Input
-          aria-label="Search projects"
-          placeholder="Search by name"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger aria-label="Filter by status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {statusOptions.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger aria-label="Filter by category">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {categoryOptions.map((value) => (
-              <SelectItem key={value} value={value}>
-                {value}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={municipality}
-          onValueChange={(value) => {
-            setMunicipality(value)
-            setBarangay("all")
-          }}
-        >
-          <SelectTrigger aria-label="Filter by municipality">
-            <SelectValue placeholder="Municipality" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All municipalities</SelectItem>
-            {municipalityChoices.map((location) => (
-              <SelectItem key={location.id} value={location.name}>
-                {location.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={barangay}
-          onValueChange={setBarangay}
-          disabled={municipality === "all"}
-        >
-          <SelectTrigger aria-label="Filter by barangay">
-            <SelectValue placeholder="Barangay" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All barangays</SelectItem>
-            {barangayChoices.map((location) => (
-              <SelectItem key={location.id} value={location.name}>
-                {location.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="space-y-1">
-          <Label htmlFor="public-filter-date-from">From:</Label>
+      <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Field>
+          <FieldLabel htmlFor="public-filter-search">Search</FieldLabel>
+          <Input
+            id="public-filter-search"
+            aria-label="Search projects"
+            placeholder="Search by name"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-status">Status</FieldLabel>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger id="public-filter-status" aria-label="Filter by status">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {statusOptions.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-category">Category</FieldLabel>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger
+              id="public-filter-category"
+              aria-label="Filter by category"
+            >
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {categoryOptions.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-municipality">
+            Municipality
+          </FieldLabel>
+          <Select
+            value={municipality}
+            onValueChange={(value) => {
+              setMunicipality(value)
+              setBarangay("all")
+            }}
+          >
+            <SelectTrigger
+              id="public-filter-municipality"
+              aria-label="Filter by municipality"
+            >
+              <SelectValue placeholder="Municipality" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All municipalities</SelectItem>
+              {municipalityChoices.map((location) => (
+                <SelectItem key={location.id} value={location.name}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-barangay">Barangay</FieldLabel>
+          <Select
+            value={barangay}
+            onValueChange={setBarangay}
+            disabled={municipality === "all"}
+          >
+            <SelectTrigger
+              id="public-filter-barangay"
+              aria-label="Filter by barangay"
+            >
+              <SelectValue placeholder="Barangay" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All barangays</SelectItem>
+              {barangayChoices.map((location) => (
+                <SelectItem key={location.id} value={location.name}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-date-from">From:</FieldLabel>
           <Input
             id="public-filter-date-from"
             aria-label="Filter from date"
@@ -273,9 +304,9 @@ export function PublicProjects() {
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="public-filter-date-to">To:</Label>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="public-filter-date-to">To:</FieldLabel>
           <Input
             id="public-filter-date-to"
             aria-label="Filter to date"
@@ -283,8 +314,8 @@ export function PublicProjects() {
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
           />
-        </div>
-      </div>
+        </Field>
+      </FieldGroup>
 
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
