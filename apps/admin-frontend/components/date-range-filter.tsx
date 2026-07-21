@@ -6,8 +6,12 @@ import type { DateRange } from "react-day-picker"
 
 import { Button } from "@workspace/ui/components/button"
 import { Calendar } from "@workspace/ui/components/calendar"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import {
   Popover,
   PopoverContent,
@@ -87,26 +91,26 @@ export function DateRangeFilter({
             onToChange(formatDateInput(range?.to))
           }}
         />
-        <div className="grid gap-3 border-t p-3 sm:grid-cols-2">
-          <div className="grid gap-1">
-            <Label htmlFor={`${id}-from`}>From date</Label>
+        <FieldGroup className="grid gap-3 border-t p-3 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${id}-from`}>From date</FieldLabel>
             <Input
               id={`${id}-from`}
               type="date"
               value={from}
               onChange={(event) => onFromChange(event.target.value)}
             />
-          </div>
-          <div className="grid gap-1">
-            <Label htmlFor={`${id}-to`}>To date</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${id}-to`}>To date</FieldLabel>
             <Input
               id={`${id}-to`}
               type="date"
               value={to}
               onChange={(event) => onToChange(event.target.value)}
             />
-          </div>
-        </div>
+          </Field>
+        </FieldGroup>
       </PopoverContent>
     </Popover>
   )
