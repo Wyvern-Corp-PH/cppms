@@ -202,6 +202,16 @@ describe("budgetExpenseMutateSchema (V34, V157)", () => {
 })
 
 describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
+  const validReleasedAmount = {
+    amount: 1500,
+    year: 2026,
+    main_account: "General Fund",
+    sub_account: "GF - Proper",
+    date: "2026-07-09",
+    receipt_number: "OR-1",
+    description: "Materials",
+  }
+
   it("requires released amount fields for scoped progress updates", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
@@ -221,6 +231,117 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
       expect(errors["releasedAmount.amount"]).toMatch(/greater than zero/i)
       expect(errors["releasedAmount.main_account"]).toMatch(/required/i)
     }
+  })
+
+  it("should reject when receipt_number is blank", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: { ...validReleasedAmount, receipt_number: "" },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error)["releasedAmount.receipt_number"]).toMatch(
+        /required/i
+      )
+    }
+  })
+
+  it("should reject when receipt_number is whitespace-only", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: { ...validReleasedAmount, receipt_number: "   " },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error)["releasedAmount.receipt_number"]).toMatch(
+        /required/i
+      )
+    }
+  })
+
+  it("should reject when description is blank", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: { ...validReleasedAmount, description: "" },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error)["releasedAmount.description"]).toMatch(
+        /required/i
+      )
+    }
+  })
+
+  it("should reject when description is whitespace-only", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: { ...validReleasedAmount, description: "   " },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error)["releasedAmount.description"]).toMatch(
+        /required/i
+      )
+    }
+  })
+
+  it("should accept trimmed non-blank receipt_number and description", () => {
+    const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+      releasedAmount: {
+        ...validReleasedAmount,
+        receipt_number: "  OR-1  ",
+        description: "  Materials  ",
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.releasedAmount.receipt_number).toBe("OR-1")
+      expect(result.data.releasedAmount.description).toBe("Materials")
+    }
+  })
+})
+
+describe("budgetExpenseMutateSchema receipt/description stay optional (T2)", () => {
+  it("should accept blank receipt_number and description on budget expense", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      year: "2026",
+      main_account: "Special Education Fund",
+      date: "2026-06-24",
+      receipt_number: "",
+      description: "",
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("should accept omitted receipt_number and description on budget expense", () => {
+    const result = budgetExpenseMutateSchema.safeParse({
+      project: "p1",
+      amount: "25000",
+      year: "2026",
+      main_account: "Special Education Fund",
+      date: "2026-06-24",
+    })
+
+    expect(result.success).toBe(true)
   })
 })
 
@@ -475,9 +596,101 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
         main_account: "General Fund",
         sub_account: "GF - Proper",
         date: "2026-07-20",
+        receipt_number: "OR-REV-1",
+        description: "Revision release",
       },
     })
 
     expect(result.success).toBe(true)
+  })
+
+  it("should reject revision with released amount when receipt_number is blank and expense would create", () => {
+    const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+      releasedAmount: {
+        amount: 1500,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
+        receipt_number: "   ",
+        description: "Revision release",
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error)["releasedAmount.receipt_number"]).toMatch(
+        /required/i
+      )
+    }
+  })
+
+  it("should accept blank receipt_number and description on revision when equal to latest expense", () => {
+    const releasedAmount = {
+      amount: 1500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "GF - Proper",
+      date: "2026-07-20",
+      receipt_number: "",
+      description: "",
+    }
+    const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+      notes: "Notes-only revision",
+      releasedAmount,
+      latestReleasedAmount: {
+        ...releasedAmount,
+        receipt_number: undefined,
+        description: undefined,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("latestReleasedAmount")
+      expect(result.data.releasedAmount.receipt_number).toBe("")
+    }
+  })
+
+  it("should reject blank receipt on revision when amount differs from latest expense", () => {
+    const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+      releasedAmount: {
+        amount: 2000,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
+        receipt_number: "",
+        description: "",
+      },
+      latestReleasedAmount: {
+        amount: 1500,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
+        receipt_number: "",
+        description: "",
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const errors = fieldErrorsFromZod(result.error)
+      expect(errors["releasedAmount.receipt_number"]).toMatch(/required/i)
+      expect(errors["releasedAmount.description"]).toMatch(/required/i)
+    }
   })
 })
