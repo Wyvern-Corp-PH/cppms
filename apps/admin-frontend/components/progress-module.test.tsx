@@ -1387,6 +1387,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByText(/Progress: 75%/i)).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1500)
     expect(within(dialog).getByLabelText(/^receipt number$/i)).toHaveValue("R-100")
+    expect(within(dialog).getByLabelText(/^expense date$/i)).toHaveValue(
+      "2026-07-20"
+    )
     await waitFor(() => {
       expect(within(dialog).getByLabelText(/^main account$/i)).toHaveTextContent(
         "General Fund"
@@ -1565,6 +1568,7 @@ describe("ProgressModule (V81, V84)", () => {
         name: /update progress/i,
       })
     )
+    expect(screen.getByLabelText(/^expense date$/i)).toHaveValue("2026-07-20")
     await user.clear(screen.getByLabelText(/update notes/i))
     await user.type(screen.getByLabelText(/update notes/i), "Revised notes only")
     await user.click(screen.getByRole("button", { name: /save update/i }))
