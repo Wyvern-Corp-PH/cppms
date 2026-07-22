@@ -290,4 +290,56 @@ describe("PublicProjects (V2, J3)", () => {
       expect(screen.getByText("Water System")).toBeInTheDocument()
     })
   })
+
+  it("should show Total equal to catalog size when filters are cleared", async () => {
+    const user = userEvent.setup()
+    render(<PublicProjects />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    expect(totalKpiValue()).toBe("2")
+
+    await user.type(screen.getByLabelText(/search projects/i), "Bridge")
+    await waitFor(() => {
+      expect(screen.queryByText("Water System")).not.toBeInTheDocument()
+    })
+    expect(totalKpiValue()).toBe("1")
+
+    await user.clear(screen.getByLabelText(/search projects/i))
+    await waitFor(() => {
+      expect(screen.getByText("Water System")).toBeInTheDocument()
+    })
+    expect(totalKpiValue()).toBe("2")
+  })
+
+  it("should show Total equal to filtered count for municipality filter", async () => {
+    const user = userEvent.setup()
+    render(<PublicProjects />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Water System")).toBeInTheDocument()
+    })
+    expect(totalKpiValue()).toBe("2")
+
+    await user.click(screen.getByLabelText(/filter by municipality/i))
+    await user.click(
+      await screen.findByRole("option", {
+        name: "Lasam",
+      })
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText("Bridge")).not.toBeInTheDocument()
+      expect(screen.getByText("Water System")).toBeInTheDocument()
+    })
+    expect(totalKpiValue()).toBe("1")
+  })
 })
+
+function totalKpiValue() {
+  const label = screen.getByText("Total")
+  return label.nextElementSibling?.textContent ?? null
+}
