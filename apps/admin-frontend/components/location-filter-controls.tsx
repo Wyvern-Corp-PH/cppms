@@ -5,11 +5,6 @@ import { useMemo } from "react"
 import { normalizeLocationSlug } from "@workspace/pocketbase/domain/project-filters"
 import type { LocationRecord, ProjectRecord } from "@workspace/pocketbase/types"
 import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@workspace/ui/components/field"
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -135,67 +130,51 @@ export function LocationFilterControls({
   )
 
   return (
-    <FieldGroup className="contents">
-      <Field>
-        <FieldLabel htmlFor="location-filter-municipality">
-          Municipality
-        </FieldLabel>
-        <Select
-          value={value.municipality || "all"}
-          onValueChange={(next) =>
-            onChange({
-              municipality: next === "all" ? "" : next,
-              barangay: "",
-            })
-          }
-        >
-          <SelectTrigger
-            id="location-filter-municipality"
-            className="w-[180px]"
-            aria-label="Filter by municipality"
-          >
-            <SelectValue placeholder="Municipality" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Municipalities</SelectItem>
-            {municipalityChoices.map((choice) => (
-              <SelectItem key={choice.id} value={choice.name}>
-                {choice.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+    <>
+      <Select
+        value={value.municipality || "all"}
+        onValueChange={(next) =>
+          onChange({
+            municipality: next === "all" ? "" : next,
+            barangay: "",
+          })
+        }
+      >
+        <SelectTrigger className="w-[180px]" aria-label="Filter by municipality">
+          <SelectValue placeholder="Municipality" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Municipalities</SelectItem>
+          {municipalityChoices.map((choice) => (
+            <SelectItem key={choice.id} value={choice.name}>
+              {choice.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-      <Field>
-        <FieldLabel htmlFor="location-filter-barangay">Barangay</FieldLabel>
-        <Select
-          value={value.barangay || "all"}
-          onValueChange={(next) =>
-            onChange({
-              ...value,
-              barangay: next === "all" ? "" : next,
-            })
-          }
-          disabled={!value.municipality}
-        >
-          <SelectTrigger
-            id="location-filter-barangay"
-            className="w-[180px]"
-            aria-label="Filter by barangay"
-          >
-            <SelectValue placeholder="Barangay" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Barangays</SelectItem>
-            {scopedBarangays.map((choice) => (
-              <SelectItem key={choice.id} value={choice.name}>
-                {choice.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-    </FieldGroup>
+      <Select
+        value={value.barangay || "all"}
+        onValueChange={(next) =>
+          onChange({
+            ...value,
+            barangay: next === "all" ? "" : next,
+          })
+        }
+        disabled={!value.municipality}
+      >
+        <SelectTrigger className="w-[180px]" aria-label="Filter by barangay">
+          <SelectValue placeholder="Barangay" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Barangays</SelectItem>
+          {scopedBarangays.map((choice) => (
+            <SelectItem key={choice.id} value={choice.name}>
+              {choice.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </>
   )
 }
