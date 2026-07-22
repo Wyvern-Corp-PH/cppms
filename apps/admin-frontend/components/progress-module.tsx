@@ -676,6 +676,29 @@ export function ProgressModule() {
     return formData
   }
 
+  function buildProgressUpdateScalarPayload(parsed: {
+    projectId: string
+    toPct: number
+    notes?: string
+  }) {
+    return {
+      project: parsed.projectId,
+      to_pct: parsed.toPct,
+      notes: parsed.notes ?? "",
+    }
+  }
+
+  function hasNewProgressFiles(
+    sitePhoto: File[],
+    toPct: number
+  ): boolean {
+    if (sitePhoto.length > 0) return true
+    if (toPct < 100) return false
+    return REQUIRED_COMPLETION_DOCUMENTS.some(
+      (doc) => completionDocs[doc.field].length > 0
+    )
+  }
+
   async function syncReleasedAmountExpense(options: {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
@@ -761,18 +784,25 @@ export function ProgressModule() {
     }
   }) {
     const pb = getPocketBase()
-    const formData = buildProgressUpdateFormData(
-      options.parsed,
-      options.latestUpdate
+    const replaceFiles = hasNewProgressFiles(
+      options.parsed.sitePhoto,
+      options.parsed.toPct
     )
     let progressRecordId: string | undefined
 
     if (options.latestUpdate) {
+      const payload = replaceFiles
+        ? buildProgressUpdateFormData(options.parsed, options.latestUpdate)
+        : buildProgressUpdateScalarPayload(options.parsed)
       await pb
         .collection("progress_updates")
-        .update(options.latestUpdate.id, formData)
+        .update(options.latestUpdate.id, payload)
       progressRecordId = options.latestUpdate.id
     } else {
+      const formData = buildProgressUpdateFormData(
+        options.parsed,
+        options.latestUpdate
+      )
       formData.append(
         "from_pct",
         String(effectiveProgressPct(options.project, options.projectUpdates))
