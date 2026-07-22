@@ -79,6 +79,7 @@ import {
 import { PageHeaderBand } from "@/components/page-header-band"
 import {
   emptyReleasedAmountFormValue,
+  normalizeMainAccountName,
   ReleasedAmountFields,
   type ReleasedAmountFormValue,
 } from "@/components/released-amount-fields"
@@ -300,7 +301,7 @@ function releasedAmountFormFromExpense(
   return {
     amount: String(expense.amount),
     releaseYear: String(expense.year),
-    mainAccount: expense.main_account,
+    mainAccount: normalizeMainAccountName(expense.main_account),
     subAccount: expense.sub_account ?? "",
     receiptNumber: expense.receipt_number ?? "",
     expenseDate: toDateInputValue(expense.date),
@@ -321,8 +322,8 @@ function releasedAmountEqualsLatest(
   return (
     Number(submitted.amount) === Number(latest.amount) &&
     Number(submitted.year) === Number(latest.year) &&
-    coerceComparable(submitted.main_account) ===
-      coerceComparable(latest.main_account) &&
+    normalizeMainAccountName(coerceComparable(submitted.main_account)) ===
+      normalizeMainAccountName(coerceComparable(latest.main_account)) &&
     coerceComparable(submitted.sub_account) ===
       coerceComparable(latest.sub_account) &&
     toDateInputValue(submitted.date) === toDateInputValue(latest.date) &&
