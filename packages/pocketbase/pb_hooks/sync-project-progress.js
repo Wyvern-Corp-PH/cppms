@@ -4,6 +4,9 @@
  *
  * Always apply the newest update for the project (by created), not merely the
  * row that triggered the hook — editing an older row must not regress %.
+ *
+ * Note: findRecordsByFilter rejects sort field "created" in some PB JSAPI
+ * paths (see migration 1740000029). Fetch unsorted and pick newest in JS.
  */
 
 function projectProgressPatch(toPct, currentStatus) {
@@ -19,17 +22,36 @@ function sanitizeId(value) {
   return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "")
 }
 
+function recordRecencyKey(row) {
+  return String(row.get("created") || row.get("updated") || row.id || "")
+}
+
+function pickLatestProgressUpdate(rows) {
+  if (!rows || rows.length === 0) return null
+  let latest = rows[0]
+  let latestKey = recordRecencyKey(latest)
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]
+    const key = recordRecencyKey(row)
+    if (key.localeCompare(latestKey) > 0) {
+      latest = row
+      latestKey = key
+    }
+  }
+  return latest
+}
+
 function latestProgressUpdate(app, projectId) {
   const safeId = sanitizeId(projectId)
   if (!safeId) return null
   const rows = app.findRecordsByFilter(
     "progress_updates",
     `project = "${safeId}"`,
-    "-created",
-    1,
+    "",
+    500,
     0
   )
-  return rows?.[0] ?? null
+  return pickLatestProgressUpdate(rows)
 }
 
 function syncProjectFromProgressUpdate(app, progressRecord) {
@@ -57,5 +79,6 @@ function syncProjectFromProgressUpdate(app, progressRecord) {
 module.exports = {
   projectProgressPatch,
   latestProgressUpdate,
+  pickLatestProgressUpdate,
   syncProjectFromProgressUpdate,
 }
