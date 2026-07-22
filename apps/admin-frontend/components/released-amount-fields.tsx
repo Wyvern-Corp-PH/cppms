@@ -209,13 +209,15 @@ export function ReleasedAmountFields({
         />
         <FieldError>{fieldErrors.amount}</FieldError>
       </Field>
-      <Field>
+      <Field data-invalid={!!fieldErrors.receipt_number}>
         <FieldLabel htmlFor={`${idPrefix}-receipt-number`}>Receipt number</FieldLabel>
         <Input
           id={`${idPrefix}-receipt-number`}
           value={value.receiptNumber}
+          aria-invalid={!!fieldErrors.receipt_number}
           onChange={(event) => patchValue({ receiptNumber: event.target.value })}
         />
+        <FieldError>{fieldErrors.receipt_number}</FieldError>
       </Field>
       <FieldSet className="space-y-3 rounded-md border p-3">
         <p className="text-sm font-medium">Fund Source</p>
@@ -317,17 +319,19 @@ export function ReleasedAmountFields({
           onChange={(event) => patchValue({ expenseDate: event.target.value })}
         />
       </Field>
-      <Field>
+      <Field data-invalid={!!fieldErrors.description}>
         <FieldLabel htmlFor={`${idPrefix}-expense-description`}>
           Description
         </FieldLabel>
         <Textarea
           id={`${idPrefix}-expense-description`}
           value={value.expenseDescription}
+          aria-invalid={!!fieldErrors.description}
           onChange={(event) =>
             patchValue({ expenseDescription: event.target.value })
           }
         />
+        <FieldError>{fieldErrors.description}</FieldError>
       </Field>
     </FieldGroup>
   )

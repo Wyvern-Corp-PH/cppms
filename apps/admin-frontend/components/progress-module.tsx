@@ -620,6 +620,7 @@ export function ProgressModule() {
     projectId: string
     revision: boolean
     latestUpdate: ProgressUpdateRecord | undefined
+    latestExpense: BudgetExpenseRecord | undefined
   }) {
     const existingSitePhotoNamesFromRecord = options.latestUpdate
       ? namesOnRecord(options.latestUpdate.site_photo)
@@ -640,7 +641,27 @@ export function ProgressModule() {
           }
         : {}),
       ...(requiresReleasedAmount
-        ? { releasedAmount: toReleasedAmountInput(releasedAmount) }
+        ? {
+            releasedAmount: toReleasedAmountInput(releasedAmount),
+            ...(options.revision && options.latestExpense
+              ? {
+                  latestReleasedAmount: {
+                    amount: options.latestExpense.amount,
+                    year: options.latestExpense.year,
+                    main_account: normalizeMainAccountName(
+                      options.latestExpense.main_account
+                    ),
+                    sub_account:
+                      options.latestExpense.sub_account || undefined,
+                    date: toDateInputValue(options.latestExpense.date),
+                    receipt_number:
+                      options.latestExpense.receipt_number || undefined,
+                    description:
+                      options.latestExpense.description || undefined,
+                  },
+                }
+              : {}),
+          }
         : {}),
     }
 
@@ -870,6 +891,7 @@ export function ProgressModule() {
       projectId: dialogProjectId,
       revision: Boolean(project.status === "For Revision" && latestUpdate),
       latestUpdate,
+      latestExpense,
     })
 
     if (!parsed.success) {
