@@ -1480,13 +1480,15 @@ describe("ProgressModule (V81, V84)", () => {
     expect(createMock).not.toHaveBeenCalled()
     const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
       string,
-      FormData,
+      Record<string, unknown>,
     ]
     expect(updateId).toBe("pu-latest")
-    expect(payload.get("to_pct")).toBe("75")
-    expect(payload.get("notes")).toBe("Prior revision notes")
-    expect(payload.get("from_pct")).toBeNull()
-    expect(payload.getAll("site_photo")).toHaveLength(0)
+    expect(payload).toEqual({
+      project: "1",
+      to_pct: 75,
+      notes: "Prior revision notes",
+    })
+    expect(payload).not.toBeInstanceOf(FormData)
   })
 
   it("includes new site_photo File[] on For Revision update when user picks files", async () => {
@@ -1579,9 +1581,15 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(createMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
-    const payload = progressUpdateMock.mock.calls[0]?.[1] as FormData
-    expect(payload.get("notes")).toBe("Revised notes only")
-    expect(payload.get("from_pct")).toBeNull()
+    const payload = progressUpdateMock.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >
+    expect(payload).toEqual({
+      project: "1",
+      to_pct: 75,
+      notes: "Revised notes only",
+    })
   })
 
   it("normalizes PB datetime expense date on For Revision open and skips identical create (retain-release V1/V2/V7)", async () => {
