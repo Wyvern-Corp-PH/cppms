@@ -785,6 +785,12 @@ describe("PocketBase sync-project-progress hook", () => {
       "Progress update saved, but project summary did not sync."
     )
   })
+
+  it("picks latest progress row without sort field created (⊥ -created JSAPI reject)", () => {
+    expect(hookSource).not.toContain('"-created"')
+    expect(hookSource).toContain("pickLatestProgressUpdate")
+    expect(hookSource).toContain('row.get("created")')
+  })
 })
 
 describe("PocketBase repair stuck 100% → Ready for Review migration (V7)", () => {
