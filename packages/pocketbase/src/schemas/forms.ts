@@ -191,6 +191,89 @@ export const releasedAmountInputSchema = budgetExpenseBaseSchema
   .omit({ project: true })
   .superRefine(refineBudgetExpenseSubAccount)
 
+/** Progress-with-released only — requires trimmed non-blank receipt + description. */
+const requiredTrimmedText = (message: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? value : ""),
+    z.string().trim().min(1, message)
+  )
+
+export const progressReleasedAmountInputSchema = budgetExpenseBaseSchema
+  .omit({ project: true })
+  .extend({
+    receipt_number: requiredTrimmedText("Receipt number is required."),
+    description: requiredTrimmedText("Description is required."),
+  })
+  .superRefine(refineBudgetExpenseSubAccount)
+
+/** Revision soft-base — receipt/description optional until create-or-change refine. */
+const progressReleasedAmountRevisionInputSchema = budgetExpenseBaseSchema
+  .omit({ project: true })
+  .superRefine(refineBudgetExpenseSubAccount)
+
+function coerceReleasedComparable(value: unknown) {
+  if (value === undefined || value === null) return ""
+  return String(value)
+}
+
+function leadingExpenseDate(value: string | undefined) {
+  const trimmed = value?.trim() ?? ""
+  if (!trimmed) return ""
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
+  return match?.[1] ?? trimmed
+}
+
+type ReleasedAmountComparable = {
+  amount: number
+  year: number
+  main_account: string
+  sub_account?: string
+  date: string
+  receipt_number?: string
+  description?: string
+}
+
+/** True when submitted matches latest expense (no new budget_expenses create). */
+export function progressReleasedAmountEqualsLatest(
+  submitted: ReleasedAmountComparable,
+  latest: ReleasedAmountComparable | undefined
+) {
+  if (!latest) return false
+  return (
+    Number(submitted.amount) === Number(latest.amount) &&
+    Number(submitted.year) === Number(latest.year) &&
+    coerceReleasedComparable(submitted.main_account) ===
+      coerceReleasedComparable(latest.main_account) &&
+    coerceReleasedComparable(submitted.sub_account) ===
+      coerceReleasedComparable(latest.sub_account) &&
+    leadingExpenseDate(submitted.date) === leadingExpenseDate(latest.date) &&
+    coerceReleasedComparable(submitted.receipt_number) ===
+      coerceReleasedComparable(latest.receipt_number) &&
+    coerceReleasedComparable(submitted.description) ===
+      coerceReleasedComparable(latest.description)
+  )
+}
+
+function refineRequiredReceiptDescription(
+  releasedAmount: { receipt_number?: string; description?: string },
+  ctx: z.RefinementCtx
+) {
+  if (!coerceReleasedComparable(releasedAmount.receipt_number).trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["releasedAmount", "receipt_number"],
+      message: "Receipt number is required.",
+    })
+  }
+  if (!coerceReleasedComparable(releasedAmount.description).trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["releasedAmount", "description"],
+      message: "Description is required.",
+    })
+  }
+}
+
 export const progressUpdateFormSchema = z
   .object({
     projectId: z.string().min(1, "Project is required."),
@@ -223,7 +306,7 @@ export const progressUpdateFormSchema = z
 
 export const progressUpdateWithReleasedAmountFormSchema =
   progressUpdateFormSchema.extend({
-    releasedAmount: releasedAmountInputSchema,
+    releasedAmount: progressReleasedAmountInputSchema,
   })
 
 const revisionSitePhotoListSchema = z.preprocess(
@@ -288,9 +371,24 @@ export const progressUpdateRevisionFormSchema = z
   })
 
 export const progressUpdateRevisionWithReleasedAmountFormSchema =
-  progressUpdateRevisionFormSchema.extend({
-    releasedAmount: releasedAmountInputSchema,
-  })
+  progressUpdateRevisionFormSchema
+    .extend({
+      releasedAmount: progressReleasedAmountRevisionInputSchema,
+      /** When equal to releasedAmount, blank receipt/description allowed (legacy). */
+      latestReleasedAmount: progressReleasedAmountRevisionInputSchema.optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (
+        progressReleasedAmountEqualsLatest(
+          value.releasedAmount,
+          value.latestReleasedAmount
+        )
+      ) {
+        return
+      }
+      refineRequiredReceiptDescription(value.releasedAmount, ctx)
+    })
+    .transform(({ latestReleasedAmount: _latest, ...rest }) => rest)
 
 export const approvalFormSchema = z
   .object({
