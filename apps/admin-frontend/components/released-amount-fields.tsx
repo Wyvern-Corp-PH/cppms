@@ -64,7 +64,7 @@ function uniqueOptions(values: readonly string[]) {
   return Array.from(new Set(values.filter(Boolean)))
 }
 
-function normalizeMainAccountName(value: string) {
+export function normalizeMainAccountName(value: string) {
   return value === "Other" ? "Others" : value
 }
 
