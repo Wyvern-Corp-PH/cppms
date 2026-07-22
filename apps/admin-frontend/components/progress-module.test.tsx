@@ -264,10 +264,22 @@ describe("ProgressModule (V81, V84)", () => {
     user: ReturnType<typeof userEvent.setup>
   ) {
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
     await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Release for progress")
+  }
+
+  function useSuperAdminActor() {
+    store.authRecord = {
+      id: "super-admin-user",
+      email: "super@example.test",
+      name: "Current Super Admin User",
+      role: "Super Admin",
+      account_status: "Active",
+    }
   }
 
   it("shows drag-and-drop site photo upload in update modal", async () => {
@@ -1163,6 +1175,7 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
     await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Bridge materials")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -1172,6 +1185,7 @@ describe("ProgressModule (V81, V84)", () => {
           project: "1",
           amount: 1500,
           receipt_number: "007",
+          description: "Bridge materials",
           main_account: "General Fund",
           sub_account: "GF - Proper",
         })
@@ -1202,6 +1216,142 @@ describe("ProgressModule (V81, V84)", () => {
     await screen.findByText("Bridge")
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
     expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save update/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+  })
+
+  it("does not show embedded released amount fields for Super Admin users", async () => {
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await screen.findByText("Bridge")
+    expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save update/i })).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+  })
+
+  it("should show FieldError when Municipality submits Released Amount without receipt_number", async () => {
+    const user = userEvent.setup()
+    useMunicipalityActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 40,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Materials")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/receipt number is required/i)).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText(/^receipt number$/i)).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it("should show FieldError when Barangay submits Released Amount with whitespace-only description", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-9")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "   ")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/description is required/i)).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText(/^description$/i)).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("saves Municipality progress updates with embedded released amount sync", async () => {
@@ -1590,6 +1740,79 @@ describe("ProgressModule (V81, V84)", () => {
       to_pct: 75,
       notes: "Revised notes only",
     })
+  })
+
+  it("should allow For Revision notes-only save when legacy expense has blank receipt and description", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({
+        receipt_number: "",
+        description: "",
+      }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/^receipt number$/i)).toHaveValue("")
+    expect(within(dialog).getByLabelText(/^description$/i)).toHaveValue("")
+    await user.clear(within(dialog).getByLabelText(/update notes/i))
+    await user.type(
+      within(dialog).getByLabelText(/update notes/i),
+      "Notes only — legacy blank release"
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText(/receipt number is required/i)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/description is required/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it("should block For Revision when amount changes but receipt stays blank", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({
+        receipt_number: "",
+        description: "",
+      }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const amount = screen.getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "2000")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findByText(/receipt number is required/i)
+    ).toBeInTheDocument()
+    expect(screen.getByText(/description is required/i)).toBeInTheDocument()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
   it("normalizes PB datetime expense date on For Revision open and skips identical create (retain-release V1/V2/V7)", async () => {
