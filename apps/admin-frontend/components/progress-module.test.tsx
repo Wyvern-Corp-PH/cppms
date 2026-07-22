@@ -1584,6 +1584,40 @@ describe("ProgressModule (V81, V84)", () => {
     expect(payload.get("from_pct")).toBeNull()
   })
 
+  it("normalizes PB datetime expense date on For Revision open and skips identical create (retain-release V1/V2/V7)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({ date: "2026-07-20 00:00:00.000Z" }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/^expense date$/i)).toHaveValue(
+      "2026-07-20"
+    )
+    await user.clear(within(dialog).getByLabelText(/update notes/i))
+    await user.type(
+      within(dialog).getByLabelText(/update notes/i),
+      "Notes only — keep release"
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  })
+
   it("creates progress update when For Revision has empty history (T3/V5)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
