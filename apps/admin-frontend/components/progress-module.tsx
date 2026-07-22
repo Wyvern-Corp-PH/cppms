@@ -286,6 +286,14 @@ async function healStuckProjectsAt100(
   return parseRecordList(projectRecordSchema, refreshed)
 }
 
+/** Leading YYYY-MM-DD for type=date + equality — ⊥ Date TZ round-trip. */
+function toDateInputValue(value: string | undefined | null): string {
+  const trimmed = value?.trim() ?? ""
+  if (!trimmed) return ""
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
+  return match?.[1] ?? trimmed
+}
+
 function releasedAmountFormFromExpense(
   expense: BudgetExpenseRecord
 ): ReleasedAmountFormValue {
@@ -295,7 +303,7 @@ function releasedAmountFormFromExpense(
     mainAccount: expense.main_account,
     subAccount: expense.sub_account ?? "",
     receiptNumber: expense.receipt_number ?? "",
-    expenseDate: expense.date,
+    expenseDate: toDateInputValue(expense.date),
     expenseDescription: expense.description ?? "",
   }
 }
@@ -317,7 +325,7 @@ function releasedAmountEqualsLatest(
       coerceComparable(latest.main_account) &&
     coerceComparable(submitted.sub_account) ===
       coerceComparable(latest.sub_account) &&
-    coerceComparable(submitted.date) === coerceComparable(latest.date) &&
+    toDateInputValue(submitted.date) === toDateInputValue(latest.date) &&
     coerceComparable(submitted.receipt_number) ===
       coerceComparable(latest.receipt_number) &&
     coerceComparable(submitted.description) ===
