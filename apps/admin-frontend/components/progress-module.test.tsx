@@ -1618,6 +1618,48 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
+  it("skips identical expense when latest main_account is legacy Other (retain-release)", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({
+        main_account: "Other",
+        sub_account: "Legacy other purpose",
+      }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+
+    const dialog = await screen.findByRole("dialog")
+    await waitFor(() => {
+      expect(
+        within(dialog).getByLabelText(/^main account$/i)
+      ).toHaveTextContent("Others")
+    })
+    expect(within(dialog).getByLabelText(/^other purpose$/i)).toHaveValue(
+      "Legacy other purpose"
+    )
+    await user.clear(within(dialog).getByLabelText(/update notes/i))
+    await user.type(
+      within(dialog).getByLabelText(/update notes/i),
+      "Keep legacy Other release"
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  })
+
   it("creates progress update when For Revision has empty history (T3/V5)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
