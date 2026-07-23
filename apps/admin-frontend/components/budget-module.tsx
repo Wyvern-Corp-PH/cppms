@@ -7,6 +7,12 @@ import {
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
 import {
+  COMPLETED_PROJECT_ALLOCATION_MESSAGE,
+  filterProjectsForBudgetAllocation,
+  isEligibleForBudgetAllocation,
+  validateReleasedAmountCreate,
+} from "@workspace/pocketbase/domain/budget-allocation-guards"
+import {
   computeBudgetSummary,
   computeProjectBudgetBreakdown,
   formatAllocationAmount,
@@ -451,6 +457,12 @@ export function BudgetModule() {
       return
     }
 
+    const targetProject = projects.find((row) => row.id === parsed.data.project)
+    if (!targetProject || !isEligibleForBudgetAllocation(targetProject)) {
+      setFieldErrors({ project: COMPLETED_PROJECT_ALLOCATION_MESSAGE })
+      return
+    }
+
     setFieldErrors({})
     const pb = getPocketBase()
     const hasFiles =
@@ -500,8 +512,41 @@ export function BudgetModule() {
       return
     }
 
-    setFieldErrors({})
     const pb = getPocketBase()
+    let projectAllocations: BudgetAllocationRecord[]
+    let projectExpenses: BudgetExpenseRecord[]
+    try {
+      const [allocationRows, expenseRows] = await Promise.all([
+        pb.collection("budget_allocations").getFullList(),
+        pb.collection("budget_expenses").getFullList(),
+      ])
+      projectAllocations = parseRecordList(
+        budgetAllocationRecordSchema,
+        allocationRows
+      ).filter((row) => row.project === parsed.data.project)
+      projectExpenses = parseRecordList(
+        budgetExpenseRecordSchema,
+        expenseRows
+      ).filter((row) => row.project === parsed.data.project)
+    } catch {
+      setFieldErrors({
+        amount:
+          "Unable to load budget data. Try again before saving.",
+      })
+      return
+    }
+
+    const releaseCap = validateReleasedAmountCreate({
+      newAmount: parsed.data.amount,
+      existingReleasedAmounts: projectExpenses,
+      allocations: projectAllocations,
+    })
+    if (!releaseCap.ok) {
+      setFieldErrors({ amount: releaseCap.message })
+      return
+    }
+
+    setFieldErrors({})
     await pb.collection("budget_expenses").create(parsed.data)
     setExpenseOpen(false)
     await load()
@@ -682,7 +727,7 @@ export function BudgetModule() {
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((project) => (
+                  {filterProjectsForBudgetAllocation(projects).map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
                     </SelectItem>
