@@ -737,6 +737,17 @@ describe("BudgetModule (V9, V10, V24)", () => {
         total_budget: 200_000,
       },
     ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
     store.fundingYears = [
       {
         id: "fy1",
@@ -1150,5 +1161,113 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.getByTestId("budget-remaining")).toBeInTheDocument()
       expect(screen.getByTestId("budget-breakdown")).toBeInTheDocument()
     })
+  })
+
+  it("should omit Completed projects from Allocate Budget options", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Active Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+      {
+        id: "p2",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Finished Road",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        total_budget: 100_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByTestId("allocate-budget"))
+    await user.click((await screen.findAllByRole("combobox"))[0]!)
+
+    expect(
+      await screen.findByRole("option", { name: "Active Bridge" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Finished Road" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("should reject released amount create that exceeds allocated budget", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        total_budget: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 50_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 40_000,
+        year: 2026,
+        main_account: "Special Education Fund",
+        date: "2026-06-01",
+      },
+    ]
+    store.fundMainAccounts = [
+      {
+        id: "ma1",
+        collectionId: "fund_main_accounts",
+        collectionName: "budget_fund_main_accounts",
+        name: "Special Education Fund",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+    await user.click(await screen.findByTestId("released-amount"))
+    await user.click(screen.getByLabelText(/expense project/i))
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "15000")
+    await user.click(screen.getByLabelText(/main account/i))
+    await user.click(
+      await screen.findByRole("option", { name: "Special Education Fund" })
+    )
+    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
+
+    expect(
+      await screen.findByText(
+        "Released amount cannot exceed the allocated budget."
+      )
+    ).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
   })
 })
