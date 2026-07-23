@@ -6,6 +6,8 @@ const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   expenses: [] as Array<Record<string, unknown>>,
+  /** null = synthesize generous fixtures; [] = zero allocations for cap tests */
+  allocations: null as Array<Record<string, unknown>> | null,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   fundingYears: [] as Array<Record<string, unknown>>,
@@ -36,6 +38,19 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
         if (name === "budget_expenses") return store.expenses
+        if (name === "budget_allocations") {
+          if (store.allocations !== null) return store.allocations
+          // Default headroom so existing release-sync tests stay focused on their seams.
+          return store.projects.map((project, index) => ({
+            id: `alloc-default-${index}`,
+            collectionId: "a",
+            collectionName: "budget_allocations",
+            project: project.id,
+            amount: 10_000_000,
+            year: 2026,
+            date: "2026-01-01",
+          }))
+        }
         if (name === "locations") return store.locations
         if (name === "users") return store.users
         if (name === "budget_funding_years") return store.fundingYears
@@ -96,6 +111,7 @@ describe("ProgressModule (V81, V84)", () => {
     store.projects = []
     store.updates = []
     store.expenses = []
+    store.allocations = null
     store.locations = [
       {
         id: "loc1",
@@ -1191,6 +1207,64 @@ describe("ProgressModule (V81, V84)", () => {
         })
       )
     })
+  })
+
+  it("should block progress released amount create that exceeds allocated budget", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "1",
+        amount: 1_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.type(screen.getByLabelText(/^receipt number$/i), "007")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Bridge materials")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findAllByText(
+        "Released amount cannot exceed the allocated budget."
+      )
+    ).not.toHaveLength(0)
+    expect(createMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
   it("does not show embedded released amount fields for Province users", async () => {
