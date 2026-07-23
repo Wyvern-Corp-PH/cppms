@@ -6,6 +6,7 @@ import {
   canAccess,
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
+import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import {
   formatProjectDateRange,
@@ -26,6 +27,7 @@ import {
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
   type CompletionDocumentField,
+  budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
   fieldErrorsFromZod,
   firstZodError,
@@ -39,6 +41,7 @@ import {
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
+  BudgetAllocationRecord,
   BudgetExpenseRecord,
   LocationRecord,
   ProgressUpdateRecord,
@@ -353,6 +356,7 @@ export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [expenses, setExpenses] = useState<BudgetExpenseRecord[]>([])
+  const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -390,6 +394,9 @@ export function ProgressModule() {
   const [expensesLoadError, setExpensesLoadError] = useState<string | null>(
     null
   )
+  const [allocationsLoadError, setAllocationsLoadError] = useState<
+    string | null
+  >(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const actor = getPocketBase().authStore?.record
   const canCreateProgressUpdates = actor
@@ -409,12 +416,25 @@ export function ProgressModule() {
     setLoading(true)
     try {
       const pb = getPocketBase()
-      const [projectRows, updateRows, expenseResult, locationRows, userRows] =
-        await Promise.all([
+      const [
+        projectRows,
+        updateRows,
+        expenseResult,
+        allocationResult,
+        locationRows,
+        userRows,
+      ] = await Promise.all([
           pb.collection("projects").getFullList(),
           pb.collection("progress_updates").getFullList(),
           pb
             .collection("budget_expenses")
+            .getFullList()
+            .then(
+              (rows) => ({ ok: true as const, rows }),
+              (error: unknown) => ({ ok: false as const, error })
+            ),
+          pb
+            .collection("budget_allocations")
             .getFullList()
             .then(
               (rows) => ({ ok: true as const, rows }),
@@ -447,17 +467,38 @@ export function ProgressModule() {
         parsedExpenses.sort(compareByRecencyDesc)
         setExpenses(parsedExpenses)
         setExpensesLoadError(null)
-        setLoadError(null)
       } else {
         console.warn("Failed to load budget expenses.", expenseResult.error)
         setExpensesLoadError(
           "Unable to load released amount history. Refresh before saving a progress update."
         )
-        setLoadError(
-          "Unable to load released amount history. Refresh before saving a progress update."
-        )
         // Keep previous expenses — do not treat load failure as empty history.
       }
+
+      if (allocationResult.ok) {
+        setAllocations(
+          parseRecordList(budgetAllocationRecordSchema, allocationResult.rows)
+        )
+        setAllocationsLoadError(null)
+      } else {
+        console.warn(
+          "Failed to load budget allocations.",
+          allocationResult.error
+        )
+        setAllocationsLoadError(
+          "Unable to load budget allocations. Refresh before saving a progress update."
+        )
+        // Keep previous allocations — do not treat load failure as zero allocated.
+      }
+
+      const budgetLoadError =
+        (!expenseResult.ok
+          ? "Unable to load released amount history. Refresh before saving a progress update."
+          : null) ??
+        (!allocationResult.ok
+          ? "Unable to load budget allocations. Refresh before saving a progress update."
+          : null)
+      setLoadError(budgetLoadError)
     } finally {
       setLoading(false)
     }
@@ -468,7 +509,7 @@ export function ProgressModule() {
   }, [load])
 
   const { live } = usePocketBaseRealtime(
-    ["projects", "progress_updates", "budget_expenses"],
+    ["projects", "progress_updates", "budget_expenses", "budget_allocations"],
     () => {
       void load()
     }
@@ -560,6 +601,11 @@ export function ProgressModule() {
     if (expensesLoadError && requiresReleasedAmount) {
       setFormError(expensesLoadError)
       setLoadError(expensesLoadError)
+      return
+    }
+    if (allocationsLoadError && requiresReleasedAmount) {
+      setFormError(allocationsLoadError)
+      setLoadError(allocationsLoadError)
       return
     }
     const { latestUpdate, latestExpense } = revisionContextFor(project)
@@ -736,6 +782,27 @@ export function ProgressModule() {
       return
     }
 
+    const projectAllocations = allocations.filter(
+      (row) => row.project === options.projectId
+    )
+    const projectExpenses = expenses.filter(
+      (row) => row.project === options.projectId
+    )
+    const releaseCap = validateReleasedAmountCreate({
+      newAmount: options.releasedAmount.amount,
+      existingReleasedAmounts: projectExpenses,
+      allocations: projectAllocations,
+    })
+    if (!releaseCap.ok) {
+      if (!options.latestUpdate && options.progressRecordId) {
+        await rollbackCreatedProgressUpdate(
+          options.pb,
+          options.progressRecordId
+        )
+      }
+      throw new Error(releaseCap.message)
+    }
+
     try {
       await options.pb.collection("budget_expenses").create({
         project: options.projectId,
@@ -887,6 +954,11 @@ export function ProgressModule() {
       return
     }
 
+    if (requiresReleasedAmount && allocationsLoadError) {
+      setFormError(allocationsLoadError)
+      return
+    }
+
     const parsed = validateProgressUpdateInput({
       projectId: dialogProjectId,
       revision: Boolean(project.status === "For Revision" && latestUpdate),
@@ -920,6 +992,28 @@ export function ProgressModule() {
     ) {
       setFormError("This project is read-only for progress updates.")
       return
+    }
+
+    if (requiresReleasedAmount) {
+      const nextReleasedAmount = toReleasedAmountInput(releasedAmount)
+      const wouldCreateExpense = !releasedAmountEqualsLatest(
+        nextReleasedAmount,
+        latestExpense
+      )
+      if (wouldCreateExpense) {
+        const releaseCap = validateReleasedAmountCreate({
+          newAmount: nextReleasedAmount.amount,
+          existingReleasedAmounts: expenses.filter(
+            (row) => row.project === project.id
+          ),
+          allocations: allocations.filter((row) => row.project === project.id),
+        })
+        if (!releaseCap.ok) {
+          setReleasedAmountErrors({ amount: releaseCap.message })
+          setFormError(releaseCap.message)
+          return
+        }
+      }
     }
 
     setFieldErrors({})
