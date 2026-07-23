@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react"
 
+import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import {
+  budgetAllocationRecordSchema,
   budgetExpenseMutateSchema,
+  budgetExpenseRecordSchema,
   fieldErrorsFromZod,
+  parseRecordList,
 } from "@workspace/pocketbase/schemas"
 import type { ProjectRecord } from "@workspace/pocketbase/types"
 import { Button } from "@workspace/ui/components/button"
@@ -72,11 +76,54 @@ export function ReleasedAmountDialog({
       return
     }
 
-    setFieldErrors({})
     setSaving(true)
     try {
       const pb = getPocketBase()
-      await pb.collection("budget_expenses").create(parsed.data)
+      let allocationRows: unknown[]
+      let expenseRows: unknown[]
+      try {
+        ;[allocationRows, expenseRows] = await Promise.all([
+          pb.collection("budget_allocations").getFullList(),
+          pb.collection("budget_expenses").getFullList(),
+        ])
+      } catch {
+        setFieldErrors({
+          amount:
+            "Unable to load budget data. Try again before saving.",
+        })
+        return
+      }
+
+      const projectAllocations = parseRecordList(
+        budgetAllocationRecordSchema,
+        allocationRows
+      ).filter((row) => row.project === parsed.data.project)
+      const projectExpenses = parseRecordList(
+        budgetExpenseRecordSchema,
+        expenseRows
+      ).filter((row) => row.project === parsed.data.project)
+      const releaseCap = validateReleasedAmountCreate({
+        newAmount: parsed.data.amount,
+        existingReleasedAmounts: projectExpenses,
+        allocations: projectAllocations,
+      })
+      if (!releaseCap.ok) {
+        setFieldErrors({ amount: releaseCap.message })
+        return
+      }
+
+      setFieldErrors({})
+      try {
+        await pb.collection("budget_expenses").create(parsed.data)
+      } catch (error) {
+        setFieldErrors({
+          amount:
+            error instanceof Error
+              ? error.message
+              : "Unable to save released amount.",
+        })
+        return
+      }
       onOpenChange(false)
       await onSuccess?.()
     } finally {
