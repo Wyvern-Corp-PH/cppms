@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   canAccess,
+  canRepairProjectProgress,
   filterProjectsForUser,
   getRolePolicy,
   isActiveUser,
@@ -141,7 +142,7 @@ describe("access control (V115-V121)", () => {
     ).toBe(true)
   })
 
-  it("lets Municipality and Barangay submit progress updates without project mutation", () => {
+  it("lets Municipality and Barangay submit progress updates and scoped project field updates", () => {
     expect(
       canAccess(
         {
@@ -177,6 +178,18 @@ describe("access control (V115-V121)", () => {
         },
         "projects.update"
       )
+    ).toBe(true)
+    expect(
+      canAccess(
+        {
+          id: "b1",
+          role: "Barangay",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01",
+        },
+        "projects.create"
+      )
     ).toBe(false)
     expect(
       canAccess(
@@ -199,6 +212,67 @@ describe("access control (V115-V121)", () => {
         },
         "projects.update"
       )
+    ).toBe(true)
+    expect(
+      canAccess(
+        {
+          id: "m1",
+          role: "Municipality",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+        },
+        "projects.delete"
+      )
+    ).toBe(false)
+  })
+
+  it("grants PPDO encode-only project create and update", () => {
+    const policy = getRolePolicy("PPDO")
+
+    expect(policy).toEqual(["projects.create", "projects.update"])
+    expect(policy).not.toContain("projects.delete")
+    expect(policy).not.toContain("progress_updates.create")
+    expect(policy).not.toContain("budget_allocations.create")
+    expect(policy).not.toContain("budget_expenses.create")
+    expect(policy).not.toContain("approval_actions.create")
+    expect(policy).not.toContain("users.update")
+    expect(policy).not.toContain("locations.update")
+    expect(policy).not.toContain("reports.view")
+    expect(policy).not.toContain("reports.export")
+    expect(
+      canAccess({ id: "pp1", role: "PPDO", account_status: "Active" }, "projects.create")
+    ).toBe(true)
+    expect(
+      canAccess(
+        { id: "pp1", role: "PPDO", account_status: "Active" },
+        "progress_updates.create"
+      )
+    ).toBe(false)
+    expect(isActiveUser({ id: "pp1", role: "PPDO", account_status: "Active" })).toBe(
+      true
+    )
+    expect(
+      isProjectInUserScope({ role: "PPDO" }, { municipality: "Lasam", barangay: "Centro" })
+    ).toBe(true)
+  })
+
+  it("keeps stuck-progress repair on Super Admin and Province by role", () => {
+    expect(
+      canRepairProjectProgress({ id: "s1", role: "Super Admin", account_status: "Active" })
+    ).toBe(true)
+    expect(
+      canRepairProjectProgress({ id: "p1", role: "Province", account_status: "Active" })
+    ).toBe(true)
+    expect(
+      canRepairProjectProgress({ id: "pp1", role: "PPDO", account_status: "Active" })
+    ).toBe(false)
+    expect(
+      canRepairProjectProgress({
+        id: "m1",
+        role: "Municipality",
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+      })
     ).toBe(false)
   })
 
@@ -251,5 +325,6 @@ describe("access control (V115-V121)", () => {
     ).toEqual(["p1", "p2"])
     expect(isProjectInUserScope({ role: "Province" }, projects[2]!)).toBe(true)
     expect(isProjectInUserScope({ role: "Super Admin" }, projects[2]!)).toBe(true)
+    expect(isProjectInUserScope({ role: "PPDO" }, projects[2]!)).toBe(true)
   })
 })

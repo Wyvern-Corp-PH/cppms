@@ -58,7 +58,7 @@ describe("schema enums (V36)", () => {
     expect(PROJECT_CATEGORY).toHaveLength(6)
     expect(LGU_LEVEL).toHaveLength(4)
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
-    expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
+    expect(ROLE).toEqual(["Super Admin", "Province", "PPDO", "Municipality", "Barangay"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
     expect(AUDIT_ACTION).toContain("request_revision")
     expect(AUDIT_ACTION).toContain("reset_password")

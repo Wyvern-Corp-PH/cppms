@@ -90,6 +90,7 @@ function actorRole(auth) {
   const role = auth?.get?.("role")
   return role === "Super Admin" ||
     role === "Province" ||
+    role === "PPDO" ||
     role === "Municipality" ||
     role === "Barangay"
     ? role

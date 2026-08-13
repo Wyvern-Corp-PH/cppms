@@ -147,6 +147,28 @@ describe("AdminShell", () => {
     expect(screen.getByText("Super Admin")).toBeInTheDocument()
   })
 
+  it("limits PPDO navigation to Dashboard and Projects", () => {
+    authState.user = {
+      id: "1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+
+    render(
+      <AdminShell>
+        <p>Page content</p>
+      </AdminShell>
+    )
+
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Projects" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Budget" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Progress" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Approvals" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Reports" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "User Management" })).not.toBeInTheDocument()
+  })
+
   it("renders top bar with sidebar toggle and page content", () => {
     render(
       <AdminShell>

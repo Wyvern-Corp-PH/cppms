@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
 import {
@@ -74,11 +75,14 @@ describe("J13 role-scoped access journey", () => {
     store.locations = []
   })
 
-  it("Municipality scope filters project data and denies project mutate affordances", async () => {
+  it("Municipality scope filters project data and allows in-scope LGU field edit only", async () => {
+    const user = userEvent.setup()
     const visible = filterProjectsForUser(store.authRecord, store.projects)
 
     expect(visible.map((project) => project.id)).toEqual(["p1"])
-    expect(canAccess(store.authRecord, "projects.update")).toBe(false)
+    expect(canAccess(store.authRecord, "projects.update")).toBe(true)
+    expect(canAccess(store.authRecord, "projects.create")).toBe(false)
+    expect(canAccess(store.authRecord, "projects.delete")).toBe(false)
     expect(canAccess(store.authRecord, "progress_updates.create")).toBe(true)
 
     render(<ProjectsModule />)
@@ -86,6 +90,18 @@ describe("J13 role-scoped access journey", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("create-project")).not.toBeInTheDocument()
     })
-    expect(screen.queryByRole("button", { name: /actions for city bridge/i })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /actions for city bridge/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /actions for lasam school/i })
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole("button", { name: /actions for city bridge/i })
+    )
+    expect(await screen.findByRole("menuitem", { name: /^edit$/i })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /change status/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /^delete$/i })).not.toBeInTheDocument()
   })
 })

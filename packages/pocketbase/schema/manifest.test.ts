@@ -14,6 +14,7 @@ import {
   COLLECTION_NAMES,
   FUND_TYPE,
   LGU_LEVEL,
+  LGU_PHASE_STATUS,
   MIGRATION_FILE,
   PROJECT_CATEGORY,
   PROJECT_STATUS,
@@ -157,6 +158,21 @@ const saProvinceProgressApprovalRulesMigrationPath = resolve(
   "pb_migrations",
   "1740000030_sa_province_progress_approval_rules.js"
 )
+const ppdoLguOwnershipMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000031_ppdo_lgu_project_ownership.js"
+)
+const projectFieldOwnershipHookPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "project-field-ownership.js"
+)
+const projectFieldOwnershipHookEntrypointPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "project-field-ownership.pb.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -205,7 +221,8 @@ describe("schema manifest (SPEC §I)", () => {
       "Others",
     ])
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
-    expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
+    expect(ROLE).toEqual(["Super Admin", "Province", "PPDO", "Municipality", "Barangay"])
+    expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
     expect(AUDIT_ACTION).toContain("request_revision")
     expect(AUDIT_ACTION).toContain("reset_password")
@@ -221,6 +238,14 @@ describe("schema manifest (SPEC §I)", () => {
 
     expect(projects?.fields).toContain("number_of_students")
     expect(projects?.fields).toContain("resolution_file")
+    expect(projects?.fields).toContain("fund_source")
+    expect(projects?.fields).toContain("period_of_implementation")
+    expect(projects?.fields).toContain("moa_details")
+    expect(projects?.fields).toContain("planning_status")
+    expect(projects?.fields).toContain("procurement_status")
+    expect(projects?.fields).toContain("bid_price")
+    expect(projects?.fields).toContain("project_photos")
+    expect(projects?.fields).toContain("lgu_encoded_at")
     expect(progressUpdates?.fields).toEqual(
       expect.arrayContaining([
         "certification_completion",
@@ -287,6 +312,7 @@ describe("pb migration file", () => {
     dropdownOptionCollectionsMigrationPath,
     budgetFundOptionValueRepairMigrationPath,
     usersPasswordResetMigrationPath,
+    ppdoLguOwnershipMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -837,3 +863,47 @@ describe("PocketBase SA/Province progress + approval rules (action matrix)", () 
     )
   })
 })
+
+describe("PPDO and LGU project ownership", () => {
+  const migrationSource = readFileSync(ppdoLguOwnershipMigrationPath, "utf8")
+  const hookSource = readFileSync(projectFieldOwnershipHookPath, "utf8")
+  const hookEntrypointSource = readFileSync(
+    projectFieldOwnershipHookEntrypointPath,
+    "utf8"
+  )
+
+  it("adds PPDO to role selects and seeds user_role_options", () => {
+    expect(migrationSource).toContain('"PPDO"')
+    expect(migrationSource).toContain("user_role_options")
+    expect(migrationSource).toContain("actor_role")
+  })
+
+  it("adds project ownership fields and tightens create to Super Admin, Province, or PPDO", () => {
+    expect(migrationSource).toContain("fund_source")
+    expect(migrationSource).toContain("period_of_implementation")
+    expect(migrationSource).toContain("moa_details")
+    expect(migrationSource).toContain("planning_status")
+    expect(migrationSource).toContain("procurement_status")
+    expect(migrationSource).toContain("bid_price")
+    expect(migrationSource).toContain("project_photos")
+    expect(migrationSource).toContain("lgu_encoded_at")
+    expect(migrationSource).toContain("PROJECT_CREATE_RULE")
+    expect(migrationSource).toContain("PPDO_RULE")
+    expect(migrationSource).toContain("PROJECT_UPDATE_RULE")
+    expect(migrationSource).toContain("MUNICIPALITY_PROJECT_SCOPE_RULE")
+    expect(migrationSource).toContain("BARANGAY_PROJECT_SCOPE_RULE")
+  })
+
+  it("enforces ownership on request hooks only so system progress saves still work", () => {
+    expect(hookEntrypointSource).toContain("onRecordCreateRequest")
+    expect(hookEntrypointSource).toContain("onRecordUpdateRequest")
+    expect(hookEntrypointSource).toContain("project-field-ownership.js")
+    expect(hookEntrypointSource).not.toContain("onRecordUpdate(")
+    expect(hookEntrypointSource).not.toContain("onRecordAfterUpdateSuccess")
+    expect(hookSource).toContain("applyProjectFieldOwnership")
+    expect(hookSource).toContain("lgu_encoded_at")
+    expect(hookSource).toContain("BadRequestError")
+    expect(hookSource).not.toContain("onRecordUpdate(")
+  })
+})
+

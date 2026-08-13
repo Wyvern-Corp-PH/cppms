@@ -9,10 +9,12 @@ export const SAMPLE_ADMIN_EMAIL = "sample.admin@cppms.test"
 export const SAMPLE_USER_EMAIL = "sample.user@cppms.test"
 export const SAMPLE_INACTIVE_USER_EMAIL = "sample.inactive@cppms.test"
 
+export const SAMPLE_PPDO_EMAIL = "sample.ppdo@cppms.test"
+
 export type DevSeedUser = {
   email: string
   name: string
-  role: "Super Admin" | "Province" | "Municipality" | "Barangay"
+  role: "Super Admin" | "Province" | "PPDO" | "Municipality" | "Barangay"
   account_status: "Active" | "Inactive"
   municipality?: string
   barangay?: string
@@ -23,6 +25,12 @@ export const DEV_SEED_USERS: DevSeedUser[] = [
     email: SAMPLE_ADMIN_EMAIL,
     name: "Sample Province Reviewer",
     role: "Province",
+    account_status: "Active",
+  },
+  {
+    email: SAMPLE_PPDO_EMAIL,
+    name: "Sample PPDO Encoder",
+    role: "PPDO",
     account_status: "Active",
   },
   {

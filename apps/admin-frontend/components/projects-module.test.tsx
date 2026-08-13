@@ -770,7 +770,8 @@ describe("ProjectsModule (J4)", () => {
     expect(createMock).not.toHaveBeenCalled()
   })
 
-  it("hides edit, status, and delete controls from scoped local admins", async () => {
+  it("lets scoped Barangay edit LGU-owned fields but not delete or change status from the menu", async () => {
+    const user = userEvent.setup()
     store.projects = [
       {
         id: "p1",
@@ -792,6 +793,7 @@ describe("ProjectsModule (J4)", () => {
         budget_year: 2026,
         total_budget: 200_000,
         progress_pct: 25,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
     ]
     store.authRecord = {
@@ -807,12 +809,19 @@ describe("ProjectsModule (J4)", () => {
     await waitFor(() => {
       expect(screen.getByText("Bridge")).toBeInTheDocument()
     })
-    expect(
-      screen.queryByRole("button", { name: /actions for bridge/i })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText("Edit")).not.toBeInTheDocument()
-    expect(screen.queryByText("Change status")).not.toBeInTheDocument()
-    expect(screen.queryByText("Delete")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("create-project")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /actions for bridge/i }))
+    expect(await screen.findByRole("menuitem", { name: /^edit$/i })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /change status/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: /^delete$/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("menuitem", { name: /^edit$/i }))
+    expect(screen.getByLabelText(/project name/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
   })
 
   it("shows Edit in ⋮ and saves project updates for Province (V1/V2)", async () => {
@@ -971,5 +980,77 @@ describe("ProjectsModule (J4)", () => {
     expect(
       screen.getByRole("progressbar", { name: /sk scholarship progress/i })
     ).toBeInTheDocument()
+  })
+
+  it("locks LGU-owned fields for PPDO and keeps Period of Implementation distinct from dates", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    expect(screen.getByLabelText(/project name/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/period of implementation/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
+    expect(screen.queryByLabelText(/target end date/i)).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/project name/i), "Charter Road")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Charter Road",
+          status: "Planning",
+        })
+      )
+    })
+  })
+
+  it("locks status for PPDO after LGU encoding and keeps name editable", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Charter Road",
+        description: "",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        location: "Poblacion",
+        budget_year: 2026,
+        total_budget: 1000,
+        progress_pct: 10,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for charter road/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByLabelText(/project name/i)).not.toBeDisabled()
+    const statusTrigger = screen.getByRole("combobox", { name: /^status$/i })
+    expect(statusTrigger).toBeDisabled()
   })
 })

@@ -63,6 +63,33 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
+  it("parses PPDO and LGU project fields", () => {
+    const result = projectRecordSchema.safeParse({
+      ...base,
+      name: "Bridge repair",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      fund_source: "General Fund",
+      period_of_implementation: "2026 calendar year",
+      moa_details: "MOA signed",
+      planning_status: "Not Started",
+      procurement_status: "Ongoing",
+      bid_price: 1500,
+      project_photos: ["site.jpg"],
+      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.fund_source).toBe("General Fund")
+      expect(result.data.period_of_implementation).toBe("2026 calendar year")
+      expect(result.data.planning_status).toBe("Not Started")
+      expect(result.data.project_photos).toEqual(["site.jpg"])
+      expect(result.data.lgu_encoded_at).toBe("2026-08-01 00:00:00.000Z")
+    }
+  })
+
   it("retains scholarship student counts on project records (V112)", () => {
     const result = projectRecordSchema.safeParse({
       ...base,

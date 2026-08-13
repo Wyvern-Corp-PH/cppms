@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   canAccess,
+  canRepairProjectProgress,
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
 import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
@@ -249,7 +250,7 @@ async function healStuckProjectsAt100(
   updates: ProgressUpdateRecord[]
 ): Promise<ProjectRecord[]> {
   const healActor = pb.authStore?.record
-  if (!healActor || !canAccess(healActor, "projects.update")) {
+  if (!healActor || !canRepairProjectProgress(healActor)) {
     return projects
   }
 
@@ -408,7 +409,7 @@ export function ProgressModule() {
     ? canAccess(actor, "progress_updates.update")
     : false
   const canPatchProjects = actor
-    ? canAccess(actor, "projects.update")
+    ? canRepairProjectProgress(actor)
     : false
   const requiresReleasedAmount = requiresReleasedAmountForActor(actor)
 
@@ -832,7 +833,7 @@ export function ProgressModule() {
     currentStatus: ProjectRecord["status"]
   }) {
     // Primary Ready-for-Review path is sync-project-progress hook.
-    // Optional belt: only actors with projects.update (SA/Province).
+    // Optional belt: Super Admin and Province by role, not projects.update.
     if (!canPatchProjects) {
       return
     }

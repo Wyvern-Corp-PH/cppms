@@ -6,6 +6,7 @@ const store = {
   projects: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   expenses: [] as Array<Record<string, unknown>>,
+  allocations: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   fundingYears: [
@@ -60,6 +61,7 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
         if (name === "budget_expenses") return store.expenses
+        if (name === "budget_allocations") return store.allocations
         if (name === "locations") return store.locations
         if (name === "users") return store.users
         if (name === "budget_funding_years") return store.fundingYears
@@ -160,6 +162,17 @@ describe("J18 progress update syncs released amount to budget module", () => {
     ]
     store.updates = []
     store.expenses = []
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 10_000_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
     store.locations = []
     store.users = []
     store.authRecord = {
@@ -185,6 +198,7 @@ describe("J18 progress update syncs released amount to budget module", () => {
     )
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
     await user.type(screen.getByLabelText(/^receipt number$/i), "RCPT-18")
+    await user.type(screen.getByLabelText(/^description$/i), "J18 release")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))

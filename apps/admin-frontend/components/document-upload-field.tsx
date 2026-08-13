@@ -30,6 +30,7 @@ type DocumentUploadFieldProps = {
   files: File[]
   onChange: (files: File[]) => void
   existingNames?: string[]
+  disabled?: boolean
   helperText?: string
   dropZoneText?: string
   error?: string
@@ -47,6 +48,7 @@ export function DocumentUploadField({
   helperText = "PDF, DOC, XLS, JPG, PNG",
   dropZoneText = "Click to upload or drag files here",
   error,
+  disabled = false,
 }: DocumentUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -105,8 +107,12 @@ export function DocumentUploadField({
         aria-labelledby={labelId}
         aria-describedby={describedBy || undefined}
         aria-invalid={!!error}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (disabled) return
+          inputRef.current?.click()
+        }}
         onKeyDown={(event) => {
+          if (disabled) return
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault()
             inputRef.current?.click()
@@ -123,7 +129,8 @@ export function DocumentUploadField({
         }}
         onDrop={onDrop}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center transition-colors",
+          "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center transition-colors",
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
           dragOver
             ? "border-primary bg-muted/50"
             : "border-border bg-muted/20 hover:bg-muted/40"
@@ -141,6 +148,7 @@ export function DocumentUploadField({
         accept={accept}
         multiple={multiple}
         data-testid={`document-upload-input-${id}`}
+        disabled={disabled}
         onChange={(event) => {
           if (event.target.files) addFiles(event.target.files)
           event.target.value = ""
@@ -161,6 +169,7 @@ export function DocumentUploadField({
                   variant="ghost"
                   size="sm"
                   aria-label={`Remove ${file.name}`}
+                  disabled={disabled}
                   onClick={() => removeFile(identity)}
                 >
                   <X className="size-4" />

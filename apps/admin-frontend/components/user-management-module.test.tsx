@@ -361,6 +361,70 @@ describe("UserManagementModule (J6)", () => {
     expect(screen.getByText("new@example.test")).toBeInTheDocument()
   })
 
+  it("creates a PPDO account without municipality or barangay", async () => {
+    const user = userEvent.setup()
+    store.userRoleOptions = [
+      {
+        id: "role-ppdo",
+        collectionId: "user_role_options",
+        collectionName: "user_role_options",
+        name: "PPDO",
+        active: true,
+        sort_order: 1,
+      },
+      {
+        id: "role-province",
+        collectionId: "user_role_options",
+        collectionName: "user_role_options",
+        name: "Province",
+        active: true,
+        sort_order: 2,
+      },
+    ]
+    store.userAccountStatusOptions = [
+      {
+        id: "status-active",
+        collectionId: "user_account_status_options",
+        collectionName: "user_account_status_options",
+        name: "Active",
+        active: true,
+        sort_order: 1,
+      },
+    ]
+    createMock.mockResolvedValueOnce({
+      id: "u-ppdo",
+      collectionId: "users",
+      collectionName: "users",
+      created: "",
+      updated: "",
+      email: "ppdo@example.test",
+      name: "PPDO Encoder",
+      role: "PPDO",
+      account_status: "Active",
+      municipality: "",
+      barangay: "",
+    })
+    render(<UserManagementModule />)
+
+    await user.click(await screen.findByRole("button", { name: /create account/i }))
+    await chooseSelectOption(user, /^role$/i, "PPDO")
+    expect(screen.queryByLabelText(/^municipality$/i)).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText(/^name$/i), "PPDO Encoder")
+    await user.type(screen.getByLabelText(/^email$/i), "ppdo@example.test")
+    await user.type(screen.getByLabelText(/initial password/i), "secret123")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: "PPDO",
+          municipality: "",
+          barangay: "",
+        })
+      )
+    })
+  })
+
   it("requires and submits municipality scope for Municipality users", async () => {
     const user = userEvent.setup()
     store.userRoleOptions = []

@@ -2,8 +2,9 @@
 
 import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { canAccess, isActiveUser, mustChangePassword } from "@workspace/pocketbase/domain/access-control"
+import { isActiveUser, mustChangePassword } from "@workspace/pocketbase/domain/access-control"
 
+import { canAccessAdminPath } from "@/lib/admin-nav"
 import { useAuth } from "@/lib/auth"
 
 type AuthGuardProps = {
@@ -14,6 +15,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const pathAllowed = canAccessAdminPath(user, pathname)
 
   useEffect(() => {
     if (loading) {
@@ -30,8 +32,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
       return
     }
 
-    if (user && pathname.startsWith("/users") && !canAccess(user, "users.update")) {
-      router.replace("/dashboard?forbidden=users")
+    if (user && !pathAllowed) {
+      router.replace("/dashboard?forbidden=1")
       return
     }
 
@@ -40,7 +42,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     router.replace(`/login?next=${encodeURIComponent(pathname)}`)
-  }, [loading, user, router, pathname])
+  }, [loading, user, router, pathname, pathAllowed])
 
   if (loading) {
     return (
@@ -57,7 +59,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     !user ||
     !isActiveUser(user) ||
     mustChangePassword(user) ||
-    (pathname.startsWith("/users") && !canAccess(user, "users.update"))
+    !pathAllowed
   ) {
     return null
   }

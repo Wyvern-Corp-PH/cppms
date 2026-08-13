@@ -30,7 +30,9 @@ export const FUND_TYPE = [
 ] as const
 
 export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const
-export const ROLE = ["Super Admin", "Province", "Municipality", "Barangay"] as const
+export const ROLE = ["Super Admin", "Province", "PPDO", "Municipality", "Barangay"] as const
+
+export const LGU_PHASE_STATUS = ["Not Started", "Ongoing", "Completed"] as const
 export const ACCOUNT_STATUS = ["Active", "Inactive"] as const
 export const AUDIT_ACTION = [
   "create",
@@ -71,7 +73,15 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "budget_year",
       "total_budget",
       "number_of_students",
+      "fund_source",
+      "period_of_implementation",
+      "moa_details",
       "moa_file",
+      "planning_status",
+      "procurement_status",
+      "bid_price",
+      "project_photos",
+      "lgu_encoded_at",
       "resolution_file",
       "supporting_docs",
       "progress_pct",

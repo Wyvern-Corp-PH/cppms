@@ -46,6 +46,7 @@ function hasScopeValue(value: string | undefined): boolean {
 }
 
 const BARANGAY_POLICIES: readonly PolicyKey[] = [
+  "projects.update",
   "progress_updates.create",
   "progress_updates.update",
   "progress_updates.delete",
@@ -53,12 +54,15 @@ const BARANGAY_POLICIES: readonly PolicyKey[] = [
 ]
 
 const MUNICIPALITY_POLICIES: readonly PolicyKey[] = [
+  "projects.update",
   "progress_updates.create",
   "progress_updates.update",
   "progress_updates.delete",
   "budget_expenses.create",
   "reports.view",
 ]
+
+const PPDO_POLICIES: readonly PolicyKey[] = ["projects.create", "projects.update"]
 
 const PROVINCE_POLICIES: readonly PolicyKey[] = [
   "projects.create",
@@ -96,26 +100,26 @@ const SUPER_ADMIN_POLICIES: readonly PolicyKey[] = [
 export const ROLE_POLICIES: Record<Role, readonly PolicyKey[]> = {
   "Super Admin": SUPER_ADMIN_POLICIES,
   Province: PROVINCE_POLICIES,
+  PPDO: PPDO_POLICIES,
   Municipality: MUNICIPALITY_POLICIES,
   Barangay: BARANGAY_POLICIES,
 }
 
 export function getRolePolicy(role: Role | string | undefined): readonly PolicyKey[] {
-  if (
-    role === "Super Admin" ||
-    role === "Province" ||
-    role === "Municipality" ||
-    role === "Barangay"
-  ) {
-    return ROLE_POLICIES[role] ?? []
-  }
-  return []
+  if (!role) return []
+  return ROLE_POLICIES[role as Role] ?? []
 }
 
 export function isActiveUser(user: PolicyUser | null | undefined): boolean {
   if (!user || user.account_status === "Inactive") return false
   if (!user.role && user.account_status !== "Inactive") return true
-  if (user.role === "Super Admin" || user.role === "Province") return true
+  if (
+    user.role === "Super Admin" ||
+    user.role === "Province" ||
+    user.role === "PPDO"
+  ) {
+    return true
+  }
   if (user.role === "Municipality") return hasScopeValue(user.municipality)
   if (user.role === "Barangay") {
     return hasScopeValue(user.municipality) && hasScopeValue(user.barangay)
@@ -153,7 +157,13 @@ export function isProjectInUserScope(
   project: ScopedProject
 ): boolean {
   if (!isActiveUser(user)) return false
-  if (user?.role === "Super Admin" || user?.role === "Province") return true
+  if (
+    user?.role === "Super Admin" ||
+    user?.role === "Province" ||
+    user?.role === "PPDO"
+  ) {
+    return true
+  }
   if (user?.role === "Municipality") {
     return sameScopeValue(user.municipality, project.municipality)
   }
@@ -164,6 +174,13 @@ export function isProjectInUserScope(
     )
   }
   return false
+}
+
+export function canRepairProjectProgress(
+  user: PolicyUser | null | undefined
+): boolean {
+  if (!isActiveUser(user)) return false
+  return user?.role === "Super Admin" || user?.role === "Province"
 }
 
 export function filterProjectsForUser<T extends ScopedProject>(

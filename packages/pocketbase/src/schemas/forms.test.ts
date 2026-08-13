@@ -103,6 +103,45 @@ describe("projectMutateSchema (V34)", () => {
       })
     }
   })
+
+  it("accepts PPDO create payload without LGU-owned fields", () => {
+    const result = projectMutateSchema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      location: "Provincial hall",
+      total_budget: 1000,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.contractor).toBeUndefined()
+      expect(result.data.start_date).toBeUndefined()
+      expect(result.data.bid_price).toBeUndefined()
+    }
+  })
+
+  it("accepts Period of Implementation separately from start and end dates", () => {
+    const result = projectMutateSchema.safeParse({
+      name: "Bridge repair",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      period_of_implementation: "FY 2026 Q1–Q4",
+      start_date: "2026-01-15",
+      target_end_date: "2026-12-31",
+      fund_source: "General Fund",
+      bid_price: 0,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.period_of_implementation).toBe("FY 2026 Q1–Q4")
+      expect(result.data.start_date).toBe("2026-01-15")
+      expect(result.data.fund_source).toBe("General Fund")
+    }
+  })
 })
 
 describe("approvalFormSchema (V5, V35)", () => {
@@ -384,10 +423,10 @@ describe("userAccountFormSchema (V115, V168, V195)", () => {
     }
   })
 
-  it("clears scope fields for Province and Super Admin roles", () => {
+  it("clears scope fields for Province, Super Admin, and PPDO roles", () => {
     const result = userAccountFormSchema.safeParse({
       ...baseInput,
-      role: "Province",
+      role: "PPDO",
       municipality: "Tuguegarao City",
       barangay: "Centro 01 (Bagumbayan)",
     })

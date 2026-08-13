@@ -4,7 +4,9 @@ import { PASSWORD_MIN_LENGTH } from "@workspace/pocketbase/domain/password-polic
 import {
   accountStatusSchema,
   approvalActionSchema,
+  fundTypeSchema,
   lguLevelSchema,
+  lguPhaseStatusSchema,
   projectCategorySchema,
   projectStatusSchema,
   roleSchema,
@@ -125,6 +127,12 @@ export const projectMutateSchema = z
     target_end_date: z.string().optional(),
     budget_year: z.coerce.number().int().min(2000).max(2100),
     total_budget: z.coerce.number().min(0).optional(),
+    fund_source: fundTypeSchema.optional(),
+    period_of_implementation: z.string().optional(),
+    moa_details: z.string().optional(),
+    planning_status: lguPhaseStatusSchema.optional(),
+    procurement_status: lguPhaseStatusSchema.optional(),
+    bid_price: z.coerce.number().min(0).optional(),
     number_of_students: z.coerce.number().int().positive().optional(),
     progress_pct: z.number().min(0).max(100).optional(),
   })
@@ -460,7 +468,7 @@ export const userAccountFormSchema = z
     }
   })
   .transform((value) => {
-    if (value.role === "Super Admin" || value.role === "Province") {
+    if (value.role === "Super Admin" || value.role === "Province" || value.role === "PPDO") {
       return { ...value, municipality: "", barangay: "" }
     }
     if (value.role === "Municipality") {

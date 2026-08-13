@@ -98,9 +98,38 @@ describe("AuthGuard (V1)", () => {
     )
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/dashboard?forbidden=users")
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard?forbidden=1")
     })
     expect(screen.queryByText("User Management")).not.toBeInTheDocument()
+  })
+
+  it("denies PPDO access to Budget, Progress, Approvals, and Reports", async () => {
+    mockPathname = "/budget"
+    authState.user = { id: "1", role: "PPDO", account_status: "Active" }
+
+    render(
+      <AuthGuard>
+        <p>Budget</p>
+      </AuthGuard>
+    )
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/dashboard?forbidden=1")
+    })
+    expect(screen.queryByText("Budget")).not.toBeInTheDocument()
+  })
+
+  it("allows PPDO on Dashboard and Projects", () => {
+    authState.user = { id: "1", role: "PPDO", account_status: "Active" }
+
+    render(
+      <AuthGuard>
+        <p>Protected</p>
+      </AuthGuard>
+    )
+
+    expect(screen.getByText("Protected")).toBeInTheDocument()
+    expect(mockReplace).not.toHaveBeenCalled()
   })
 
   it("redirects users who must change password to /change-password", async () => {

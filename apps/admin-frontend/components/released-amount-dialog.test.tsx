@@ -39,6 +39,9 @@ const project: ProjectRecord = {
   status: "Ongoing",
   budget_year: 2026,
   total_budget: 200_000,
+  moa_file: [],
+  project_photos: [],
+  resolution_file: [],
 }
 
 describe("ReleasedAmountDialog (release cap)", () => {

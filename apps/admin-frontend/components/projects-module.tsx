@@ -4,8 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import * as XLSX from "xlsx"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
-import { canAccess } from "@workspace/pocketbase/domain/access-control"
-import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import {
+  canAccess,
+  filterProjectsForUser,
+} from "@workspace/pocketbase/domain/access-control"
+import {
+  isProjectFieldEditable,
+  statusOptionsForActor,
+} from "@workspace/pocketbase/domain/project-field-ownership"
+import { FUND_TYPE, LGU_PHASE_STATUS, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import {
   filterProjects,
@@ -76,7 +83,7 @@ import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
 import { DateRangeFilter } from "@/components/date-range-filter"
-import { DocumentUploadField } from "@/components/document-upload-field"
+import { DocumentUploadField, IMAGE_UPLOAD_ACCEPT } from "@/components/document-upload-field"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -94,6 +101,12 @@ type ProjectFormState = {
   budget_year: string
   total_budget: string
   number_of_students: string
+  fund_source: string
+  period_of_implementation: string
+  moa_details: string
+  planning_status: string
+  procurement_status: string
+  bid_price: string
 }
 
 type ProjectImportResult = {
@@ -144,6 +157,12 @@ const emptyForm = (): ProjectFormState => ({
   budget_year: String(new Date().getFullYear()),
   total_budget: "",
   number_of_students: "",
+  fund_source: "",
+  period_of_implementation: "",
+  moa_details: "",
+  planning_status: "",
+  procurement_status: "",
+  bid_price: "",
 })
 
 function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
@@ -282,6 +301,7 @@ function ProjectCard({
   onStatusOpen,
   canUpdate,
   canDelete,
+  canChangeStatus,
 }: {
   project: ProjectRecord
   progressPct: number
@@ -290,6 +310,7 @@ function ProjectCard({
   onStatusOpen: () => void
   canUpdate: boolean
   canDelete: boolean
+  canChangeStatus: boolean
 }) {
   const hasActions = canUpdate || canDelete
 
@@ -348,12 +369,12 @@ function ProjectCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {canUpdate ? (
-                <>
-                  <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-                  <DropdownMenuItem onClick={onStatusOpen}>
-                    Change status
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+              ) : null}
+              {canChangeStatus ? (
+                <DropdownMenuItem onClick={onStatusOpen}>
+                  Change status
+                </DropdownMenuItem>
               ) : null}
               {canDelete ? (
                 <DropdownMenuItem
@@ -395,6 +416,7 @@ export function ProjectsModule() {
   const [editing, setEditing] = useState<ProjectRecord | null>(null)
   const [form, setForm] = useState<ProjectFormState>(emptyForm())
   const [moaFiles, setMoaFiles] = useState<File[]>([])
+  const [projectPhotoFiles, setProjectPhotoFiles] = useState<File[]>([])
   const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -417,9 +439,13 @@ export function ProjectsModule() {
   const canDeleteProjects = actor
     ? canAccess(actor, "projects.delete")
     : false
+  const canChangeStatus =
+    actor?.role === "Super Admin" || actor?.role === "Province"
+  const actorRole = typeof actor?.role === "string" ? actor.role : undefined
 
   function clearUploadFiles() {
     setMoaFiles([])
+    setProjectPhotoFiles([])
     setResolutionFiles([])
     setSupportingFiles([])
   }
@@ -499,6 +525,11 @@ export function ProjectsModule() {
     }
   )
 
+  const scopedProjects = useMemo(
+    () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
+    [actor, projects]
+  )
+
   const progressByProjectId = useMemo(() => {
     const map = new Map<string, ProgressUpdateRecord[]>()
     for (const update of progressUpdates) {
@@ -511,7 +542,7 @@ export function ProjectsModule() {
 
   const filtered = useMemo(
     () =>
-      filterProjects(projects, {
+      filterProjects(scopedProjects, {
         query,
         category:
           category === "all"
@@ -526,7 +557,7 @@ export function ProjectsModule() {
         dateTo: dateTo || undefined,
       }),
     [
-      projects,
+      scopedProjects,
       query,
       category,
       status,
@@ -588,8 +619,18 @@ export function ProjectsModule() {
       number_of_students: project.number_of_students
         ? String(project.number_of_students)
         : "",
+      fund_source: project.fund_source ?? "",
+      period_of_implementation: project.period_of_implementation ?? "",
+      moa_details: project.moa_details ?? "",
+      planning_status: project.planning_status ?? "",
+      procurement_status: project.procurement_status ?? "",
+      bid_price:
+        project.bid_price === undefined || project.bid_price === null
+          ? ""
+          : String(project.bid_price),
     })
     setMoaFiles([])
+    setProjectPhotoFiles([])
     setResolutionFiles([])
     setSupportingFiles([])
     setFieldErrors({})
@@ -616,6 +657,12 @@ export function ProjectsModule() {
         form.category === "Scholarship"
           ? form.number_of_students || undefined
           : undefined,
+      fund_source: form.fund_source || undefined,
+      period_of_implementation: form.period_of_implementation || undefined,
+      moa_details: form.moa_details || undefined,
+      planning_status: form.planning_status || undefined,
+      procurement_status: form.procurement_status || undefined,
+      bid_price: form.bid_price || undefined,
       progress_pct: editing?.progress_pct ?? 0,
     })
 
@@ -637,7 +684,10 @@ export function ProjectsModule() {
     setSaving(true)
     const pb = getPocketBase()
     const hasFiles =
-      moaFiles.length > 0 || resolutionFiles.length > 0 || supportingFiles.length > 0
+      moaFiles.length > 0 ||
+      projectPhotoFiles.length > 0 ||
+      resolutionFiles.length > 0 ||
+      supportingFiles.length > 0
 
     try {
       if (hasFiles) {
@@ -649,6 +699,9 @@ export function ProjectsModule() {
         }
         for (const file of moaFiles) {
           formData.append("moa_file", file)
+        }
+        for (const file of projectPhotoFiles) {
+          formData.append("project_photos", file)
         }
         for (const file of resolutionFiles) {
           formData.append("resolution_file", file)
@@ -859,6 +912,16 @@ export function ProjectsModule() {
     return uniqueByName(barangays)
   }, [form.barangay, form.municipality, locations])
 
+  const ownershipRecord = editing
+  const fieldLocked = (field: string) =>
+    !isProjectFieldEditable(actorRole, field, ownershipRecord, !editing)
+  const formStatusOptions = statusOptionsForActor(
+    actorRole,
+    form.status,
+    ownershipRecord,
+    statusOptions
+  )
+
   const filterBarangayChoices = useMemo(() => {
     if (municipalityFilter === "all") {
       return []
@@ -879,10 +942,10 @@ export function ProjectsModule() {
     )
   }, [locations, municipalityFilter])
 
-  const ongoing = projects.filter(
+  const ongoing = scopedProjects.filter(
     (project) => project.status === "Ongoing"
   ).length
-  const planning = projects.filter(
+  const planning = scopedProjects.filter(
     (project) => project.status === "Planning"
   ).length
 
@@ -902,7 +965,7 @@ export function ProjectsModule() {
         context="CRUD for provincial project records."
         live={live}
         kpis={[
-          { label: "Total", value: String(projects.length) },
+          { label: "Total", value: String(scopedProjects.length) },
           { label: "Ongoing", value: String(ongoing) },
           { label: "Planning", value: String(planning) },
         ]}
@@ -1031,6 +1094,7 @@ export function ProjectsModule() {
               onStatusOpen={() => setStatusTarget(project)}
               canUpdate={canUpdateProjects}
               canDelete={canDeleteProjects}
+              canChangeStatus={canChangeStatus}
             />
           ))}
         </div>
@@ -1132,6 +1196,7 @@ export function ProjectsModule() {
                 <Input
                   id="project-name"
                   value={form.name}
+                  disabled={fieldLocked("name")}
                   aria-invalid={Boolean(fieldErrors.name)}
                   onChange={(event) =>
                     setForm({ ...form, name: event.target.value })
@@ -1144,6 +1209,7 @@ export function ProjectsModule() {
                 <Textarea
                   id="project-description"
                   value={form.description}
+                  disabled={fieldLocked("description")}
                   onChange={(event) =>
                     setForm({ ...form, description: event.target.value })
                   }
@@ -1154,6 +1220,7 @@ export function ProjectsModule() {
                   <FieldLabel>Category</FieldLabel>
                   <Select
                     value={form.category}
+                    disabled={fieldLocked("category")}
                     onValueChange={(value) => {
                       const nextCategory = value as ProjectRecord["category"]
                       setForm({
@@ -1186,6 +1253,7 @@ export function ProjectsModule() {
                   <FieldLabel>Status</FieldLabel>
                   <Select
                     value={form.status}
+                    disabled={fieldLocked("status")}
                     onValueChange={(value) =>
                       setForm({
                         ...form,
@@ -1193,11 +1261,15 @@ export function ProjectsModule() {
                       })
                     }
                   >
-                    <SelectTrigger aria-invalid={Boolean(fieldErrors.status)}>
+                    <SelectTrigger
+                      aria-label="Status"
+                      aria-invalid={Boolean(fieldErrors.status)}
+                      disabled={fieldLocked("status")}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {statusOptions.map((value) => (
+                      {formStatusOptions.map((value) => (
                         <SelectItem key={value} value={value}>
                           {value}
                         </SelectItem>
@@ -1217,6 +1289,7 @@ export function ProjectsModule() {
                     type="number"
                     min={1}
                     value={form.number_of_students}
+                    disabled={fieldLocked("number_of_students")}
                     aria-invalid={Boolean(fieldErrors.number_of_students)}
                     onChange={(event) =>
                       setForm({
@@ -1248,6 +1321,7 @@ export function ProjectsModule() {
                           value === form.municipality ? form.barangay : "",
                       })
                     }
+                    disabled={fieldLocked("municipality")}
                   />
                 </Field>
                 <Field>
@@ -1271,7 +1345,7 @@ export function ProjectsModule() {
                         barangay: value,
                       })
                     }
-                    disabled={!form.municipality}
+                    disabled={!form.municipality || fieldLocked("barangay")}
                   />
                 </Field>
               </div>
@@ -1280,8 +1354,59 @@ export function ProjectsModule() {
                 <Input
                   id="project-location"
                   value={form.location}
+                  disabled={fieldLocked("location")}
                   onChange={(event) =>
                     setForm({ ...form, location: event.target.value })
+                  }
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Fund source</FieldLabel>
+                  <Select
+                    value={form.fund_source || undefined}
+                    disabled={fieldLocked("fund_source")}
+                    onValueChange={(value) =>
+                      setForm({ ...form, fund_source: value })
+                    }
+                  >
+                    <SelectTrigger aria-label="Fund source">
+                      <SelectValue placeholder="Select fund source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FUND_TYPE.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="project-period">
+                    Period of Implementation
+                  </FieldLabel>
+                  <Input
+                    id="project-period"
+                    value={form.period_of_implementation}
+                    disabled={fieldLocked("period_of_implementation")}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        period_of_implementation: event.target.value,
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="project-moa-details">MOA details</FieldLabel>
+                <Textarea
+                  id="project-moa-details"
+                  value={form.moa_details}
+                  disabled={fieldLocked("moa_details")}
+                  onChange={(event) =>
+                    setForm({ ...form, moa_details: event.target.value })
                   }
                 />
               </Field>
@@ -1290,6 +1415,7 @@ export function ProjectsModule() {
                 <Input
                   id="project-contractor"
                   value={form.contractor}
+                  disabled={fieldLocked("contractor")}
                   onChange={(event) =>
                     setForm({ ...form, contractor: event.target.value })
                   }
@@ -1302,21 +1428,67 @@ export function ProjectsModule() {
                     id="project-start"
                     type="date"
                     value={form.start_date}
+                    disabled={fieldLocked("start_date")}
                     onChange={(event) =>
                       setForm({ ...form, start_date: event.target.value })
                     }
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="project-end">Target end date</FieldLabel>
+                  <FieldLabel htmlFor="project-end">End date</FieldLabel>
                   <Input
                     id="project-end"
                     type="date"
                     value={form.target_end_date}
+                    disabled={fieldLocked("target_end_date")}
                     onChange={(event) =>
                       setForm({ ...form, target_end_date: event.target.value })
                     }
                   />
+                </Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Planning status</FieldLabel>
+                  <Select
+                    value={form.planning_status || undefined}
+                    disabled={fieldLocked("planning_status")}
+                    onValueChange={(value) =>
+                      setForm({ ...form, planning_status: value })
+                    }
+                  >
+                    <SelectTrigger aria-label="Planning status">
+                      <SelectValue placeholder="Select planning status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LGU_PHASE_STATUS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>Procurement status</FieldLabel>
+                  <Select
+                    value={form.procurement_status || undefined}
+                    disabled={fieldLocked("procurement_status")}
+                    onValueChange={(value) =>
+                      setForm({ ...form, procurement_status: value })
+                    }
+                  >
+                    <SelectTrigger aria-label="Procurement status">
+                      <SelectValue placeholder="Select procurement status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LGU_PHASE_STATUS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1326,6 +1498,7 @@ export function ProjectsModule() {
                     id="project-year"
                     type="number"
                     value={form.budget_year}
+                    disabled={fieldLocked("budget_year")}
                     aria-invalid={Boolean(fieldErrors.budget_year)}
                     onChange={(event) =>
                       setForm({ ...form, budget_year: event.target.value })
@@ -1341,6 +1514,7 @@ export function ProjectsModule() {
                     id="project-budget"
                     type="number"
                     value={form.total_budget}
+                    disabled={fieldLocked("total_budget")}
                     aria-invalid={Boolean(fieldErrors.total_budget)}
                     onChange={(event) =>
                       setForm({ ...form, total_budget: event.target.value })
@@ -1349,6 +1523,19 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.total_budget}</FieldError>
                 </Field>
               </div>
+              <Field>
+                <FieldLabel htmlFor="project-bid-price">Bid price (PHP)</FieldLabel>
+                <Input
+                  id="project-bid-price"
+                  type="number"
+                  min={0}
+                  value={form.bid_price}
+                  disabled={fieldLocked("bid_price")}
+                  onChange={(event) =>
+                    setForm({ ...form, bid_price: event.target.value })
+                  }
+                />
+              </Field>
               <FieldSet className="space-y-2 border-t pt-3">
                 <FieldDescription className="text-sm font-medium text-foreground">
                   Required documents
@@ -1359,6 +1546,17 @@ export function ProjectsModule() {
                   files={moaFiles}
                   existingNames={namesOnRecord(editing?.moa_file)}
                   onChange={setMoaFiles}
+                  disabled={fieldLocked("moa_file")}
+                />
+                <DocumentUploadField
+                  id="project-photos"
+                  label="Project photos"
+                  accept={IMAGE_UPLOAD_ACCEPT}
+                  helperText="JPG, PNG, WEBP"
+                  files={projectPhotoFiles}
+                  existingNames={namesOnRecord(editing?.project_photos)}
+                  onChange={setProjectPhotoFiles}
+                  disabled={fieldLocked("project_photos")}
                 />
                 <DocumentUploadField
                   id="resolution-file"
@@ -1366,6 +1564,7 @@ export function ProjectsModule() {
                   files={resolutionFiles}
                   existingNames={namesOnRecord(editing?.resolution_file)}
                   onChange={setResolutionFiles}
+                  disabled={fieldLocked("resolution_file")}
                 />
                 <DocumentUploadField
                   id="supporting-file"
@@ -1374,6 +1573,7 @@ export function ProjectsModule() {
                   files={supportingFiles}
                   existingNames={editing?.supporting_docs ?? []}
                   onChange={setSupportingFiles}
+                  disabled={fieldLocked("supporting_docs")}
                 />
               </FieldSet>
             </FieldSet>
