@@ -7,17 +7,18 @@ const store = {
   allocations: [] as Array<Record<string, unknown>>,
   expenses: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
+  authRecord: {
+    id: "1",
+    email: "admin@cppms.local",
+    role: "Province",
+    account_status: "Active",
+  } as Record<string, unknown>,
 }
 
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     authStore: {
-      record: {
-        id: "1",
-        email: "admin@cppms.local",
-        role: "Province",
-        account_status: "Active",
-      },
+      record: store.authRecord,
       onChange: vi.fn(() => () => undefined),
       clear: vi.fn(),
     },
@@ -69,6 +70,12 @@ describe("DashboardModule (V9, V24)", () => {
     store.projects = []
     store.allocations = []
     store.expenses = []
+    store.authRecord = {
+      id: "1",
+      email: "admin@cppms.local",
+      role: "Province",
+      account_status: "Active",
+    }
     store.locations = [
       {
         id: "loc1",
@@ -300,5 +307,78 @@ describe("DashboardModule (V9, V24)", () => {
         screen.getByTestId("dashboard-inactive-locations-barangay-list")
       ).toHaveTextContent("Tuguegarao City — Centro 02")
     })
+  })
+
+  it("does not deduct municipality KPIs when Barangay X is empty", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        start_date: "2026-06-01",
+        target_end_date: "2026-06-30",
+        budget_year: 2026,
+        total_budget: 100_000,
+        progress_pct: 75,
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
+      expect(screen.getByTestId("dashboard-budget")).toHaveTextContent(
+        "₱100,000"
+      )
+      expect(screen.getByTestId("dashboard-on-track")).toHaveTextContent("1")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-municipality-list")
+      ).not.toHaveTextContent("Tuguegarao City")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-barangay-list")
+      ).toHaveTextContent("Tuguegarao City — Centro 02")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-barangay-count")
+      ).toHaveTextContent("819")
+    })
+  })
+
+  it("hides Inactive Locations from Municipality-role dashboard users", async () => {
+    store.authRecord = {
+      id: "m1",
+      email: "mun@cppms.local",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        total_budget: 100_000,
+        progress_pct: 75,
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dashboard-projects")).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByTestId("dashboard-inactive-locations-panel")
+    ).not.toBeInTheDocument()
   })
 })

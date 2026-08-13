@@ -66,6 +66,23 @@ describe("canShowUpdateProgress (V4)", () => {
     ).toBe(true)
   })
 
+  it("should keep Update Progress available at 50% (completion is not a freeze)", () => {
+    for (const status of [
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "For Revision",
+    ] as const) {
+      expect(
+        canShowUpdateProgress({
+          status,
+          effectivePct: 50,
+          canCreateProgressUpdates: true,
+        })
+      ).toBe(true)
+    }
+  })
+
   it("should hide Update Progress when effective ≥100 and not For Revision", () => {
     expect(
       canShowUpdateProgress({

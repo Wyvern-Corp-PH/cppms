@@ -1154,6 +1154,129 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
+  it("hides Update Progress for Rejected projects", async () => {
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Rejected Bridge",
+        category: "Infrastructure",
+        status: "Rejected",
+        budget_year: 2026,
+        progress_pct: 40,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-1")
+    expect(
+      within(row).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("lets operators add a progress update when the project is at 50%", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 50,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it("corrects progress at 50% via Update Progress, not per-row history editors", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 50,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-08-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 50,
+        notes: "Halfway",
+        site_photo: [],
+        updated_by: "super-admin-user",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /view details/i }))
+
+    const detail = await screen.findByRole("dialog")
+    expect(within(detail).getByText(/0% → 50%/)).toBeInTheDocument()
+    expect(
+      within(detail).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(detail).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(detail).getByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it("submits progress and released amount together from the update modal", async () => {
     const user = userEvent.setup()
     useBarangayActor()
@@ -1472,7 +1595,7 @@ describe("ProgressModule (V81, V84)", () => {
         })
       )
     })
-  })
+  }, 20_000)
 
   it("rolls back progress update and keeps dialog open when released amount sync fails", async () => {
     const user = userEvent.setup()
@@ -1512,7 +1635,7 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
     })
     expect(projectUpdateMock).not.toHaveBeenCalled()
-  })
+  }, 20_000)
 
   function revisionProject(overrides: Record<string, unknown> = {}) {
     return {

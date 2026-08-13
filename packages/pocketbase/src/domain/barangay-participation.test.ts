@@ -37,4 +37,19 @@ describe("buildParticipationStats (V218, V219)", () => {
       },
     ])
   })
+
+  it("counts an empty sibling barangay at barangay grain only", () => {
+    const stats = buildParticipationStats([
+      {
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        status: "Ongoing",
+        budget_year: 2024,
+      },
+    ])
+
+    expect(stats.participation.withProjects).toBe(1)
+    expect(stats.participation.withoutProjects).toBe(819)
+    expect(stats.participation.copy).toContain("barangays")
+  })
 })

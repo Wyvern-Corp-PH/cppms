@@ -1053,4 +1053,139 @@ describe("ProjectsModule (J4)", () => {
     const statusTrigger = screen.getByRole("combobox", { name: /^status$/i })
     expect(statusTrigger).toBeDisabled()
   })
+
+  function catalogProject(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "p1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Bridge",
+      description: "Road bridge",
+      category: "Infrastructure",
+      status: "Ongoing",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "Tuguegarao City, Cagayan",
+      contractor: "Build Co",
+      start_date: "2026-06-01",
+      target_end_date: "2026-12-01",
+      budget_year: 2026,
+      total_budget: 200_000,
+      progress_pct: 25,
+      ...overrides,
+    }
+  }
+
+  it.each([
+    { role: "Super Admin", progress_pct: 50, status: "Ongoing" },
+    { role: "Super Admin", progress_pct: 100, status: "Completed" },
+    { role: "Province", progress_pct: 50, status: "Ongoing" },
+    { role: "Province", progress_pct: 100, status: "Completed" },
+  ])(
+    "lets $role save project details at $progress_pct% completion",
+    async ({ role, progress_pct, status }) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-1`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [catalogProject({ progress_pct, status })]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.clear(screen.getByLabelText(/project name/i))
+      await user.type(screen.getByLabelText(/project name/i), "Bridge Corrected")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalledWith(
+          "p1",
+          expect.objectContaining({ name: "Bridge Corrected" })
+        )
+      })
+    }
+  )
+
+  it.each([50, 100])(
+    "lets PPDO save owned fields at %s%% completion",
+    async (progress_pct) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "pp1",
+        role: "PPDO",
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          progress_pct,
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.clear(screen.getByLabelText(/project name/i))
+      await user.type(screen.getByLabelText(/project name/i), "Charter Bridge")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalledWith(
+          "p1",
+          expect.objectContaining({ name: "Charter Bridge" })
+        )
+      })
+    }
+  )
+
+  it.each([50, 100])(
+    "lets Barangay save LGU-owned fields at %s%% completion",
+    async (progress_pct) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "b1",
+        role: "Barangay",
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      }
+      store.projects = [
+        catalogProject({
+          progress_pct,
+          lgu_level: "Barangay",
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.clear(screen.getByLabelText(/^contractor$/i))
+      await user.type(screen.getByLabelText(/^contractor$/i), "Local Builders")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalledWith(
+          "p1",
+          expect.objectContaining({ contractor: "Local Builders" })
+        )
+      })
+    }
+  )
 })
