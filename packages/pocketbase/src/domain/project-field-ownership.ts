@@ -142,6 +142,26 @@ export function ownedProjectFieldsForActor(
   return new Set()
 }
 
+export function projectPayloadForActor(
+  role: string | undefined,
+  original: ProjectFieldMap | null | undefined,
+  isCreate: boolean,
+  submitted: ProjectFieldMap
+): ProjectFieldMap {
+  const owned = ownedProjectFieldsForActor(role, original, isCreate)
+  const payload: ProjectFieldMap = {}
+  for (const [field, value] of Object.entries(submitted)) {
+    if (value === undefined) continue
+    const allowed =
+      owned.has("*") ||
+      owned.has(field) ||
+      isCreateDefaultAllowed(field, value, isCreate)
+    if (!allowed) continue
+    payload[field] = value
+  }
+  return payload
+}
+
 export function isProjectFieldEditable(
   role: string | undefined,
   field: string,

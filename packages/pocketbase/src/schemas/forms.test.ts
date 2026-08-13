@@ -10,6 +10,7 @@ import {
   progressUpdateRevisionWithReleasedAmountFormSchema,
   progressUpdateWithReleasedAmountFormSchema,
   projectMutateSchema,
+  projectMutateSchemaForActor,
   userAccountFormSchema,
 } from "./forms"
 import { fieldErrorsFromZod } from "./parse"
@@ -120,6 +121,51 @@ describe("projectMutateSchema (V34)", () => {
       expect(result.data.start_date).toBeUndefined()
       expect(result.data.bid_price).toBeUndefined()
     }
+  })
+
+  it("requires PPDO create identity fields", () => {
+    const schema = projectMutateSchemaForActor("PPDO", true)
+    const missing = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+    })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      const errors = fieldErrorsFromZod(missing.error)
+      expect(errors.description).toMatch(/required/i)
+      expect(errors.location).toMatch(/required/i)
+      expect(errors.total_budget).toMatch(/required/i)
+    }
+
+    const barangayWithoutMunicipality = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Poblacion",
+      total_budget: 1000,
+      barangay: "Centro",
+    })
+    expect(barangayWithoutMunicipality.success).toBe(false)
+    if (!barangayWithoutMunicipality.success) {
+      expect(fieldErrorsFromZod(barangayWithoutMunicipality.error).municipality).toMatch(
+        /required/i
+      )
+    }
+
+    const complete = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Provincial hall",
+      total_budget: 1000,
+    })
+    expect(complete.success).toBe(true)
   })
 
   it("accepts Period of Implementation separately from start and end dates", () => {

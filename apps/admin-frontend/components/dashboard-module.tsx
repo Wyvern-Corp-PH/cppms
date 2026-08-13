@@ -91,8 +91,8 @@ export function DashboardModule() {
     const pb = getPocketBase()
     const [projectRows, allocationRows, expenseRows, locationRows] = await Promise.all([
       pb.collection("projects").getFullList(),
-      pb.collection("budget_allocations").getFullList(),
-      pb.collection("budget_expenses").getFullList(),
+      pb.collection("budget_allocations").getFullList().catch(() => []),
+      pb.collection("budget_expenses").getFullList().catch(() => []),
       pb.collection("locations").getFullList().catch(() => []),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))

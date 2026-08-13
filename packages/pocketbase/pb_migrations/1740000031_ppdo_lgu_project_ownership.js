@@ -16,7 +16,9 @@ const MUNICIPALITY_PROJECT_SCOPE_RULE =
 const BARANGAY_PROJECT_SCOPE_RULE =
   '@request.auth.id != "" && @request.auth.role = "Barangay" && municipality = @request.auth.municipality && barangay = @request.auth.barangay'
 const PROJECT_CREATE_RULE = `(${SUPER_ADMIN_RULE}) || (${PROVINCE_RULE}) || (${PPDO_RULE})`
-const PROJECT_UPDATE_RULE = `(${PROJECT_CREATE_RULE}) || (${MUNICIPALITY_PROJECT_SCOPE_RULE}) || (${BARANGAY_PROJECT_SCOPE_RULE})`
+const PROJECT_SCOPE_RULE = `(${PROJECT_CREATE_RULE}) || (${MUNICIPALITY_PROJECT_SCOPE_RULE}) || (${BARANGAY_PROJECT_SCOPE_RULE})`
+const PROJECT_LIST_VIEW_RULE = `@request.auth.id = "" || (${PROJECT_SCOPE_RULE})`
+const PROJECT_UPDATE_RULE = PROJECT_SCOPE_RULE
 const PROJECT_DELETE_RULE = `(${SUPER_ADMIN_RULE}) || (${PROVINCE_RULE})`
 
 const ROLE_VALUES = ["Super Admin", "Province", "PPDO", "Municipality", "Barangay"]
@@ -140,9 +142,15 @@ function ensureProjectOwnershipFields(app) {
     )
   }
   if (!fieldExists(projects, "lgu_encoded_at")) {
+    // Internal Status-handoff marker. field.hidden would also strip it from
+    // PPDO/LGU API clients (superuser-only), and this repo has no guest-only
+    // field filter. Catalog columns (bid_price, contractor, moa_details) stay
+    // on public getOne — do not invent a second public collection.
     projects.fields.add(new DateField({ name: "lgu_encoded_at" }))
   }
 
+  projects.listRule = PROJECT_LIST_VIEW_RULE
+  projects.viewRule = PROJECT_LIST_VIEW_RULE
   projects.createRule = PROJECT_CREATE_RULE
   projects.updateRule = PROJECT_UPDATE_RULE
   projects.deleteRule = PROJECT_DELETE_RULE

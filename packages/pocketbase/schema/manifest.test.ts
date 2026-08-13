@@ -892,6 +892,16 @@ describe("PPDO and LGU project ownership", () => {
     expect(migrationSource).toContain("PROJECT_UPDATE_RULE")
     expect(migrationSource).toContain("MUNICIPALITY_PROJECT_SCOPE_RULE")
     expect(migrationSource).toContain("BARANGAY_PROJECT_SCOPE_RULE")
+    expect(migrationSource).toContain("PROJECT_LIST_VIEW_RULE")
+    expect(migrationSource).toContain("projects.listRule = PROJECT_LIST_VIEW_RULE")
+    expect(migrationSource).toContain("projects.viewRule = PROJECT_LIST_VIEW_RULE")
+  })
+
+  it("keeps catalog columns on public projects getOne instead of a second collection", () => {
+    expect(migrationSource).toContain("bid_price")
+    expect(migrationSource).toContain("contractor")
+    expect(migrationSource).not.toMatch(/hidden:\s*true/)
+    expect(migrationSource).toMatch(/do not invent a second public collection/)
   })
 
   it("enforces ownership on request hooks only so system progress saves still work", () => {

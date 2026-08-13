@@ -45,4 +45,33 @@ describe("subscribeCollections", () => {
       record: { id: "1" },
     })
   })
+
+  it("keeps other collections live when one subscribe is denied", async () => {
+    const handlers: Array<(data: { action: string; record: unknown }) => void> = []
+    const projects = {
+      subscribe: vi.fn(async (_topic: string, handler: (typeof handlers)[number]) => {
+        handlers.push(handler)
+      }),
+      unsubscribe: vi.fn(async () => undefined),
+    }
+    const denied = {
+      subscribe: vi.fn(async () => {
+        throw Object.assign(new Error("The request failed with 403"), { status: 403 })
+      }),
+      unsubscribe: vi.fn(async () => undefined),
+    }
+    const pb = {
+      collection: vi.fn((name: string) => (name === "projects" ? projects : denied)),
+    } as unknown as TypedPocketBase
+
+    const unsubscribe = await subscribeCollections(
+      pb,
+      ["projects", "budget_allocations"],
+      vi.fn()
+    )
+
+    expect(projects.subscribe).toHaveBeenCalledTimes(1)
+    unsubscribe()
+    expect(projects.unsubscribe).toHaveBeenCalledTimes(1)
+  })
 })

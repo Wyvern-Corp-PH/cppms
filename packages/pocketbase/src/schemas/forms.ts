@@ -146,6 +146,43 @@ export const projectMutateSchema = z
     }
   })
 
+export function projectMutateSchemaForActor(
+  role: string | undefined,
+  isCreate: boolean
+) {
+  if (role !== "PPDO" || !isCreate) return projectMutateSchema
+  return projectMutateSchema.superRefine((value, ctx) => {
+    if (!value.description?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["description"],
+        message: "Description is required.",
+      })
+    }
+    if (!value.location?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["location"],
+        message: "Location is required.",
+      })
+    }
+    if (value.total_budget === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["total_budget"],
+        message: "Total budget is required.",
+      })
+    }
+    if (value.barangay?.trim() && !value.municipality?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["municipality"],
+        message: "Municipality is required.",
+      })
+    }
+  })
+}
+
 export const budgetAllocationMutateSchema = z.object({
   project: z.string().min(1, "Project is required."),
   amount: z.coerce.number().positive("Amount must be greater than zero."),

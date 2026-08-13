@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { runInNewContext } from "node:vm"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -7,6 +11,7 @@ import {
   LGU_OWNED_FIELDS,
   LGU_PHASE_STATUS,
   PPDO_OWNED_FIELDS,
+  projectPayloadForActor,
   statusOptionsForActor,
 } from "./project-field-ownership"
 
@@ -242,6 +247,47 @@ describe("project field ownership", () => {
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
   })
 
+  it("lets PPDO edit number_of_students when the current category is Scholarship", () => {
+    expect(
+      isProjectFieldEditable(
+        "PPDO",
+        "number_of_students",
+        { category: "Scholarship" },
+        false
+      )
+    ).toBe(true)
+    expect(
+      isProjectFieldEditable(
+        "PPDO",
+        "number_of_students",
+        { category: "Infrastructure" },
+        false
+      )
+    ).toBe(false)
+  })
+
+  it("patches only fields the actor owns", () => {
+    const submitted = {
+      name: "Charter Bridge",
+      contractor: "Build Co",
+      progress_pct: 50,
+      start_date: "2026-06-01",
+    }
+
+    expect(
+      projectPayloadForActor("PPDO", ppdoCreate, false, submitted)
+    ).toEqual({ name: "Charter Bridge" })
+    expect(
+      projectPayloadForActor("Municipality", ppdoCreate, false, submitted)
+    ).toEqual({
+      contractor: "Build Co",
+      start_date: "2026-06-01",
+    })
+    expect(
+      projectPayloadForActor("Province", ppdoCreate, false, submitted)
+    ).toEqual(submitted)
+  })
+
   it("does not offer Planning, Procurement, or Ongoing when LGU status is terminal", () => {
     const options = statusOptionsForActor(
       "Municipality",
@@ -256,5 +302,81 @@ describe("project field ownership", () => {
         lgu_encoded_at: "2026-08-01",
       }, false)
     ).toBe(false)
+  })
+})
+
+const jsOwnershipSandbox = {
+  module: { exports: {} as Record<string, unknown> },
+  exports: {} as Record<string, unknown>,
+}
+runInNewContext(
+  readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../pb_hooks/project-field-ownership.js"
+    ),
+    "utf8"
+  ),
+  jsOwnershipSandbox
+)
+const jsOwnership = jsOwnershipSandbox.module.exports as {
+  PPDO_OWNED_FIELDS: readonly string[]
+  LGU_OWNED_FIELDS: readonly string[]
+  evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
+}
+
+describe("JS hook and TS ownership list parity", () => {
+  it("keeps owned-field lists identical", () => {
+    expect([...jsOwnership.PPDO_OWNED_FIELDS]).toEqual([...PPDO_OWNED_FIELDS])
+    expect([...jsOwnership.LGU_OWNED_FIELDS]).toEqual([...LGU_OWNED_FIELDS])
+  })
+
+  it("matches evaluateProjectFieldWrite on the ownership cases", () => {
+    const cases = [
+      {
+        role: "PPDO",
+        isCreate: true,
+        submitted: { ...ppdoCreate, progress_pct: 0 },
+      },
+      {
+        role: "PPDO",
+        isCreate: true,
+        submitted: { ...ppdoCreate, contractor: "Build Co" },
+      },
+      {
+        role: "PPDO",
+        isCreate: false,
+        original: { ...ppdoCreate, lgu_encoded_at: "2026-08-01 00:00:00.000Z" },
+        submitted: { status: "Procurement" },
+      },
+      {
+        role: "Municipality",
+        isCreate: false,
+        original: { ...ppdoCreate, status: "Planning" },
+        submitted: { contractor: "" },
+      },
+      {
+        role: "Barangay",
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          municipality: "Tuguegarao City",
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { municipality: "Lasam" },
+      },
+      {
+        role: "Province",
+        isCreate: false,
+        original: ppdoCreate,
+        submitted: { name: "Renamed", contractor: "Build Co" },
+      },
+    ] as const
+
+    for (const options of cases) {
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(
+        evaluateProjectFieldWrite(options)
+      )
+    }
   })
 })

@@ -7,6 +7,7 @@ const store = {
   allocations: [] as Array<Record<string, unknown>>,
   expenses: [] as Array<Record<string, unknown>>,
   locations: [] as Array<Record<string, unknown>>,
+  denied: new Set<string>(),
   authRecord: {
     id: "1",
     email: "admin@cppms.local",
@@ -24,6 +25,11 @@ vi.mock("@/lib/pocketbase", () => ({
     },
     collection: (name: string) => ({
       getFullList: vi.fn(async () => {
+        if (store.denied.has(name)) {
+          throw Object.assign(new Error("The request failed with 403"), {
+            status: 403,
+          })
+        }
         if (name === "projects") return store.projects
         if (name === "budget_allocations") return store.allocations
         if (name === "budget_expenses") return store.expenses
@@ -70,6 +76,7 @@ describe("DashboardModule (V9, V24)", () => {
     store.projects = []
     store.allocations = []
     store.expenses = []
+    store.denied.clear()
     store.authRecord = {
       id: "1",
       email: "admin@cppms.local",
@@ -380,5 +387,38 @@ describe("DashboardModule (V9, V24)", () => {
     expect(
       screen.queryByTestId("dashboard-inactive-locations-panel")
     ).not.toBeInTheDocument()
+  })
+
+  it("still loads the dashboard when PPDO is denied budget collections", async () => {
+    store.authRecord = {
+      id: "pp1",
+      email: "ppdo@cppms.local",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.denied.add("budget_allocations")
+    store.denied.add("budget_expenses")
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "Charter Road",
+        category: "Infrastructure",
+        status: "Planning",
+        municipality: "Lasam",
+        budget_year: 2026,
+        total_budget: 100_000,
+        progress_pct: 0,
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("dashboard-skeleton")).not.toBeInTheDocument()
+      expect(screen.getByTestId("dashboard-projects")).toBeInTheDocument()
+    })
+    expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
   })
 })

@@ -10,6 +10,8 @@ import {
 } from "@workspace/pocketbase/domain/access-control"
 import {
   isProjectFieldEditable,
+  ownedProjectFieldsForActor,
+  projectPayloadForActor,
   statusOptionsForActor,
 } from "@workspace/pocketbase/domain/project-field-ownership"
 import { FUND_TYPE, LGU_PHASE_STATUS, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
@@ -25,7 +27,7 @@ import {
   locationRecordSchema,
   parseRecordList,
   progressUpdateRecordSchema,
-  projectMutateSchema,
+  projectMutateSchemaForActor,
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
@@ -457,7 +459,7 @@ export function ProjectsModule() {
       const [rows, updateRows, nextStatusOptions, nextCategoryOptions] =
         await Promise.all([
           pb.collection("projects").getFullList(),
-          pb.collection("progress_updates").getFullList(),
+          pb.collection("progress_updates").getFullList().catch(() => []),
           loadOptionRecordNames(
             pb,
             "project_status_options",
@@ -640,7 +642,7 @@ export function ProjectsModule() {
 
   async function handleSave() {
     setFormError(null)
-    const parsed = projectMutateSchema.safeParse({
+    const parsed = projectMutateSchemaForActor(actorRole, !editing).safeParse({
       name: form.name,
       description: form.description,
       category: form.category,
@@ -683,30 +685,42 @@ export function ProjectsModule() {
     setFieldErrors({})
     setSaving(true)
     const pb = getPocketBase()
+    const payload = projectPayloadForActor(
+      actorRole,
+      editing,
+      !editing,
+      parsed.data
+    )
+    const owned = ownedProjectFieldsForActor(actorRole, editing, !editing)
+    const allowsField = (field: string) => owned.has("*") || owned.has(field)
+    const moaToSend = allowsField("moa_file") ? moaFiles : []
+    const photosToSend = allowsField("project_photos") ? projectPhotoFiles : []
+    const resolutionToSend = allowsField("resolution_file") ? resolutionFiles : []
+    const supportingToSend = allowsField("supporting_docs") ? supportingFiles : []
     const hasFiles =
-      moaFiles.length > 0 ||
-      projectPhotoFiles.length > 0 ||
-      resolutionFiles.length > 0 ||
-      supportingFiles.length > 0
+      moaToSend.length > 0 ||
+      photosToSend.length > 0 ||
+      resolutionToSend.length > 0 ||
+      supportingToSend.length > 0
 
     try {
       if (hasFiles) {
         const formData = new FormData()
-        for (const [key, value] of Object.entries(parsed.data)) {
+        for (const [key, value] of Object.entries(payload)) {
           if (value !== undefined && value !== null) {
             formData.append(key, String(value))
           }
         }
-        for (const file of moaFiles) {
+        for (const file of moaToSend) {
           formData.append("moa_file", file)
         }
-        for (const file of projectPhotoFiles) {
+        for (const file of photosToSend) {
           formData.append("project_photos", file)
         }
-        for (const file of resolutionFiles) {
+        for (const file of resolutionToSend) {
           formData.append("resolution_file", file)
         }
-        for (const file of supportingFiles) {
+        for (const file of supportingToSend) {
           formData.append("supporting_docs", file)
         }
 
@@ -716,9 +730,9 @@ export function ProjectsModule() {
           await pb.collection("projects").create(formData)
         }
       } else if (editing) {
-        await pb.collection("projects").update(editing.id, parsed.data)
+        await pb.collection("projects").update(editing.id, payload)
       } else {
-        await pb.collection("projects").create(parsed.data)
+        await pb.collection("projects").create(payload)
       }
 
       setDialogOpen(false)
@@ -794,7 +808,7 @@ export function ProjectsModule() {
             continue
           }
 
-          const parsed = projectMutateSchema.safeParse({
+          const parsed = projectMutateSchemaForActor(actorRole, true).safeParse({
             name,
             description: importCellText(row, "Description") || undefined,
             location: importCellText(row, "Location") || undefined,
@@ -813,7 +827,9 @@ export function ProjectsModule() {
           }
 
           try {
-            await pb.collection("projects").create(parsed.data)
+            await pb.collection("projects").create(
+              projectPayloadForActor(actorRole, null, true, parsed.data)
+            )
             imported += 1
           } catch (error) {
             const message =
@@ -912,7 +928,10 @@ export function ProjectsModule() {
     return uniqueByName(barangays)
   }, [form.barangay, form.municipality, locations])
 
-  const ownershipRecord = editing
+  const ownershipRecord = {
+    ...(editing ?? {}),
+    category: form.category,
+  }
   const fieldLocked = (field: string) =>
     !isProjectFieldEditable(actorRole, field, ownershipRecord, !editing)
   const formStatusOptions = statusOptionsForActor(

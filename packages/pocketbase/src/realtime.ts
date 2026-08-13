@@ -31,7 +31,9 @@ export async function subscribeCollections(
   onEvent: (event: CollectionRealtimeEvent) => void
 ): Promise<() => void> {
   const unsubscribers = await Promise.all(
-    collections.map((collection) => subscribeCollection(pb, collection, onEvent))
+    collections.map((collection) =>
+      subscribeCollection(pb, collection, onEvent).catch(() => () => undefined)
+    )
   )
 
   return () => {

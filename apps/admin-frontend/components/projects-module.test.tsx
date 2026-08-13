@@ -13,6 +13,7 @@ const store = {
   locations: [] as Array<Record<string, unknown>>,
   projectStatusOptions: [] as Array<Record<string, unknown>>,
   projectCategoryOptions: [] as Array<Record<string, unknown>>,
+  denied: new Set<string>(),
   authRecord: {
     id: "sa1",
     role: "Super Admin",
@@ -41,8 +42,13 @@ vi.mock("@/lib/pocketbase", () => ({
       record: store.authRecord,
     },
     collection: (name: string) => ({
-      getFullList: vi.fn(async () =>
-        name === "projects"
+      getFullList: vi.fn(async () => {
+        if (store.denied.has(name)) {
+          throw Object.assign(new Error("The request failed with 403"), {
+            status: 403,
+          })
+        }
+        return name === "projects"
           ? store.projects
           : name === "progress_updates"
             ? store.progressUpdates
@@ -53,7 +59,7 @@ vi.mock("@/lib/pocketbase", () => ({
                 : name === "project_category_options"
                   ? store.projectCategoryOptions
                   : []
-      ),
+      }),
       create: createMock,
       update: updateMock,
       delete: vi.fn(),
@@ -105,6 +111,7 @@ describe("ProjectsModule (J4)", () => {
   beforeEach(() => {
     store.projects = []
     store.progressUpdates = []
+    store.denied.clear()
     store.projectStatusOptions = [
       {
         id: "status1",
@@ -1002,6 +1009,9 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.queryByLabelText(/target end date/i)).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText(/project name/i), "Charter Road")
+    await user.type(screen.getByLabelText(/^description$/i), "Charter encoding")
+    await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
+    await user.type(screen.getByLabelText(/total budget/i), "1000")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -1009,9 +1019,13 @@ describe("ProjectsModule (J4)", () => {
         expect.objectContaining({
           name: "Charter Road",
           status: "Planning",
+          description: "Charter encoding",
+          location: "Provincial hall",
+          total_budget: 1000,
         })
       )
     })
+    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("contractor")
   })
 
   it("locks status for PPDO after LGU encoding and keeps name editable", async () => {
@@ -1147,6 +1161,10 @@ describe("ProjectsModule (J4)", () => {
           expect.objectContaining({ name: "Charter Bridge" })
         )
       })
+      const payload = updateMock.mock.calls[0]?.[1] as Record<string, unknown>
+      expect(payload).not.toHaveProperty("contractor")
+      expect(payload).not.toHaveProperty("progress_pct")
+      expect(payload).not.toHaveProperty("start_date")
     }
   )
 
@@ -1186,6 +1204,106 @@ describe("ProjectsModule (J4)", () => {
           expect.objectContaining({ contractor: "Local Builders" })
         )
       })
+      const payload = updateMock.mock.calls[0]?.[1] as Record<string, unknown>
+      expect(payload).not.toHaveProperty("name")
+      expect(payload).not.toHaveProperty("budget_year")
     }
   )
+
+  it("lets PPDO edit student count after switching the form category to Scholarship", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projectCategoryOptions = [
+      {
+        id: "cat-infra",
+        collectionId: "project_category_options",
+        collectionName: "project_category_options",
+        name: "Infrastructure",
+        active: true,
+        sort_order: 1,
+      },
+      {
+        id: "cat-sch",
+        collectionId: "project_category_options",
+        collectionName: "project_category_options",
+        name: "Scholarship",
+        active: true,
+        sort_order: 2,
+      },
+    ]
+    store.projects = [catalogProject({ category: "Infrastructure" })]
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("combobox", { name: /^category$/i }))
+    await user.click(await screen.findByRole("option", { name: "Scholarship" }))
+
+    const students = await screen.findByLabelText(/number of students/i)
+    expect(students).not.toBeDisabled()
+  })
+
+  it("loads the PPDO catalog when progress_updates is denied", async () => {
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.denied.add("progress_updates")
+    store.projects = [catalogProject()]
+
+    render(<ProjectsModule />)
+
+    expect(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    ).toBeInTheDocument()
+  })
+
+  it("strips LGU-owned columns from PPDO Excel import", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    xlsxState.rows = [
+      {
+        "Project Name": "Road Widening",
+        Description: "Phase 1",
+        Location: "Tuguegarao City",
+        Contractor: "BuildCo",
+        "Total Budget": "1500000",
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+    await user.upload(
+      await screen.findByLabelText(/excel file/i),
+      new File(["workbook"], "projects.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+    )
+    await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).toMatchObject({
+      name: "Road Widening",
+      description: "Phase 1",
+      location: "Tuguegarao City",
+      total_budget: 1500000,
+    })
+    expect(payload).not.toHaveProperty("contractor")
+  })
 })
