@@ -17,6 +17,8 @@ export default defineConfig({
       { find: "@workspace/pocketbase/domain/budget-summary", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/domain/budget-summary.ts") },
       { find: "@workspace/pocketbase/domain/deadline-status", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/domain/deadline-status.ts") },
       { find: "@workspace/pocketbase/domain/format-currency", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/domain/format-currency.ts") },
+      { find: "@workspace/pocketbase/domain/format-display-date", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/domain/format-display-date.ts") },
+      { find: "@workspace/pocketbase/files", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/files.ts") },
       { find: "@workspace/pocketbase/domain/progress-summary", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/domain/progress-summary.ts") },
       { find: "@workspace/pocketbase/types", replacement: path.resolve(__dirname, "../../packages/pocketbase/src/types.ts") },
       { find: "@workspace/pocketbase", replacement: path.resolve(__dirname, "../../packages/pocketbase/src") },

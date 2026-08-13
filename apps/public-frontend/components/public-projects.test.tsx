@@ -75,6 +75,21 @@ vi.mock("@/lib/pocketbase", () => ({
   }),
 }))
 
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    ...props
+  }: {
+    children: React.ReactNode
+    href: string
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
 import { PublicProjects } from "./public-projects"
 
 describe("PublicProjects (V2, J3)", () => {
@@ -206,6 +221,38 @@ describe("PublicProjects (V2, J3)", () => {
     expect(screen.queryByRole("button", { name: /new project/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /edit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument()
+  })
+
+  it("links each card View Details to a shareable project page", async () => {
+    render(<PublicProjects />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    const details = screen.getAllByRole("link", { name: /view details/i })
+    expect(details).toHaveLength(2)
+    expect(details[0]).toHaveAttribute("href", "/projects/1")
+    expect(details[1]).toHaveAttribute("href", "/projects/2")
+  })
+
+  it("keeps list cards compact without dumping full detail fields", async () => {
+    store.projects[0] = {
+      ...store.projects[0],
+      contractor: "Acme Builders",
+      description: "Full public description that belongs on the detail page.",
+    }
+
+    render(<PublicProjects />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText("Acme Builders")).not.toBeInTheDocument()
+    expect(screen.queryByText("Start Date")).not.toBeInTheDocument()
+    expect(screen.queryByText("Funding Year")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("link", { name: /view details/i }).length).toBeGreaterThan(0)
   })
 
   it("filters projects by municipality and barangay from PocketBase locations", async () => {

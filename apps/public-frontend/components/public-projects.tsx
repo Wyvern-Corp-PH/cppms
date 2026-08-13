@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import {
@@ -342,6 +343,12 @@ export function PublicProjects() {
                 {formatPhp(project.total_budget ?? 0)}
               </p>
               <Progress className="mt-2" value={project.progress_pct ?? 0} />
+              <Link
+                href={`/projects/${project.id}`}
+                className="text-primary mt-3 inline-block text-sm font-medium hover:underline underline-offset-4"
+              >
+                View Details
+              </Link>
             </article>
           ))}
         </div>
