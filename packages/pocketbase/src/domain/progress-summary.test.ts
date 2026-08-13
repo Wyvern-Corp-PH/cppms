@@ -7,6 +7,7 @@ import {
   countProgressBuckets,
   countUpdatesToday,
   effectiveProgressPct,
+  filterProgressUpdatesByToPctRange,
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "./progress-summary"
@@ -154,6 +155,48 @@ describe("isStuckAt100NeedingReadyForReview (V6/V7)", () => {
         effectivePct: 100,
       })
     ).toBe(false)
+  })
+})
+
+describe("filterProgressUpdatesByToPctRange", () => {
+  const history = [
+    { id: "early", to_pct: 70, from_pct: 90 },
+    { id: "mid", to_pct: 78, from_pct: 10 },
+    { id: "late", to_pct: 90, from_pct: 0 },
+  ]
+
+  it("should keep all rows when the range is All", () => {
+    expect(filterProgressUpdatesByToPctRange(history, "all")).toEqual(history)
+  })
+
+  it("should keep only the matching to_pct row in each locked bucket", () => {
+    expect(
+      filterProgressUpdatesByToPctRange(history, "0-75").map((row) => row.id)
+    ).toEqual(["early"])
+    expect(
+      filterProgressUpdatesByToPctRange(history, "76-80").map((row) => row.id)
+    ).toEqual(["mid"])
+    expect(
+      filterProgressUpdatesByToPctRange(history, "81-100").map((row) => row.id)
+    ).toEqual(["late"])
+  })
+
+  it("should include bucket endpoints and ignore from_pct", () => {
+    const edges = [
+      { id: "at-75", to_pct: 75, from_pct: 90 },
+      { id: "at-76", to_pct: 76, from_pct: 0 },
+      { id: "at-80", to_pct: 80, from_pct: 0 },
+      { id: "at-81", to_pct: 81, from_pct: 0 },
+    ]
+    expect(
+      filterProgressUpdatesByToPctRange(edges, "0-75").map((row) => row.id)
+    ).toEqual(["at-75"])
+    expect(
+      filterProgressUpdatesByToPctRange(edges, "76-80").map((row) => row.id)
+    ).toEqual(["at-76", "at-80"])
+    expect(
+      filterProgressUpdatesByToPctRange(edges, "81-100").map((row) => row.id)
+    ).toEqual(["at-81"])
   })
 })
 

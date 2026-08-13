@@ -489,6 +489,130 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it("filters Progress Update History by to_pct buckets on the detail panel and dialog", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 90,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u-late",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-07-12 00:00:00.000Z",
+        project: "1",
+        from_pct: 78,
+        to_pct: 90,
+        notes: "late band",
+      },
+      {
+        id: "u-mid",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-06-12 00:00:00.000Z",
+        project: "1",
+        from_pct: 70,
+        to_pct: 78,
+        notes: "mid band",
+      },
+      {
+        id: "u-early",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-05-12 00:00:00.000Z",
+        project: "1",
+        from_pct: 90,
+        to_pct: 70,
+        notes: "early band",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+    })
+
+    expect(
+      screen.queryByLabelText(/filter by progress range/i)
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/filter by municipality/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /pick date range/i })
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /view details/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    const panel = screen.getByTestId("progress-detail-panel")
+    const dialogRange = within(dialog).getByLabelText(
+      /filter by progress range/i
+    )
+    const panelRange = within(panel).getByLabelText(
+      /filter by progress range/i,
+      { hidden: true }
+    )
+
+    expect(dialogRange).toBeInTheDocument()
+    expect(panelRange).toBeInTheDocument()
+    expect(within(dialog).queryByRole("spinbutton")).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText(/minimum|maximum|min–max|custom range/i)
+    ).not.toBeInTheDocument()
+
+    expect(within(dialog).getByText("early band")).toBeInTheDocument()
+    expect(within(dialog).getByText("mid band")).toBeInTheDocument()
+    expect(within(dialog).getByText("late band")).toBeInTheDocument()
+
+    await user.click(dialogRange)
+    await user.click(await screen.findByRole("option", { name: "0–75%" }))
+    expect(within(dialog).getByText("early band")).toBeInTheDocument()
+    expect(within(dialog).queryByText("mid band")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
+    expect(
+      within(panel).getByText("early band", { hidden: true })
+    ).toBeInTheDocument()
+    expect(
+      within(panel).queryByText("mid band", { hidden: true })
+    ).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
+    await user.click(await screen.findByRole("option", { name: "76–80%" }))
+    expect(within(dialog).getByText("mid band")).toBeInTheDocument()
+    expect(within(dialog).queryByText("early band")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
+    await user.click(await screen.findByRole("option", { name: "81–100%" }))
+    expect(within(dialog).getByText("late band")).toBeInTheDocument()
+    expect(within(dialog).queryByText("early band")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("mid band")).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
+    await user.click(await screen.findByRole("option", { name: "All" }))
+    expect(within(dialog).getByText("early band")).toBeInTheDocument()
+    expect(within(dialog).getByText("mid band")).toBeInTheDocument()
+    expect(within(dialog).getByText("late band")).toBeInTheDocument()
+
+    expect(screen.getByTestId("progress-row-1")).toBeInTheDocument()
+    expect(
+      screen.getByLabelText(/filter by municipality/i, { hidden: true })
+    ).toBeInTheDocument()
+  })
+
   it("uses the latest progress update for the visible project meter", async () => {
     store.projects = [
       {

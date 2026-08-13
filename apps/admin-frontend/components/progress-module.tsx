@@ -22,8 +22,12 @@ import {
   buildProgressSummaryCards,
   canShowUpdateProgress,
   effectiveProgressPct,
+  filterProgressUpdatesByToPctRange,
+  isProgressHistoryRangeId,
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
+  PROGRESS_HISTORY_RANGE_OPTIONS,
+  type ProgressHistoryRangeId,
 } from "@workspace/pocketbase/domain/progress-summary"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
@@ -67,6 +71,13 @@ import {
   FieldSet,
 } from "@workspace/ui/components/field"
 import { Progress } from "@workspace/ui/components/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { Slider } from "@workspace/ui/components/slider"
 import { Textarea } from "@workspace/ui/components/textarea"
 
@@ -129,6 +140,72 @@ const emptyCompletionDocuments = (): CompletionDocumentState => ({
   verification_documents: [],
   liquidation_documents: [],
 })
+
+function ProgressUpdateHistory({
+  updates,
+  range,
+  onRangeChange,
+  projectName,
+  userDisplay,
+}: {
+  updates: readonly ProgressUpdateRecord[]
+  range: ProgressHistoryRangeId
+  onRangeChange: (range: ProgressHistoryRangeId) => void
+  projectName: string
+  userDisplay: Map<string, string>
+}) {
+  const visibleUpdates = filterProgressUpdatesByToPctRange(updates, range)
+
+  return (
+    <div>
+      <h3 className="font-medium">Progress update history</h3>
+      <Select
+        value={range}
+        onValueChange={(next) =>
+          onRangeChange(isProgressHistoryRangeId(next) ? next : "all")
+        }
+      >
+        <SelectTrigger
+          className="mt-2 w-full"
+          aria-label="Filter by progress range"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROGRESS_HISTORY_RANGE_OPTIONS.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <ul className="mt-2 space-y-2">
+        {visibleUpdates.map((update) => (
+          <li
+            key={update.id}
+            className="border-b border-border pb-2 last:border-b-0"
+          >
+            <p>
+              {update.from_pct}% → {update.to_pct}%
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatDisplayDateTime(update.updated_at ?? update.created)} ·{" "}
+              {displayUserRef(update.updated_by, userDisplay, "Unknown user")}
+            </p>
+            {update.notes ? (
+              <p className="text-xs">{update.notes}</p>
+            ) : null}
+            <SitePhoto
+              update={update}
+              alt={`${projectName} progress update`}
+              className="mt-1 h-24 w-full max-w-xs"
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function lastUpdatedLabel(updates: ProgressUpdateRecord[]): string {
   const latest = updates[0]
@@ -367,6 +444,8 @@ export function ProgressModule() {
   })
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [historyRange, setHistoryRange] =
+    useState<ProgressHistoryRangeId>("all")
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1237,35 +1316,13 @@ export function ProgressModule() {
                 </p>
                 <Progress value={selectedProgress} />
               </div>
-              <div>
-                <h3 className="font-medium">Progress update history</h3>
-                <ul className="mt-2 space-y-2">
-                  {selectedUpdates.map((update) => (
-                    <li
-                      key={update.id}
-                      className="border-b border-border pb-2 last:border-b-0"
-                    >
-                      <p>
-                        {update.from_pct}% → {update.to_pct}%
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDisplayDateTime(
-                          update.updated_at ?? update.created
-                        )}{" "}
-                        · {displayUserRef(update.updated_by, userDisplay, "Unknown user")}
-                      </p>
-                      {update.notes ? (
-                        <p className="text-xs">{update.notes}</p>
-                      ) : null}
-                      <SitePhoto
-                        update={update}
-                        alt={`${selected.name} progress update`}
-                        className="mt-1 h-24 w-full max-w-xs"
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ProgressUpdateHistory
+                updates={selectedUpdates}
+                range={historyRange}
+                onRangeChange={setHistoryRange}
+                projectName={selected.name}
+                userDisplay={userDisplay}
+              />
               {canUpdateProjectProgress(
                 selected,
                 canCreateProgressUpdates,
@@ -1319,35 +1376,13 @@ export function ProgressModule() {
                 <p className="mb-1">Overall progress: {selectedProgress}%</p>
                 <Progress value={selectedProgress} />
               </div>
-              <div>
-                <h3 className="font-medium">Progress update history</h3>
-                <ul className="mt-2 space-y-2">
-                  {selectedUpdates.map((update) => (
-                    <li
-                      key={update.id}
-                      className="border-b border-border pb-2 last:border-b-0"
-                    >
-                      <p>
-                        {update.from_pct}% → {update.to_pct}%
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDisplayDateTime(
-                          update.updated_at ?? update.created
-                        )}{" "}
-                        · {displayUserRef(update.updated_by, userDisplay, "Unknown user")}
-                      </p>
-                      {update.notes ? (
-                        <p className="text-xs">{update.notes}</p>
-                      ) : null}
-                      <SitePhoto
-                        update={update}
-                        alt={`${selected.name} progress update`}
-                        className="mt-1 h-24 w-full max-w-xs"
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ProgressUpdateHistory
+                updates={selectedUpdates}
+                range={historyRange}
+                onRangeChange={setHistoryRange}
+                projectName={selected.name}
+                userDisplay={userDisplay}
+              />
               {canUpdateProjectProgress(
                 selected,
                 canCreateProgressUpdates,
