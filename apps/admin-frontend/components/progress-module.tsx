@@ -228,7 +228,11 @@ function canUpdateProjectProgress(
 function requiresReleasedAmountForActor(
   actor: ReturnType<typeof getPocketBase>["authStore"]["record"]
 ) {
-  return actor?.role === "Barangay" || actor?.role === "Municipality"
+  return (
+    actor?.role === "Barangay" ||
+    actor?.role === "Municipality" ||
+    actor?.role === "Province"
+  )
 }
 
 function splitProgressFieldErrors(errors: Record<string, string>) {

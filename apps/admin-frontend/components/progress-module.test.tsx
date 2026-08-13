@@ -1514,7 +1514,8 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
-  it("does not show embedded released amount fields for Province users", async () => {
+  it("shows embedded released amount fields for Province users", async () => {
+    const user = userEvent.setup()
     store.projects = [
       {
         id: "1",
@@ -1534,17 +1535,112 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
 
-    await screen.findByText("Bridge")
-    expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
-
-    const user = userEvent.setup()
     await user.click(await screen.findByRole("button", { name: /update progress/i }))
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /save update/i })).toBeInTheDocument()
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
-    expect(screen.queryByTestId("progress-released-amount-fields")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^receipt number$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^description$/i)).toBeInTheDocument()
   })
+
+  it("should show FieldError when Province submits Released Amount without receipt_number", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Materials")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/receipt number is required/i)).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText(/^receipt number$/i)).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
+    expect(createMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  })
+
+  it("saves Province progress updates with embedded released amount sync", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          receipt_number: "OR-1500",
+          description: "Release for progress",
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+        })
+      )
+    })
+    expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
+      expenseCreateMock.mock.invocationCallOrder[0]!
+    )
+  }, 20_000)
 
   it("does not show embedded released amount fields for Super Admin users", async () => {
     useSuperAdminActor()
