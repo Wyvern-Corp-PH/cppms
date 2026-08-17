@@ -26,6 +26,48 @@ const ppdoCreate = {
   total_budget: 1_000_000,
 }
 
+const ppdoCreateZeroFilled = {
+  ...ppdoCreate,
+  progress_pct: 0,
+  lgu_level: "",
+  bid_price: 0,
+  number_of_students: 0,
+  contractor: "",
+  planning_status: "",
+  procurement_status: "",
+  start_date: "",
+  target_end_date: "",
+  project_photos: [],
+  resolution_file: [],
+  supporting_docs: [],
+  approval_status: "",
+  approved_at: "",
+  approved_by: "",
+  rejection_reason: "",
+  lgu_encoded_at: "",
+  moa_file: [],
+}
+
+const jsOwnershipSandbox = {
+  module: { exports: {} as Record<string, unknown> },
+  exports: {} as Record<string, unknown>,
+}
+runInNewContext(
+  readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../pb_hooks/project-field-ownership.js"
+    ),
+    "utf8"
+  ),
+  jsOwnershipSandbox
+)
+const jsOwnership = jsOwnershipSandbox.module.exports as {
+  PPDO_OWNED_FIELDS: readonly string[]
+  LGU_OWNED_FIELDS: readonly string[]
+  evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
+}
+
 describe("project field ownership", () => {
   it("lets PPDO create without LGU-owned fields", () => {
     const result = evaluateProjectFieldWrite({
@@ -221,6 +263,57 @@ describe("project field ownership", () => {
     expect(result.ok).toBe(false)
   })
 
+  it("allows PPDO create when PocketBase zero-fills unowned number fields", () => {
+    const options = {
+      role: "PPDO",
+      isCreate: true,
+      original: {},
+      submitted: ppdoCreateZeroFilled,
+    }
+    const result = evaluateProjectFieldWrite(options)
+    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+  })
+
+  it("rejects PPDO create when bid_price is stuffed above the PocketBase default", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "PPDO",
+      isCreate: true,
+      submitted: { ...ppdoCreate, bid_price: 1500 },
+    })
+    expect(result).toEqual({
+      ok: false,
+      error: "You cannot update field 'bid_price'.",
+    })
+  })
+
+  it("lets LGU write bid_price from 100 to 0", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "Municipality",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        bid_price: 100,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { bid_price: 0 },
+    })
+    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+  })
+
+  it("rejects PPDO writing bid_price from 100 to 0", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "PPDO",
+      isCreate: false,
+      original: { ...ppdoCreate, bid_price: 100 },
+      submitted: { bid_price: 0 },
+    })
+    expect(result).toEqual({
+      ok: false,
+      error: "You cannot update field 'bid_price'.",
+    })
+  })
+
   it("lets Super Admin and Province mutate both sides without setting the marker", () => {
     const result = evaluateProjectFieldWrite({
       role: "Province",
@@ -305,26 +398,6 @@ describe("project field ownership", () => {
   })
 })
 
-const jsOwnershipSandbox = {
-  module: { exports: {} as Record<string, unknown> },
-  exports: {} as Record<string, unknown>,
-}
-runInNewContext(
-  readFileSync(
-    resolve(
-      dirname(fileURLToPath(import.meta.url)),
-      "../../pb_hooks/project-field-ownership.js"
-    ),
-    "utf8"
-  ),
-  jsOwnershipSandbox
-)
-const jsOwnership = jsOwnershipSandbox.module.exports as {
-  PPDO_OWNED_FIELDS: readonly string[]
-  LGU_OWNED_FIELDS: readonly string[]
-  evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
-}
-
 describe("JS hook and TS ownership list parity", () => {
   it("keeps owned-field lists identical", () => {
     expect([...jsOwnership.PPDO_OWNED_FIELDS]).toEqual([...PPDO_OWNED_FIELDS])
@@ -337,6 +410,12 @@ describe("JS hook and TS ownership list parity", () => {
         role: "PPDO",
         isCreate: true,
         submitted: { ...ppdoCreate, progress_pct: 0 },
+      },
+      {
+        role: "PPDO",
+        isCreate: true,
+        original: {},
+        submitted: ppdoCreateZeroFilled,
       },
       {
         role: "PPDO",

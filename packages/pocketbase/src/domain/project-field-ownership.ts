@@ -51,7 +51,7 @@ const SYSTEM_FIELDS = new Set([
   "expand",
 ])
 
-const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level"])
+const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level", "bid_price"])
 
 export type ProjectWriteActor = {
   role?: Role | string
@@ -115,10 +115,8 @@ function isCreateDefaultAllowed(
   isCreate: boolean
 ): boolean {
   if (!isCreate || !CREATE_DEFAULT_FIELDS.has(field)) return false
-  if (field === "progress_pct") {
-    return isEmptyValue(value) || Number(value) === 0
-  }
-  return true
+  if (field === "lgu_level") return true
+  return isEmptyValue(value) || Number(value) === 0
 }
 
 export function ownedProjectFieldsForActor(

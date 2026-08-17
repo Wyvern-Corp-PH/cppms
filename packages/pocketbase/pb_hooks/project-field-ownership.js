@@ -51,7 +51,7 @@ const SYSTEM_FIELDS = new Set([
   "collectionName",
   "expand",
 ])
-const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level"])
+const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level", "bid_price"])
 
 function isEmptyValue(value) {
   if (value === null || value === undefined || value === "") return true
@@ -97,10 +97,8 @@ function isTerminalOrReviewStatus(status) {
 
 function isCreateDefaultAllowed(field, value, isCreate) {
   if (!isCreate || !CREATE_DEFAULT_FIELDS.has(field)) return false
-  if (field === "progress_pct") {
-    return isEmptyValue(value) || Number(value) === 0
-  }
-  return true
+  if (field === "lgu_level") return true
+  return isEmptyValue(value) || Number(value) === 0
 }
 
 function ownedProjectFieldsForActor(role, original, isCreate) {
