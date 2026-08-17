@@ -276,15 +276,17 @@ describe("project field ownership", () => {
   })
 
   it("rejects PPDO create when bid_price is stuffed above the PocketBase default", () => {
-    const result = evaluateProjectFieldWrite({
+    const options = {
       role: "PPDO",
       isCreate: true,
       submitted: { ...ppdoCreate, bid_price: 1500 },
-    })
+    }
+    const result = evaluateProjectFieldWrite(options)
     expect(result).toEqual({
       ok: false,
       error: "You cannot update field 'bid_price'.",
     })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
   it("lets LGU write bid_price from 100 to 0", () => {
@@ -302,16 +304,18 @@ describe("project field ownership", () => {
   })
 
   it("rejects PPDO writing bid_price from 100 to 0", () => {
-    const result = evaluateProjectFieldWrite({
+    const options = {
       role: "PPDO",
       isCreate: false,
       original: { ...ppdoCreate, bid_price: 100 },
       submitted: { bid_price: 0 },
-    })
+    }
+    const result = evaluateProjectFieldWrite(options)
     expect(result).toEqual({
       ok: false,
       error: "You cannot update field 'bid_price'.",
     })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
   it("lets Super Admin and Province mutate both sides without setting the marker", () => {
