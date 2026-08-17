@@ -1,0 +1,120 @@
+---
+description: "Glossary & decision trees"
+alwaysApply: true
+id: glossary
+title: "Glossary & decision trees"
+category: reference
+order: 3
+---
+
+# Glossary & decision trees
+
+## Glossary
+
+| Term | Meaning |
+| ------------------ | ------------------------------------------------------------- |
+| **Burn-down** | Gradually eliminating warn-level backlog |
+| **Boy-scout** | Leave touched code slightly better than you found it |
+| **Merge-base** | Common ancestor of branch and target — diff ratchet reference |
+| **Ratchet** | Gate that only blocks regression, not all legacy debt |
+| **Universal rule** | Violations counted per file (complexity, size), not per line |
+| **Control plane** | Small JSON state file orchestrators read for gate decisions |
+| **Public API** | Published import surface between modules/contexts |
+| **Waiver** | Explicit label/process to skip boy-scout for one PR |
+| **Build contract** | Single `SPEC.md` per [`contract-format`](../references/spec/contract-format.md): §G…§B |
+| **§ addressing** | `§V.2` / `§T.3` — unambiguous refs in SPEC + agent chat (not commits/product code) |
+| **Sectioned ownership** | Each verb writes only its owned sections |
+| **Right-size** | Ceremony scales to blast radius; typo ≠ full chain |
+| **Backprop** | Bug → §B + prefer §V + test + fix in one commit |
+| **Drift** | Code shape differs from contract (contract-check skill output) |
+| **Deep module** | Small interface hiding large implementation complexity |
+| **Folder blueprint** | Durable doc of repo layout: principles, path map, placement, naming, extension templates ([`folder-structure`](./folder-structure.mdc)) |
+| **Wide event** | One structured log line per request with full context |
+| **Auto-clarity** | Drop compression for safety-critical or ambiguous output |
+| **Stacked PRs** | Chain of PRs each targeting the branch below; bottom → trunk; merge bottom-up ([`stacking-prs`](./stacking-prs.mdc)) |
+| **Layer budget** | Per-stack-PR caps: ≤20 files / ≤300 lines target; 30 / 500 ceiling |
+
+## Which lint gate when?
+
+```
+New greenfield package? → error level locally; no ratchet needed yet
+Legacy package, active dev? → warn global + diff ratchet CI
+Touching 1 file in legacy? → scoped lint --fix + ratchet preflight
+Agent generating new code? → treat warn as error
+```
+
+## Which contract-mode skill when?
+
+```
+One-line / obvious local fix? → build only (right-size)
+Fuzzy idea? → grill → contract NEW
+Code exists, no contract? → contract DISTILL
+Ready to implement? → build (after contract OK; name tests for §V)
+Test failed / bug found? → contract-backprop → resume build
+"Does code match spec?" → contract-check (read-only)
+High blast-radius change? → code-review before build
+Unsure of library behavior? → research → §R → then build
+Green build, spare budget? → codebase-design deepening (one module)
+Need sub-agent for lookup/fix? → delegation — not for rewriting SPEC
+```
+
+## Which subagent when?
+
+```
+Know the file path? → Builder (or main thread if trivial)
+Need to find path? → Investigator
+≤2 file surgical fix? → Builder
+3+ files / feature? → build loop on main thread, not Builder
+Review diff for bugs? → Compressed reviewer
+Want design essay? → Full prose reviewer / architect
+Writing the contract? → Main thread contract skill only
+```
+
+## Which layout / folder action when?
+
+```
+Unfamiliar repo / missing path map? → detect shape → read or draft folder blueprint (folder-structure rule + engineering ref)
+Where does this new file go? → durable blueprint · else sibling convention · else AskQuestion
+New top-level folder? → update blueprint in same change · or reject
+Deepen a module? → stay inside map (/codebase-design · /improve-codebase-architecture)
+Layer / ports question? → /clean-ddd-hexagonal + architecture rule · then map path via folder-structure
+Automate path rules? → custom-validators + ci-taxonomy Structure
+Backend “where does this go?” → /clean-ddd-hexagonal (layer) + folder blueprint (disk path)
+```
+
+## Which test level?
+
+```
+Logic with no I/O? → Unit
+ORM/repository against DB? → Integration
+Supplier HTTP contract? → Integration (mock or sandbox)
+Checkout flow in browser? → E2E
+Invariant added in backprop? → Unit or integration citing invariant ID
+```
+
+## Which communication mode?
+
+```
+Long session, many lookups? → concise full/ultra + delegation
+PR review comment? → path:line one-liners (concise review shape)
+Commit message? → Conventional Commits; subject ≤50 chars
+Agent memory file too large? → compress .md / .txt (keep .original.md backup)
+Security finding? → auto-clarity full prose
+```
+
+## Which branch / release step?
+
+```
+New feature work? → branch from `dev` (ship-setup / branching.mdc)
+Stay linear? → rebase origin/dev — ⊥ merge commit for conflicts
+Land feature? → PR → `dev` with Rebase and Merge
+Multi-layer / >~20–30 files? → /stacking-prs (gh stack; bottom → `dev`)
+QA / UAT? → promote same commits `dev` → `staging`
+Production? → `staging` → `main` → Release Please Release PR
+Hotfix? → from `main`, then merge down → staging → `dev`
+Full diagrams / edge cases? → references/ship/release-lifecycle.md
+```
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

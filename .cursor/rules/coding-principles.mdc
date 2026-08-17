@@ -1,0 +1,62 @@
+---
+description: Coding principles
+alwaysApply: true
+id: coding-principles
+title: "Coding principles"
+category: engineering
+order: 1
+---
+
+# Coding principles
+
+Universal standards — enforce via linter where possible, review where not.
+
+## KISS
+
+- Smallest correct solution
+- One function, one job; split around 30 lines (hard ceiling ~50)
+- Max one nesting level; early returns over nested conditionals
+- Inline abstractions with a single caller
+
+## DRY (rule of three)
+
+- Extract on the **third** identical duplication, not the second glance
+- Same shape ≠ same meaning — do not merge types that change for different reasons
+
+## SOLID (at stable boundaries)
+
+- **SRP** — one reason to change
+- **OCP** — extend via new modules, not editing stable cores
+- **DIP** — business logic depends on ports, not databases/SDKs directly
+
+## Clean code
+
+| Practice | Guideline |
+| ------------- | --------------------------------------------------------------- |
+| Names | Intent-revealing; spell out opaque abbreviations |
+| Functions | One abstraction level; compose named steps |
+| Comments | **Why only** — never narrate what the line does |
+| Types | No escape-hatch type for new code; narrow `unknown` when needed |
+| Mutability | Immutable by default |
+| Errors | Fail fast; no empty catch; domain-specific error types |
+| SQL / queries | Parameterized; validate identifiers before dynamic fragments |
+
+## Conflict resolution
+
+1. KISS beats DRY
+2. SOLID beats KISS only at seams likely to change
+3. Explicit beats clever
+4. Externalize values that vary by environment — but reject speculative config trees
+
+## Deep modules (design quality)
+
+A **deep module** hides much complexity behind a small interface; a **shallow** one's interface costs as much to use as writing the code yourself. Prefer:
+
+- Pull complexity down — callers get the simple path
+- Define errors out of existence — design so the edge cannot occur
+- Information hiding — one decision, one module
+- General-purpose interface over special-case method piles
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

@@ -1,0 +1,63 @@
+---
+description: Custom validators (beyond the linter)
+alwaysApply: true
+id: custom-validators
+title: "Custom validators (beyond the linter)"
+category: quality-gates
+order: 4
+---
+
+# Custom validators (beyond the linter)
+
+## When you need them
+
+ESLint/Biome/Ruff cannot express:
+
+- File-name role conventions (`.service.ts`, `.entity.ts`)
+- Folder / package placement vs the durable layout map ([`folder-structure`](./folder-structure.mdc))
+- Domain construction invariants (`private constructor` + factory methods)
+- Cross-package import boundaries
+- Config-shaped literal patterns on new lines only
+- Branch/PR naming against org policy
+- Monorepo registry ↔ filesystem drift
+
+## Pattern
+
+```
+validator CLI
+ ├── parse git diff (BASE..HEAD)
+ ├── classify each added/changed path or line
+ ├── verdict: error (new) | warning (pre-existing)
+ └── exit non-zero on blocking findings
+```
+
+**Requirements:**
+
+- Unit-test the classifiers (regex, AST helpers, path rules)
+- Support local run with same env vars as CI (`BASE_REF`, `HEAD_REF`)
+- Document in a playbook, not only in CI YAML
+
+## File role suffixes (optional but high-leverage)
+
+Enforce a **closed allow-list** of dotted suffixes that encode architectural role:
+
+| Suffix | Typical meaning |
+| --------------------------- | ----------------------------- |
+| `.service` | Orchestration |
+| `.use-case` | Single application operation |
+| `.entity` / `.value-object` | Domain with invariants |
+| `.repository` / `.adapter` | I/O boundary |
+| `.port` | Injected dependency interface |
+| `.dto` / `.shape` | Passive data |
+| `.controller` / `.handler` | HTTP/CLI entry |
+| `.spec` / `.test` | Tests |
+
+One suffix per file. Naked names only on explicit allow-list (`index`, entrypoints, migrations).
+
+**No validator in the repo?** Review still applies this allow-list (or the repo’s documented substitute) on **new/changed** paths — see [`ci-taxonomy`](./ci-taxonomy.mdc) § Adapt when missing. Do not wait for a CI job that does not exist.
+
+New top-level folders or layer homes that disagree with the layout blueprint are structure findings — update the map or reject the path ([`folder-structure`](./folder-structure.mdc)).
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

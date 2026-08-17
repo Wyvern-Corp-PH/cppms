@@ -1,0 +1,13 @@
+# Lefthook — pack preset. Copy to repo root as `lefthook.yml`.
+# Install: bun add -d lefthook lint-staged  (or npm/pnpm)
+# Enable:  bunx lefthook install
+#
+# Staged-only. Same tool versions as CI. Fail fast.
+
+pre-commit:
+  parallel: false
+  commands:
+    lint-staged:
+      run: bunx lint-staged
+      # npm: npx lint-staged
+      # pnpm: pnpm exec lint-staged

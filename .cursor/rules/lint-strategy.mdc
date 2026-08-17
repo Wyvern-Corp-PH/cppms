@@ -1,0 +1,116 @@
+---
+description: "Lint strategy: warn burn-down + diff ratchet"
+alwaysApply: true
+id: lint-strategy
+title: "Lint strategy: warn burn-down + diff ratchet"
+category: quality-gates
+order: 1
+---
+
+# Lint strategy: warn burn-down + diff ratchet
+
+## The problem
+
+Turning strict lint rules to `error` on a mature codebase often yields thousands of violations. A big-bang fix stalls delivery. Ignoring rules lets debt compound.
+
+## The pattern (two speeds)
+
+| Speed | Scope | Severity | Purpose |
+| -------------- | ------------------ | ----------------------- | -------------------------------------- |
+| **Global** | Whole codebase | `warn` (or advisory) | Visibility + burn-down tracking |
+| **Diff-aware** | Changed files only | `error` on regression | New work cannot make things worse |
+| **Pre-commit** | Staged hunks | Stricter than global | Catch issues before they enter history |
+| **Agents** | New/generated code | Treat `warn` as `error` | AI does not inherit legacy excuses |
+
+## Shared preset modules
+
+Split lint policy into **one concern per config module** (not one giant config):
+
+- Complexity & control flow (`max-depth`, `complexity`, `max-lines`)
+- Magic numbers & literals
+- Environment / config access boundaries
+- Import restrictions & alias bans
+- Naming (abbreviations, conventions)
+- Framework-specific rules — isolated per consumer package
+
+Each module documents: what it enforces, why severity is `warn` vs `error`, and which human doc it mirrors.
+
+## Recommended thresholds (starting point — tune per team)
+
+| Rule family | Suggested ceiling | Intent |
+| --------------------- | -------------------- | ------------------------------- |
+| Nesting depth | 1 level per function | Guard clauses over nested `if` |
+| Cyclomatic complexity | 10 | Split branchy functions |
+| Lines per function | 50 (target 20–30) | Single responsibility |
+| Lines per file | 300 | Split by responsibility |
+| Cognitive complexity | 15 | Readability beyond branch count |
+
+**Encoded in presets** ([`../references/lint/`](../references/lint/README.md)):
+
+| Preset | Nesting | Cyclomatic | Fn lines | File lines | Cognitive |
+| ------ | ------- | ---------- | -------- | ---------- | --------- |
+| Oxlint (default) | `max-depth: 1` | `complexity: 10` | `max-lines-per-function: 50` | `max-lines: 300` | — (review / Biome) |
+| ESLint | `max-depth: 1` | `complexity: 10` | `max-lines-per-function: 50` | `max-lines: 300` | — |
+| Biome | — | — | — | — | `noExcessiveCognitiveComplexity: 15` |
+| Ruff | `max-nested-blocks: 1` | `max-complexity: 10` | `max-statements: 50` | — | — |
+
+Tests may relax fn-line / statements ceilings (see preset overrides). Change numbers here **and** in the matching preset — keep the table authoritative.
+
+## The diff-aware ratchet (two layers)
+
+Compare each touched file to its state at the **merge-base** (where the branch diverged from the target). Not "is the file clean?" but "did this PR worsen it?"
+
+### Layer 1 — no-regression
+
+| Condition | Blocks merge? |
+| --------------------------------------------------------------------------- | ------------------------------------ |
+| Violation on a line **added** by this PR | **Yes** |
+| Count of "universal" violations **increased** (complexity, file size, etc.) | **Yes** — only the **surplus** |
+| Pre-existing violations unchanged | No — optional warning for visibility |
+
+**Guarantee:** a passing PR never raises violation counts on touched files.
+
+### Layer 2 — capped boy-scout descent
+
+When a touched file already has **auto-fixable** debt:
+
+- Retire at least **K** items (team constant, often 3)
+- **Cap at K** — a 40-item file owes 3, not 40
+- Exempt rules that imply large refactors (e.g. splitting a 900-line file)
+- Files with fewer than K items must reach zero
+- Optional **waiver label** skips Layer 2; Layer 1 still applies
+
+### Merge hygiene (ratchet accuracy)
+
+| Do | Don't |
+| ---------------------------------------------------------------- | ------------------------------------------------ |
+| Merge the target branch with a normal, conflict-respecting merge | Cross-merge feature branches into each other |
+| Minimize blast radius in legacy files | Re-format entire legacy files for a one-line fix |
+| Fix the surplus the gate reports | Disable rules file-wide to get green |
+| Use auto-fix for mechanical boy-scout items | Rewrite whole blocks during conflict resolution |
+
+## Scoped lint & format (critical during burn-down)
+
+**Never** run whole-repo `lint --fix` / `format --write` while a warn backlog exists — it creates a giant unrelated diff.
+
+```bash
+# Pattern: lint only what you changed, in the owning package/workspace
+cd <package-root>
+<linter> --fix path/to/changed-file.ts
+<formatter> --write path/to/changed-file.ts
+```
+
+Order: **linter --fix** → **formatter** → **verify zero errors on touched files**.
+
+Starter configs + hook wiring: [`../references/lint/`](../references/lint/README.md) (installed by [`setup-skills`](../skills/setup-skills/SKILL.md)).
+
+## Configuration externalization
+
+Two rules, often enforced by a diff-aware "config literal" scanner:
+
+1. **Explaining variables** — bare numbers/strings in logic become named constants (whitelist: `0`, `1`, `2`, indexes, defaults).
+2. **Externalize policy-varying values** — timeouts, retention, quotas, limits live in env/config with sensible defaults. Name env vars with the **unit the runtime consumes** (`_MS`, `_SECONDS`, `_DAYS`).
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

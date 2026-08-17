@@ -1,0 +1,60 @@
+---
+description: "Full-cycle /ship orchestration — always on"
+alwaysApply: true
+id: ship
+title: "Agent workflow: /ship"
+category: workflow
+order: 10
+---
+
+# Agent workflow: full-cycle orchestration (`/ship`)
+
+**Optional Cursor extension** — not the contract-mode core. Contract mode = main-thread `/contract` · `/build` · `/contract-check` (**zero** SDD sub-agents). `/ship` = phased dispatch + JSON gates + specialists; contract at `.runs/ship/<id>/SPEC.md`.
+
+**Command (source of truth):** [`../commands/ship.md`](../commands/ship.md) · **State schema:** [`../references/ship/state.schema.json`](../references/ship/state.schema.json) · **Env promotion:** [`../references/ship/release-lifecycle.md`](../references/ship/release-lifecycle.md)
+
+### Phases (0–9)
+
+```
+0 Setup → 1–2 Ticket+Branch (ship-setup, set base_ref) → 3 Clarify → 4 Spec (HUMAN OK)
+→ 5 Slice (frontier[]) → 6 Plan + Design design → 7 Execute (commit/unit)
+→ 8 One review wave → 9 Tests / QA (AskQuestion push/PR)
+```
+
+Unit = verify only. Full review = Phase 8.
+
+### Orchestrator rules
+
+| Rule | Meaning |
+| ---- | ---- |
+| **Dispatch only** | Launch agents; ⊥ inline phase work |
+| **Fixed order** | Contract → plan → execute → review → tests |
+| **JSON control plane** | Loop on `state.json` (snake_case); pass paths not bodies |
+| **Resumable** | Skip `done`/`skip`; honor `awaiting-human` + AskQuestion |
+| **Commit per unit** | Plain Conventional Commits; ⊥ batch; ⊥ `§T`/`§V`/`Tn`/`Vn` |
+| **No double review** | Phase 8 = `ship-review` + `design-auditor` **or** ad-hoc dual Standards+Spec — never both |
+| **Design** | Always Phase 6 design + Phase 8 audit — no skip flag |
+| **Simplicity** | Phase 7 ladder; Phase 8 via `ship-review` simplicity section → `code_review` |
+| **Rules receipt** | Count every `rules/*.mdc`; ship uses always-on pack rules |
+
+### Run dir
+
+`.runs/ship/<ID>/` — `state.json`, `SPEC.md`, `ticket.json`, `design_design.json`, `design_audit.json`, `code_review.json`, `tests.json`, …
+
+### Phase 8 axes
+
+`ship-review` (ac · quality · simplicity) · `design-auditor` → fix via `ship-execute` / `builder`. Re-run only blocking axes.
+
+Roster → [`../agents/README.md`](../agents/README.md) · [`subagents.mdc`](./subagents.mdc).
+
+### UX
+
+One-line banner per phase; gate counts after. Clarify → AskQuestion only.
+
+### Stack mapping
+
+Default integration base: **`dev`**. Contract: `SPEC.md`; `/ship` → `.runs/ship/<id>/SPEC.md`. Promotion after Phase 9 → [`release-lifecycle`](../references/ship/release-lifecycle.md) · [`branching`](./branching.mdc).
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md) · **Command:** [`../commands/ship.md`](../commands/ship.md)

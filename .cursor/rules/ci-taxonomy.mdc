@@ -1,0 +1,61 @@
+---
+description: CI guardrail taxonomy
+alwaysApply: true
+id: ci-taxonomy
+title: "CI guardrail taxonomy"
+category: quality-gates
+order: 3
+---
+
+# CI guardrail taxonomy
+
+Classify checks so teams know what each gate protects:
+
+| Gate type | What it enforces | Diff-aware? |
+| -------------------- | --------------------------------------------------- | -------------------- |
+| **Structure** | Repo layout matches registry/manifest / folder blueprint | Usually full tree |
+| **Naming** | File role suffixes, workflow names, branch prefixes | Yes |
+| **Lint ratchet** | No regression + boy-scout on touched files | Yes |
+| **Type check** | Compiler passes | Usually full project |
+| **Tests** | Unit/integration/e2e | Varies |
+| **Domain model** | Construction patterns (class vs interface vs DTO) | Yes |
+| **Config literals** | Deploy/policy values hardcoded in source | Yes (added lines) |
+| **Security hygiene** | No tracked secrets, dependency audit | Full or diff |
+| **Doc ↔ rule sync** | Agent rules mirror human docs | Yes |
+| **Drift detection** | Linter config consistency across packages | Full tree |
+| **Spec drift** | Invariants still hold (optional CI job) | Full or sampled |
+
+Expose local equivalents for every blocking gate (`make ci-lint`, `npm run ci:structure`, etc.) so authors preflight before push.
+
+## Adapt when missing
+
+Many repos have **none** of these gates wired. Do not pretend CI covers them.
+
+| Probe (any one = “present”) | If **missing** |
+| --------------------------- | -------------- |
+| Script / Makefile / turbo task named for the gate (`ci:lint`, `ci:structure`, …) | Agent review covers that gate on the **diff** |
+| CI workflow job that runs it | Same |
+| Documented custom validator CLI + local alias | Same |
+| Formatter/linter config that clearly owns the concern (e.g. Biome/ESLint for style) | Skip only that concern — not the whole taxonomy |
+
+**Rules:**
+
+1. **Probe before skip.** “Skip tooling already enforces” applies **only** to gates with evidence above. No evidence → review owns it.
+2. **Pack defaults when repo has no doc.** Use [`custom-validators`](./custom-validators.mdc) (file role suffixes), [`lint-strategy`](./lint-strategy.mdc) (complexity / config literals), [`branching`](./branching.mdc) (branch prefixes), [`architecture`](./architecture.mdc) (layer layout). Repo `CODING_STANDARDS.md` / existing suffix convention **overrides** pack defaults.
+3. **Diff-scoped.** Cover **added/changed** paths and lines only — not a whole-repo burn-down.
+4. **Where it lands.** `/ship` Phase 8 → `ship-review` quality section (parent passes a `gates_covered` map). Ad-hoc → `code-review` / `ship-review` Standards axis. Phase 9 still runs whatever check/test script exists.
+5. **Do not invent CI in review.** Flag violations; optionally note “no `ci:*` for this gate — wire later (adoption Phase C/D)”. ⊥ implement a full ratchet in the review agent.
+
+Severity when reviewing a missing gate (defaults):
+
+| Concern | Tag |
+| ------- | --- |
+| New file breaks closed role-suffix / layer naming and no repo convention | MED (HIGH if wrong layer / auth surface) |
+| New config/policy literal that should be env | MED |
+| Clear lint/complexity regression on added lines, no linter | MED |
+| Branch/PR naming off scheme (process) | NIT unless org treats as blocker |
+| Secret / credential in diff | CRITICAL |
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

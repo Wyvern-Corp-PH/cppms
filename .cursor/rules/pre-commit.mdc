@@ -1,0 +1,31 @@
+---
+description: "Pre-commit: fast feedback on staged files"
+alwaysApply: true
+id: pre-commit
+title: "Pre-commit: fast feedback on staged files"
+category: quality-gates
+order: 2
+---
+
+# Pre-commit: fast feedback on staged files
+
+## Pattern
+
+```
+git commit
+ └── hook runner (Husky, lefthook, pre-commit framework, …)
+ └── lint-staged (or equivalent)
+ └── per-package config
+ └── shared policy: lint --fix → format (skip pure renames)
+```
+
+## Principles
+
+- Run only on **staged** paths
+- Stricter than CI global warn (e.g. `--max-warnings=0` on staged files)
+- Same tool versions as CI (pin in lockfile / container)
+- Fail fast — do not rely on CI as the first lint signal
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

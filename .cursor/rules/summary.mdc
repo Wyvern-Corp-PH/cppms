@@ -1,0 +1,35 @@
+---
+description: Summary
+alwaysApply: true
+id: summary
+title: "Summary"
+category: reference
+order: 4
+---
+
+# Summary
+
+| Concern | Core pattern |
+| ----------------- | ----------------------------------------------------------------- |
+| Lint | Warn globally + diff ratchet + strict pre-commit + scoped fixes |
+| CI | Taxonomy of gates; every blocker runnable locally |
+| Policy | Docs ↔ agent rules ↔ linter presets ↔ custom validators |
+| Folder layout | Detect shape · durable blueprint · placement + naming · structure gates — [`folder-structure`](./folder-structure.mdc) |
+| SDD | SPEC.md · §G…§B · concise · ownership · right-size · no SDD sub-agents |
+| Pre-build | Reach-for: grill / research / code-review / codebase-design when blast earns it |
+| Code | KISS, rule-of-three DRY, SOLID at seams, deep modules, no `any` |
+| Security | Authorize every boundary; tenant scope; secrets out of source |
+| Observability | Wide events; one JSON log per request; business + env context |
+| Review | Tagged severity; loop on critical/high/med |
+| Agent library | Core / pre-build / stack tiers; single-responsibility skills |
+| Agents — ship | Phased orchestrator, JSON gates, specialists, human spec gate |
+| Agents — delegation | Compressed investigator/builder/reviewer contracts |
+| Communication | Concise compression + auto-clarity for safety-critical output |
+| Release / envs | `dev`→`staging`→`main` · rebase · Release Please — [`release-lifecycle`](../references/ship/release-lifecycle.md) |
+| Stacked PRs | Small layers · `gh stack` · ≤20–30 files/layer — [`stacking-prs`](./stacking-prs.mdc) |
+
+Adapt tool names, paths, and thresholds to your repository. The patterns are the product; the implementation is yours.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

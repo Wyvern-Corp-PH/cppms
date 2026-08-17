@@ -1,0 +1,66 @@
+---
+description: "Branching, env promotion, PR discipline"
+alwaysApply: true
+id: branching
+title: "Branching & change discipline"
+category: process
+order: 20
+---
+
+# Branching & change discipline
+
+## Environments (promotion path)
+
+| Branch | Role |
+| ------ | ---- |
+| `dev` | Integration — **default base** for feature work |
+| `staging` | QA / UAT |
+| `main` | Production — Release Please target |
+
+Full lifecycle (rebase, ticket ladder, Release Please, edge cases, skill map): [`../references/ship/release-lifecycle.md`](../references/ship/release-lifecycle.md).
+
+**Hard rules:** rebase onto `origin/dev` before PR · GitHub **Rebase and Merge** into `dev` · never skip envs · never cherry-pick for promotion · never fix QA on `staging` (bug ticket → feature → `dev`).
+
+Release Please = **release automation on `main`**, not a branching strategy — needs linear history + Conventional Commits from `/build` / `ship-execute`.
+
+---
+
+## Prefix semantics (example scheme — rename to fit your org)
+
+| Prefix | Use when |
+| --- | ----- |
+| `story/` or `feature/` | Product source change (feature, refactor) |
+| `bug/` | Defect fix in source |
+| `hotfix/` | Production fix branched from `main` (merge back → staging → `dev`) |
+| `devops/` | CI, infra, deployment scripts only |
+| `task/` | Docs-only; no runtime code |
+
+Pattern: `<prefix>/<TICKET-ID>[-short-description]`
+Examples: `feature/SP-123-add-payment`, `story/SP-123-add-payment`, `bug/SP-456-login-timeout`, `hotfix/SP-999-null-guard`.
+
+Branch from **`dev`** (hotfixes from **`main`**). Target the next env on the promotion path — not another feature branch.
+
+**Stacked PRs:** when a change is multi-concern or exceeds ~20–30 files, land as a stack (`gh stack`) instead of one mega-PR targeting `dev`. Mid-stack PRs may target the branch below; only the bottom targets `dev`. See [`stacking-prs.mdc`](./stacking-prs.mdc) · [`skills/stacking-prs/SKILL.md`](../skills/stacking-prs/SKILL.md).
+
+---
+
+## PR title vs commit message
+
+- **Commit** — Conventional Commits (Release Please parses these); subject ≤50 chars when possible
+- **PR title** — carries ticket ID for automation (`SP-123 Summary` / `TICKET-123 Summary`)
+
+---
+
+## Author checklist (before review)
+
+- [ ] Rebased onto current `origin/dev` (or `main` for hotfix)
+- [ ] Standards + architecture respected
+- [ ] Build contract tasks marked done only with evidence
+- [ ] Tests at appropriate level
+- [ ] Lint/format on **touched files only**
+- [ ] Risk + rollback stated
+- [ ] Deviations declared with plan to repay
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md) · **Lifecycle:** [`../references/ship/release-lifecycle.md`](../references/ship/release-lifecycle.md)

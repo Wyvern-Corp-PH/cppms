@@ -1,0 +1,104 @@
+---
+description: Repo folder structure — blueprint, placement, naming, enforcement
+alwaysApply: true
+id: folder-structure
+title: "Folder structure"
+category: engineering
+order: 3
+---
+
+# Folder structure
+
+Physical layout is part of the architecture contract. Agents and humans must know **where new code goes** before they invent a parallel tree. Logical layers ([`architecture`](./architecture.mdc) · [`clean-ddd-hexagonal`](../skills/clean-ddd-hexagonal/SKILL.md)) and role suffixes ([`custom-validators`](./custom-validators.mdc)) sit on top of this map — they do not replace it.
+
+Deep template + section checklist → [`../references/engineering/folder-structure.md`](../references/engineering/folder-structure.md).
+
+**Split of concerns:** [`clean-ddd-hexagonal`](../skills/clean-ddd-hexagonal/SKILL.md) decides layer / port / aggregate placement; **this rule** decides path, naming, and blueprint enforcement. Layer-shaped trees are one principle below — use them when the backend earns Clean/Hex/DDD; still document the real disk map here.
+
+## When to consult / refresh the map
+
+| Situation | Action |
+| --------- | ------ |
+| First session in an unfamiliar repo | Detect shape → read or draft the durable layout doc |
+| New package / app / bounded context | Extend the map; do not invent a second convention |
+| New feature / component / service | Follow placement + naming from the map (or templates in it) |
+| Structural refactor | Update the map in the same change set as the move |
+| Review of new paths | Diff against the map + role-suffix allow-list |
+
+## Detect shape (before assuming layout)
+
+Scan markers — do not guess from one file:
+
+| Signal | Look for |
+| ------ | -------- |
+| **Language / runtime** | Manifests (`package.json`, `pyproject.toml`, `*.csproj`, `pom.xml`, `go.mod`, `Cargo.toml`, …) |
+| **Monorepo** | Workspaces (`pnpm-workspace`, npm/bun workspaces), Turbo/Nx/Lerna, multiple apps under `apps/` / `packages/` |
+| **Frontend** | `public/` / `static/`, UI framework configs, `components` / `pages` / `app` trees |
+| **Multi-service** | Repeated service roots, per-service Dockerfiles, gateway / broker config |
+| **Generated / vendor** | `node_modules/`, `dist/`, `build/`, `.next/`, `bin/`, `obj/` — exclude from the human map unless the team opts in |
+
+Record detected shape in the durable doc (or repo-root `AGENTS.md` **Repo map**). Prefer facts over aspirational trees.
+
+## Organizational principles (pick and stick)
+
+Document which principle organizes **most** of the tree — mixed trees need an explicit seam:
+
+| Principle | Folders group by… | Typical when |
+| --------- | ----------------- | ------------ |
+| **Layer** | `domain/` · `application/` · `infrastructure/` · `presentation/` | Hex / clean backends — pair with [`clean-ddd-hexagonal`](../skills/clean-ddd-hexagonal/SKILL.md) · [`architecture`](./architecture.mdc) · [`layers`](../references/engineering/layers.md) |
+| **Feature / vertical** | Feature name owns UI + API + tests nearby | Product UIs, modular monoliths |
+| **Domain / bounded context** | Context root, then layers inside | Multi-context monorepos — [`ddd-strategic`](../references/engineering/ddd-strategic.md) + clean-ddd layers per context |
+| **Type** | `components/`, `hooks/`, `utils/` | Small apps only — does not scale; avoid for new large surfaces |
+
+Repeated subtrees (every package same inner layout) are a feature — name the pattern once.
+
+## Durable blueprint (required for non-trivial repos)
+
+Keep one living doc the team actually updates (example paths: `docs/engineering/folder-structure.md`, `docs/design-monorepo.md`, or a section of root `AGENTS.md` **Repo map**). Minimum contents:
+
+1. **Overview** — principles, monorepo/service relationships
+2. **Visualization** — ASCII tree, nested list, or path table (depth enough to show seams; skip generated dirs by default)
+3. **Key directories** — purpose + content types + conventions per significant path
+4. **File placement** — where configs, models/DTOs, business logic, ports, tests, docs land
+5. **Naming** — file/folder case, role suffixes, module/namespace ↔ path mapping
+6. **Workflow** — entrypoints; where to add a feature / test / config change
+7. **Extension templates** (optional) — skeleton folders for new feature / component / service / test tree
+8. **Enforcement** — which validators or CI structure gates exist ([`ci-taxonomy`](./ci-taxonomy.mdc) Structure)
+
+Stamp **last updated** when the tree changes.
+
+## Placement & naming (agent defaults)
+
+When the durable doc is missing or silent:
+
+- Prefer **existing sibling paths** over new top-level folders
+- One architectural role per file when the repo uses dotted suffixes ([`custom-validators`](./custom-validators.mdc))
+- Cross-package imports only through published `public-api` (or equivalent) — [`architecture`](./architecture.mdc)
+- Co-locate tests with the convention already in use (colocate `*.test` vs `tests/` mirror) — do not mix styles in one package
+- Config / policy values: externalize per [`lint-strategy`](./lint-strategy.mdc); do not scatter env reads into deep packages
+
+## Enforcement
+
+| Layer | Mechanism |
+| ----- | --------- |
+| Docs | Durable blueprint + ADRs for intentional layout changes |
+| Diff review | New paths must match map or get an explicit map update |
+| Automated | Structure / naming / import-boundary validators ([`custom-validators`](./custom-validators.mdc)); registry checks in monorepos |
+| Agents | Treat layout drift like contract drift — fix path or amend the map; ⊥ silent second tree |
+
+No structure gate in CI yet? Review still owns new paths ([`ci-taxonomy`](./ci-taxonomy.mdc) § Adapt when missing).
+
+## Skills that use this rule
+
+| Skill | How |
+| ----- | --- |
+| [`setup-skills`](../skills/setup-skills/SKILL.md) | Detect layout; seed Repo map / docs pointers |
+| [`grill-with-docs`](../skills/grill-with-docs/SKILL.md) · [`domain-modeling`](../skills/domain-modeling/SKILL.md) | Seams follow context folders already on disk |
+| [`codebase-design`](../skills/codebase-design/SKILL.md) · [`improve-codebase-architecture`](../skills/improve-codebase-architecture/SKILL.md) | Deepening stays inside the map; propose layout change only when friction is structural |
+| [`clean-ddd-hexagonal`](../skills/clean-ddd-hexagonal/SKILL.md) | **Primary companion** for layer/port placement; “where does this code go?” → then map onto this blueprint |
+| [`build`](../skills/build/SKILL.md) · [`tdd`](../skills/tdd/SKILL.md) | New files land on mapped paths |
+| [`code-review`](../skills/code-review/SKILL.md) | Flag path/role violations on the diff |
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md) · **Ref:** [`folder-structure`](../references/engineering/folder-structure.md)

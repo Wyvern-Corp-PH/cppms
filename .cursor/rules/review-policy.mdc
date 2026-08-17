@@ -1,0 +1,36 @@
+---
+description: "Review severity & merge policy"
+alwaysApply: true
+id: review-policy
+title: "Review severity & merge policy"
+category: engineering
+order: 7
+---
+
+# Review severity & merge policy
+
+Prefix every blocking review comment with a tag:
+
+| Tag | Mergeable? | Meaning |
+| ------------ | ------------------------ | ------------------------------------------- |
+| `[CRITICAL]` | **No** | Production integrity, security, data loss |
+| `[HIGH]` | **No** | Architecture violation, untested core logic |
+| `[MED]` | Fix or ticket + sign-off | Maintainability, non-critical test gaps |
+| `[NIT]` | Yes | Optional polish |
+| `[FYI]` | Yes | Informational |
+
+Loop while `critical + high + med > 0` (exact policy is team choice; be consistent).
+
+## Compressed review format (optional)
+
+For high-volume agent or human review, one line per finding:
+
+```
+path:line: severity: problem. fix.
+```
+
+Severity emoji optional: bug / risk / nit / question. Parent paraphrases for humans; machines consume the contract.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

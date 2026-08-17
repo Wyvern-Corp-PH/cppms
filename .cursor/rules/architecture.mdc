@@ -1,0 +1,48 @@
+---
+description: Architecture guardrails
+alwaysApply: true
+id: architecture
+title: "Architecture guardrails"
+category: engineering
+order: 2
+---
+
+# Architecture guardrails
+
+Adapt depth to your architecture; these patterns transfer across stacks.
+
+Physical folders and placement conventions → [`folder-structure`](./folder-structure.mdc) · [`../references/engineering/folder-structure.md`](../references/engineering/folder-structure.md). Layer/port semantics for backends → [`clean-ddd-hexagonal`](../skills/clean-ddd-hexagonal/SKILL.md). This rule owns **dependency direction and entrypoints**; folder-structure owns **where files live**; clean-ddd owns **which layer** a unit belongs in.
+
+## Layered / hexagonal layout
+
+```
+domain/ — pure business rules, no framework imports
+application/ — use cases, ports
+infrastructure/ — DB, HTTP clients, queues
+presentation/ — controllers, UI, CLI
+public-api/ — only legal cross-module import surface
+```
+
+## Dependency rule
+
+Dependencies point **inward**. Outer layers implement interfaces defined by inner layers. Cross-module imports go through a published `public-api` (or equivalent), never deep imports into another module's internals.
+
+## Entrypoint pattern (HTTP / jobs / CLI)
+
+```
+parse input → validate → authorize (actor + tenant + resource) → one use case → map output
+```
+
+Authorization is a **separate step** from "record exists." Wrong scope returns the same error as not found.
+
+## Deferred-decisions ledger
+
+Park intentional incompleteness in a **registry** (not ticket IDs in code):
+
+- Row: what was deferred, why safe, owner, trigger to revisit
+- Code marker: `// deferred: DD-### — see <registry>`
+- Resolve the row when landing the work
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

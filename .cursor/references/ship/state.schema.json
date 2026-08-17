@@ -1,0 +1,147 @@
+{
+  "$id": ".cursor/references/ship/state.schema.json",
+  "title": "Ship run state.json",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "run_dir",
+    "spec_path",
+    "pipeline_mode",
+    "base_ref",
+    "phase",
+    "phase_name",
+    "status",
+    "phases",
+    "gates",
+    "frontier",
+    "done_units",
+    "updated_at"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "ticket_id": { "type": "string", "minLength": 1 },
+    "run_dir": { "type": "string", "pattern": "^\\.runs/ship/" },
+    "spec_path": { "type": "string" },
+    "pipeline_mode": { "enum": ["prd", "contract"] },
+    "base_ref": { "type": "string", "minLength": 1 },
+    "phase": { "type": "integer", "minimum": 0, "maximum": 9 },
+    "phase_name": {
+      "enum": [
+        "setup",
+        "ticket",
+        "branch",
+        "clarify",
+        "spec",
+        "slice",
+        "plan",
+        "execute",
+        "review",
+        "tests"
+      ]
+    },
+    "status": {
+      "enum": ["in-progress", "awaiting-human", "complete", "failed"]
+    },
+    "awaiting_human": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["reason", "question", "blocked_on", "asked_at"],
+          "properties": {
+            "reason": {
+              "enum": [
+                "ambiguous-scope",
+                "missing-ac",
+                "product-choice",
+                "credential",
+                "other"
+              ]
+            },
+            "question": { "type": "string" },
+            "blocked_on": { "type": "string" },
+            "asked_at": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "current_unit": { "type": ["string", "null"] },
+    "frontier": { "type": "array", "items": { "type": "string" } },
+    "done_units": { "type": "array", "items": { "type": "string" } },
+    "phases": {
+      "type": "object",
+      "required": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+      "additionalProperties": false,
+      "properties": {
+        "0": { "$ref": "#/$defs/phase_status" },
+        "1": { "$ref": "#/$defs/phase_status" },
+        "2": { "$ref": "#/$defs/phase_status" },
+        "3": { "$ref": "#/$defs/phase_status" },
+        "4": { "$ref": "#/$defs/phase_status" },
+        "5": { "$ref": "#/$defs/phase_status" },
+        "6": { "$ref": "#/$defs/phase_status" },
+        "7": { "$ref": "#/$defs/phase_status" },
+        "8": { "$ref": "#/$defs/phase_status" },
+        "9": { "$ref": "#/$defs/phase_status" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "setup_done",
+        "spec_approved",
+        "spec_review",
+        "design_done",
+        "design_audit",
+        "code_review",
+        "tests_green",
+        "verifier_pass"
+      ],
+      "properties": {
+        "setup_done": { "type": "boolean" },
+        "spec_approved": { "type": "boolean" },
+        "spec_review": { "$ref": "#/$defs/spec_counts" },
+        "design_done": { "type": "boolean" },
+        "design_audit": { "$ref": "#/$defs/sev_counts" },
+        "code_review": { "$ref": "#/$defs/sev_counts" },
+        "tests_green": { "type": "boolean" },
+        "verifier_pass": { "type": "boolean" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["data_systems_needed"] },
+          { "required": ["sd_needed"] },
+          { "required": ["design_needed"] }
+        ]
+      }
+    },
+    "skills_loaded": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "updated_at": { "type": "string" }
+  },
+  "$defs": {
+    "phase_status": {
+      "enum": ["pending", "active", "done", "skip"]
+    },
+    "sev_counts": {
+      "type": "object",
+      "required": ["critical", "high", "med"],
+      "properties": {
+        "critical": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "med": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "spec_counts": {
+      "type": "object",
+      "required": ["block", "harden", "note"],
+      "properties": {
+        "block": { "type": "integer", "minimum": 0 },
+        "harden": { "type": "integer", "minimum": 0 },
+        "note": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

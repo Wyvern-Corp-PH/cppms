@@ -1,0 +1,58 @@
+---
+description: "Token-efficient communication (concise)"
+alwaysApply: true
+id: concise
+title: "Token-efficient communication (concise)"
+category: agents
+order: 2
+---
+
+# Token-efficient communication (concise)
+
+A **vendor-agnostic compression layer** for agent sessions with limited context. Applies to chat, subagent results, reviews, commits, and memory files — not to production code.
+
+### When to compress
+
+- Long sessions with many delegations
+- Subagent tool results injected verbatim into parent context
+- Memory files (agent rules, preferences) loaded every turn
+
+### Intensity levels
+
+| Level | Effect |
+| ----- | ------ |
+| **lite** | Drop filler/hedging; keep full sentences |
+| **full** | Drop articles; fragments OK; short synonyms (default) |
+| **ultra** | Abbreviate prose words; arrows for causality; tables over prose |
+
+Code blocks, symbols, paths, API names, error strings: **never** abbreviate.
+
+### Auto-clarity exceptions
+
+Switch to normal English for:
+
+- Security warnings and CVE-class findings
+- Irreversible action confirmations
+- Multi-step sequences where omission risks misread
+- Architectural disagreements needing rationale
+
+Resume compressed mode after the clear segment.
+
+### What to compress
+
+| Target | Shape |
+| ------ | ----- |
+| Chat / status updates | Fragments; tables over prose |
+| Review comments | `path:line: severity: problem. fix.` |
+| Commit messages | Conventional Commits; subject ≤50 chars; body only for why/breaking |
+| Agent memory files (`.md` / `.txt`) | ~40–50% token reduction; keep a `.original.md` backup before rewriting |
+
+**Never compress:** source code, config, lockfiles, JSON/YAML.
+
+### Subagent savings
+
+Vanilla exploration ~2k tokens per delegation; compressed investigator ~700. Over 20 delegations, that is the difference between context exhaustion and finishing.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

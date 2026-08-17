@@ -1,0 +1,26 @@
+---
+description: Design goals
+alwaysApply: true
+id: design-goals
+title: "Design goals"
+category: foundations
+order: 1
+---
+
+# Design goals
+
+Good guardrails share these properties:
+
+| Property | Why it matters |
+| ------------------------- | ------------------------------------------------------------------------ |
+| **Progressive** | Legacy debt does not block all forward motion |
+| **Diff-aware** | Gates judge what _your change_ did, not the whole tree |
+| **Layered** | Cheap automation first; expensive human judgment on what remains |
+| **Documented ↔ enforced** | Every written standard maps to a check, a reviewer question, or both |
+| **Agent-friendly** | Machines get explicit contracts (schemas, severity tags, output formats) |
+| **Scoped fixes** | Never mass-rewrite unrelated files to get green |
+| **Spec-backed** | Build contracts are testable; bugs update the contract, not just the code |
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

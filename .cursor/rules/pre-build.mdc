@@ -1,0 +1,50 @@
+---
+description: Pre-build discipline
+alwaysApply: true
+id: pre-build
+title: "Pre-build discipline"
+category: sdd
+order: 2
+---
+
+# Pre-build discipline
+
+Reach-for skills — only when the change **earns** the ceremony (**right-size**). Ownership per [`contract-format`](../references/spec/contract-format.md); do not invent extra sections.
+
+## Grill — sharpen fuzzy ideas
+
+**When:** Idea is one sentence with holes; multiple readings of the goal; before NEW on anything non-trivial. **Not** for typos.
+
+**How:** One question at a time with a recommended answer. Climb: goal → done criteria → out-of-scope → locks → surfaces → edge case → unknowns. Stop when §G/§C would be unambiguous.
+
+**Output:** Sharp §G + §C (propose; write on OK per ownership). Never guess — park unknowns as `?`.
+
+## Research — external oracle
+
+**When:** Decision hinges on library behavior, API version, or domain prior art you are unsure of.
+
+**How:** Scope 1–3 concrete questions → primary sources → one concise line + citation per §R row.
+
+**Rule:** No source → flag `?`, never write a guess as fact. Conflicting sources → log both; user picks. Build must not re-derive §R facts from memory.
+
+## Review — adversarial spec refutation (`code-review` skill)
+
+**When:** High blast-radius change (auth, money, shared modules, public API); §I or §V other code depends on.
+
+**How:** Skeptic anchored to codebase + §R + live docs. **Refute** — do not rubber-stamp. Axes: §G vs reality, missing §V, §I drift (cite caller file:line), §C conflicts, unowned edges, §T altitude.
+
+**Severity:** BLOCK (must fix) / HARDEN (draft §V) / NOTE. Evidence or `[unverified]`.
+
+**Gate:** Explicit GO or NO-GO — never a shrug. Hardens §V; no silent full-spec rewrite.
+
+## Deepen — optional design pass (`codebase-design` skill)
+
+**When:** Build is green, spare budget, module interface as complex as its implementation (shallow smell).
+
+**How:** One shallow module → diagnose (file:line) → deeper pattern → propose simpler §I + §V (+ §T if needed) → tests green before and after.
+
+**Rule:** One module per pass. Never mid-feature or under deadline. Behavior is sacred.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

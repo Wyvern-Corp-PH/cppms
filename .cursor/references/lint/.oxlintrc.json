@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import"],
+  "env": {
+    "builtin": true
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "warn",
+    "style": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "complexity": ["warn", { "max": 10 }],
+    "max-depth": ["warn", { "max": 1 }],
+    "max-lines": ["warn", { "max": 300 }],
+    "max-lines-per-function": ["warn", { "max": 50, "skipBlankLines": true, "skipComments": true }]
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.turbo/**",
+    "**/node_modules/**"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.{test,spec}.{ts,tsx,js,jsx}", "**/tests/**", "**/__tests__/**"],
+      "env": {
+        "vitest": true
+      },
+      "rules": {
+        "max-lines-per-function": [
+          "warn",
+          { "max": 100, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    }
+  ]
+}

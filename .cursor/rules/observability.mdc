@@ -1,0 +1,42 @@
+---
+description: "Observability & logging"
+alwaysApply: true
+id: observability
+title: "Observability & logging"
+category: engineering
+order: 4
+---
+
+# Observability & logging
+
+## Wide events (canonical log lines)
+
+Emit **one context-rich structured event per request per service hop** — not scattered log lines through the handler.
+
+| Principle | Detail |
+| --------- | ------ |
+| **Single event** | Consolidate timing, status, business context at request completion (`finally`) |
+| **High cardinality** | Include user IDs, request IDs — enables querying specific failures |
+| **High dimensionality** | Many fields per event — answer questions you have not anticipated |
+| **Business context** | Subscription tier, cart value, feature flags — not just HTTP status |
+| **Environment** | Commit hash, service version, region, instance ID on every event |
+| **Single logger** | One configured instance imported everywhere |
+| **Two levels** | `info` and `error`; JSON only; no unstructured strings |
+
+## Middleware pattern
+
+Middleware owns timing, status, environment, emission. Handlers add business fields only.
+
+## Anti-patterns
+
+- Multiple `console.log` / logger calls per request
+- Different logger instances per file
+- Missing deployment context
+- Logging technical details without user/business data
+- Inconsistent field names across services
+
+Propagate request IDs across service boundaries. Connect hops with the same correlation ID.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

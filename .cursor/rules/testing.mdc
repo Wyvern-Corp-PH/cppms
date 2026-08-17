@@ -1,0 +1,47 @@
+---
+description: Testing strategy
+alwaysApply: true
+id: testing
+title: "Testing strategy"
+category: engineering
+order: 6
+---
+
+# Testing strategy
+
+## Pyramid
+
+| Level | Share | Dependencies |
+| ----------- | ----- | --------------------------------------------- |
+| Unit | Most | All external I/O mocked |
+| Integration | Some | Real DB or sandbox; mock third parties |
+| E2E | Least | Full path; mock only uncontrollable externals |
+
+## Decision tree
+
+```
+External integration contract? → Integration tests
+Pure business logic? → Unit tests
+Full user journey? → E2E
+UI component? → Component tests + API mocks
+Database touched? → Factories + isolated cleanup per test run
+```
+
+## Conventions
+
+- Name: `should <outcome> when <condition>`
+- Structure: Arrange → Act → Assert
+- Multi-tenant / multi-user: unique isolated fixture per run; tear down in `afterAll`
+- Invariant-linked tests: name after behavior (`should_refund_idempotently`) — **⊥** `TestV7_*` / `§V` in product test names
+
+## E2E essentials
+
+- Test user behavior, not implementation
+- Stable selectors: `data-testid`, roles, labels — not CSS classes or `nth-child`
+- Independent tests; deterministic; proper waits (not fixed sleeps)
+- Page objects for shared navigation; clean up test data per run
+- Mock external APIs when possible; parallelize in CI
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

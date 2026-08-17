@@ -1,0 +1,157 @@
+---
+description: >
+  Contract mode (spec-driven development). One file, one loop, zero sub-agents
+  for the core. Schema authority: references/spec/contract-format.md. Skills:
+  contract / build / contract-check / contract-backprop.
+alwaysApply: true
+id: contract-mode
+title: "Contract mode — spec-driven development"
+category: sdd
+order: 1
+---
+
+# Contract mode — spec-driven development
+
+One file · one loop · **zero sub-agents for the core**. Schema authority is [`../references/spec/contract-format.md`](../references/spec/contract-format.md) — read it before writing any contract. This rule is the pattern summary; **the schema reference wins on disputes**.
+
+**Spine:** durable `SPEC.md` (survives context reset) · **concise encoding** (~75% fewer tokens than prose) · **backprop reflex** (fail → §B + often §V) · **right-size** (ceremony scales to blast radius, not ego).
+
+**Two contract modes in this pack — pick one per effort:**
+
+| Mode | Artifact | Skills | Use when |
+| ---- | -------- | ------ | -------- |
+| **Contract** | `SPEC.md` — §G…§B invariants | [`contract`](../skills/contract/SKILL.md) · [`build`](../skills/build/SKILL.md) · [`contract-check`](../skills/contract-check/SKILL.md) · [`contract-backprop`](../skills/contract-backprop/SKILL.md) | Invariants matter; long-running effort; drift audits wanted |
+| **PRD** | Product doc → tickets | [`spec`](../skills/spec/SKILL.md) → [`to-tickets`](../skills/to-tickets/SKILL.md) → `build` | Feature work sliced into tracker tickets |
+
+⊥ mix them in one effort. ⊥ invent a third format. Unsure → [`ask`](../skills/ask/SKILL.md).
+
+**Not core (still available):** `/ship` orchestration, [delegation](./delegation.mdc) subagents, [design](./design.mdc) specialists. Those must **not** invent a second contract format — when they touch a contract they use §G…§B at the active `spec_path`.
+
+## Why contract mode beats plan-then-execute
+
+| Plan-then-execute | Contract mode |
+| ----------------- | ------------- |
+| Fixes code, forgets the lesson | **Backprop** — §B row + optional new §V |
+| Contract and code drift silently | **Check** — read-only §V / §I / §T report |
+| Agent swarm + dashboards | **One thread** — reading `SPEC.md` is the dashboard |
+| Retry on failure without updating intent | Fail → classify → update contract → resume build |
+| Prose contract burns tokens every turn | **Concise** symbols + pipe tables |
+
+## Build contract — addressable sections
+
+Fixed order. Address as `§V.2`, `§T.3`, etc. Full schema + symbols → [`../references/spec/contract-format.md`](../references/spec/contract-format.md).
+
+| Section | Holds | Notes |
+| ------- | ----- | ----- |
+| **§G** Goal | One-line outcome | Concise fragment |
+| **§C** Constraints | Non-negotiables, locks | Bullets |
+| **§I** Interfaces | External surface (cmd / api / file / env) | What the world sees |
+| **§R** Research | Sourced external facts | Optional; only if research ran |
+| **§V** Invariants | Numbered testable rules | Each ! must hold; build names proving test |
+| **§T** Tasks | Pipe table: id \| status \| task \| cites | `.` → `~` → `x`; cites §V / §I |
+| **§B** Bugs | Backprop log | Cause + fix / invariant that catches recurrence |
+
+## Sectioned ownership
+
+No verb rewrites a section it does not own (kills “tool deleted my contract”):
+
+| Verb | Writes |
+| ---- | ------ |
+| **grill** | §G + §C (propose; write on OK) |
+| **contract** | Sole general editor — NEW all; AMEND named; bug → §B + §V |
+| **research** | Appends §R only |
+| **code-review** | Hardens §V (+ report; no silent full rewrite) |
+| **build** | §T status cell only |
+| **codebase-design** (deepening) | Proposes §I + §V + §T (write on OK) |
+| **contract-check** | Read-only |
+
+Cross-cutting edits → **contract**. Compacting oldest §B when the file exceeds ~500 lines → **contract** (show diff first).
+
+## Right-size
+
+| Change | Ceremony |
+| ------ | -------- |
+| One-line / typo / obvious local fix | Just **build** (or fix + §B if it was a bug) |
+| New feature touching shared surface | **grill** → **contract** → **code-review** before build |
+| Unknown library / API version | **research** → §R before build assumes facts |
+| Uncertain or high blast-radius | Full grill → contract → research → review → build |
+| Green build, spare budget, one shallow module | **codebase-design** deepening (optional) |
+
+⊥ full chain for a typo. Skip any verb that costs more attention than the change is worth.
+
+## Skill chain
+
+```
+idea → [grill] → contract (NEW) → human OK? → [research] → [review] → build → all §T x
+                        ↑                                                ↓ fail
+        amend / contract-backprop ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+                        ↑
+        contract-check (read-only drift audit, anytime)
+```
+
+| Skill | Mutates contract? | When |
+| ----- | ----------------- | ---- |
+| **contract** | Yes — sole general mutator | NEW, AMEND, DISTILL, BACKPROP / bug |
+| **build** | §T status only | Plan→execute; names which test proves each touched §V |
+| **contract-check** | Never | Drift report on §V / §I / §T |
+| **contract-backprop** | Via `contract` | Test fail, bug report, check VIOLATE with known cause |
+
+**The loop runs single-thread — no sub-agents.** Main context owns plan and edits. Sub-agents elsewhere (delegation, `/ship` phase agents, data-systems) do not replace this loop.
+
+## Contract modes
+
+| Mode | Trigger | Action |
+| ---- | ------- | ------ |
+| **NEW** | Greenfield idea or ticket | Write full contract per the schema reference; show user; wait for OK |
+| **DISTILL** | Existing codebase, no contract | Infer §G/§C/§I/§V from code/tests |
+| **AMEND** | Targeted edit | Change only the named section; show diff |
+| **BACKPROP** | `bug:` prefix or failed verification | §B row → prefer new §V → optional §T update |
+
+**Rules:**
+
+- IDs monotonic — never reuse §V / §T / §B / §R ids.
+- Every bug gets a §B row; a new §V is optional but preferred.
+- Build never silently fixes contract gaps — backprop when the failure is (b) contract wrong or (c) unspecified edge.
+- No auto-build after a contract write. The human confirms, then invokes build.
+- Commits/PRs: plain Conventional Commits describing behavior — **⊥** `§T.n` / `§V.n` / `Tn` / `Vn` in git history (those stay in the contract and agent chat).
+
+## Build loop
+
+1. Read the contract at the active path (`SPEC.md`, or `/ship` `spec_path`). Missing → defer to **contract**.
+2. Load the schema reference once if not in context.
+3. **Plan** — cite every applicable §V and §I; list files + tests; **name the verification command that proves each touched §V**.
+4. **Execute** per §T: `.` → `~` → edit → verify → `x` or backprop.
+5. A task is `x` only when verification exits 0 and tests cover the cited invariants.
+6. **Commit** after each completed task (plain Conventional Commits).
+
+## Check (drift audit)
+
+Read-only. Classifies each §V: **HOLD** / **VIOLATE** / **UNVERIFIABLE**. Each §I: **MATCH** / **DRIFT** / **MISSING** / **EXTRA**. Each done §T: evidence or **STALE**.
+
+Ends with remedy hints (invoke **contract** or **build**) — never auto-fixes.
+
+## Backprop (the differentiator)
+
+Six steps on every meaningful failure:
+
+1. **Trace** — `file:line` of wrong behavior; one-sentence root cause.
+2. **Analyze** — would a new §V catch this class? Is §I wrong? Is §T wrong?
+3. **Propose** — §B row + draft §V (testable, positive, concise).
+4. **Generate test** — an invariant without a test is fiction; name the test after the **behavior** (⊥ `§V` ids in product test names).
+5. **Verify** — fix code; test green; full suite green.
+6. **Log** — one commit: contract + test + fix.
+
+Skip a new §V only for one-off typos, one-time migrations, or external-dependency issues (still log §B).
+
+## Good invariant shape
+
+| Bad | Good (concise) |
+| --- | -------------- |
+| "Code should be correct" | `V1: ∀ DB query → parameterized bindings — ⊥ string-concat user input` |
+| "Handle errors" | `V2: ∀ HTTP handler → domain err → typed response — ⊥ empty catch` |
+
+Invariants are grep-able or assert-able, scoped to behavior, and cite §I where they apply.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md) · **Schema:** [contract-format](../references/spec/contract-format.md)

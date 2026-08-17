@@ -1,0 +1,39 @@
+# Ruff — pack preset (lint + format). Copy to repo root as `ruff.toml`
+# or merge under [tool.ruff] in pyproject.toml.
+#
+# Aligns with rules/lint-strategy.mdc § Recommended thresholds (warn burn-down).
+# Pre-commit: `ruff check --fix` then `ruff format` on staged paths only.
+
+target-version = "py312"
+line-length = 100
+extend-exclude = ["dist", "build", "coverage", ".venv", "venv"]
+
+[lint]
+select = [
+  "E", # pycodestyle
+  "F", # pyflakes
+  "I", # isort
+  "UP", # pyupgrade
+  "B", # bugbear
+  "SIM", # simplify
+  "C90", # mccabe complexity → 10
+  "PLR", # pylint refactor (nesting / statements)
+]
+ignore = []
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+max-nested-blocks = 1
+max-statements = 50
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "PLR0915"]
+"**/test_*.py" = ["S101", "PLR0915"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"

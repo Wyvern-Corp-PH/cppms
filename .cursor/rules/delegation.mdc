@@ -1,0 +1,100 @@
+---
+description: "Agent workflow: compressed delegation (delegation)"
+alwaysApply: true
+id: delegation
+title: "Agent workflow: compressed delegation (delegation)"
+category: agents
+order: 4
+---
+
+# Agent workflow: compressed delegation (delegation)
+
+A **vendor-agnostic pattern** for token-efficient subagent use when the main session has limited context.
+
+### Problem it solves
+
+Subagent outputs inject **verbatim** into the parent context. Prose-heavy exploration (2k tokens) × 20 delegations exhausts the session. Structured compressed output (~⅓ size) preserves budget.
+
+### Three roles
+
+| Role             | When to use                         | Avoid when                            |
+| ---------------- | ----------------------------------- | ------------------------------------- |
+| **Investigator** | Find definitions, callers, usages   | You need long architecture essays     |
+| **Builder**      | Surgical edit, ≤2 files, site known | Scope unknown or 3+ files             |
+| **Reviewer**     | Diff/file bug hunt                  | You want design alternatives in prose |
+
+**Rule of thumb:** need compressed facts → investigator/builder/reviewer pattern. Need readable rationale → full prose reviewer.
+
+### Output contracts (implement in your agent prompts)
+
+**Investigator:**
+
+```
+<topic>:
+- path:line — `symbol` — note
+totals: N files, M refs.
+```
+
+Or: `No match.`
+
+**Builder:**
+
+```
+path:start-end — <≤10 word change summary>.
+verified: OK | mismatch @ path:line.
+```
+
+Terminal: `too-big.` | `needs-confirm.` | `ambiguous.` | `regressed.`
+
+**Reviewer:**
+
+```
+path:line: severity: problem. fix.
+totals: N critical, M high, …
+```
+
+Or: `No issues.`
+
+Parent agent **aggregates and paraphrases** for humans; contracts are for machines.
+
+### Chaining
+
+**Locate → fix → verify** (default):
+
+1. Investigator → sites
+2. Parent picks 1–2 → Builder
+3. Reviewer on diff
+
+**Parallel scout:** 2–3 investigators (defs / callers / tests) in one parent message.
+
+**Single-shot:** site known → skip investigator → Builder directly.
+
+### SDD + delegation together
+
+| Activity | Thread |
+| -------- | ------ |
+| contract / build / contract-check / contract-backprop / grill / research / code-review / codebase-design | Main thread — no delegation (zero sub-agents in the core loop) |
+| Find touch sites before build | Investigator |
+| Tiny fix, path known, ≤2 files | Builder |
+| Mid-build diff audit | Reviewer |
+| Mandatory post-build review | Main thread code-review skill or compressed reviewer |
+
+Do not use delegation to rewrite §G…§B — that is contract-section ownership.
+
+### Anti-patterns
+
+- Builder without known file path
+- Investigator → Builder for large refactors (Builder returns `too-big.`)
+- Reviewer asked for "general feedback"
+- Feeding compressed output raw to end users
+- Delegation for contract writes or task execution
+
+### Clarity exception
+
+Switch to normal English for security warnings, irreversible actions, and any line where terseness could be misread.
+
+---
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

@@ -1,0 +1,24 @@
+---
+description: "Unified design specialist — always on with /ship"
+alwaysApply: true
+id: design
+title: "Design (data + architecture)"
+category: workflow
+order: 11
+---
+
+# Design rule (always apply)
+
+Always enforced with the rest of `.cursor/rules/`.
+
+1. Prefer **`/ship`** (`commands/ship.md`) — Design is a ship specialist, not a second trunk
+2. **Mandatory** on every ship run: Phase 6 design + Phase 8 audit (always on — no skip flag)
+3. Sole command is **`/ship`** — no thin specialist slash commands
+4. Read `skills/design/SKILL.md` — follow ship phase map
+5. Dispatch **design-architect** / **design-auditor** per ship phases 6 and 8
+6. Agents load `references/data-systems/NN-*.md` and `references/system-design-101/part*-*.md` (cite Fig X-Y / topic ids). Smells → `references/refactoring/` on demand
+7. Paraphrase agent output into `design_design.json` / `design_audit.json`
+8. Concise **full**; security/data-loss → clear English first
+9. No data or arch surface → still write short `design_design.json` (`data.pick: n/a` + `arch.pick: n/a`) + audit pass
+
+Diagrams = ASCII only. Design agents are read-only; code edits → builder / ship-execute.

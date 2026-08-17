@@ -1,0 +1,60 @@
+---
+description: "Pack subagent roster — when to delegate"
+alwaysApply: true
+id: subagents
+title: "Subagent delegation (this pack)"
+category: agents
+order: 0
+---
+
+# Subagent delegation (this pack)
+
+**Pattern topics** → [`delegation.mdc`](./delegation.mdc) · [`ship.mdc`](./ship.mdc) · [`design.mdc`](./design.mdc) · [`simplicity.mdc`](./simplicity.mdc) · [`stacking-prs.mdc`](./stacking-prs.mdc). **Presets** → [`../agents/`](../agents/).
+
+**Pack entry** → [`../AGENTS.md`](../AGENTS.md).
+
+## Tier 1 — delegation / verify
+
+| Subagent | Delegate when | Never use for |
+| -------- | ------------- | ------------- |
+| **investigator** | Find defs/callers/usages; map directory | Fixes, PRD/spec, design |
+| **builder** | ≤2 files, path known, surgical edit | 3+ files, features, pack `/spec`/`/build` outside ship-execute |
+| **diff-reviewer** | Compressed diff bug hunt | Dual Standards+Spec axes |
+| **verifier** | Task marked done; handoff; "does this work?" | New features |
+| **ci-investigator** | CI / local check failure (background OK) | Fix without report first |
+
+## Tier 2 — `/ship` specialists
+
+Orchestrator (`commands/ship.md`) **dispatches**; does not inline phase work.
+
+| Subagent | Phase | Notes |
+| -------- | ----- | ----- |
+| **ship-setup** | 1–2 Ticket + Branch | `ticket.json` + prefixed branch; `base_ref` |
+| **ship-spec** | 4 Spec/PRD | Draft only; human OK is parent |
+| **ship-spec-review** | 4 Review | GO/NO-GO → `plan_review.json` |
+| **design-architect** | 6 Plan | **Mandatory** → `design_design.json` · `gates.design_done` |
+| **ship-execute** | 7 Execute (+ 8 fix mode) | build/tdd/simplicity; **commit when done**; apply review fixes |
+| **ship-review** | 8 Review | **Mandatory** axes: ac · quality · simplicity → `code_review.json` |
+| **design-auditor** | 8 Review | **Mandatory** → `design_audit.json` (data + arch + optional smells) |
+| **ship-verify** | 9 Tests + QA | `tests.json` + `qa-notes.md` |
+
+**Design** = unified ship specialist (skill `skills/design/`, refs `references/data-systems/` + `references/system-design-101/` + on-demand `references/refactoring/`). Sole command `/ship`. After sites known, code fix → **builder** / **ship-execute**.
+
+## Ad-hoc dual review
+
+Skill `skills/code-review/` may spawn parallel Standards + Spec reviews via **main-thread** or **ship-review** sections — ⊥ same wave as Phase 8 `ship-review` + `design-auditor`.
+
+## Hard rules
+
+- **Investigator before builder** when path unknown.
+- **Paraphrase** compressed / phase-agent output for humans.
+- **Auto-clarity** for security and irreversible ops.
+- **Grill / to-tickets / ask** stay main-thread skills (not subagents).
+- **Contract mode mutators** outside `/ship`: main-thread skills only (`contract`, `contract-backprop`).
+- Inside `/ship`: `ship-spec` is the phase writer; still one mutator at a time.
+- Compressed bug-only → **diff-reviewer**.
+- Design → **`/ship`** always runs `design-*` in phases 6 + 8 (no skip flag).
+- Phase 8 set: **`ship-review` + `design-auditor`** **or** ad-hoc dual Standards+Spec — never both same wave.
+- Multi-layer land → **`stacking-prs`** skill (no dedicated agent).
+
+Update this table when adding/removing files in `agents/`.

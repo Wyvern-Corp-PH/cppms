@@ -1,0 +1,39 @@
+---
+description: The three-layer quality model
+alwaysApply: true
+id: quality-model
+title: "The three-layer quality model"
+category: foundations
+order: 2
+---
+
+# The three-layer quality model
+
+**Do not rely on documentation alone.** Run three cooperating layers:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Layer 3 — Process discipline │
+│ Branch names, PR titles, build contract, ledgers │
+├─────────────────────────────────────────────────────────┤
+│ Layer 2 — Human review │
+│ Checklists, severity-tagged comments, ownership │
+├─────────────────────────────────────────────────────────┤
+│ Layer 1 — Automated checks │
+│ Linter, types, tests, diff ratchets, custom validators │
+└─────────────────────────────────────────────────────────┘
+```
+
+| Layer | Catches | Typical tools |
+| ------------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| **Automated** | Style, types, tests, naming, config literals, structural drift | ESLint, Biome, Ruff, `tsc`, custom CI scripts |
+| **Human** | Architecture fit, business logic, security judgment, intent | PR review with tagged severity |
+| **Process** | Wrong merge target, silent debt, untracked deferrals | Branch rules, PR templates, decision registries |
+
+**Invariant:** If a rule exists in docs but no layer owns it, the rule is fiction.
+
+**SDD sits across layers:** the build contract (see below) is the human-readable source of truth; automated checks and review both trace back to it.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

@@ -1,0 +1,35 @@
+---
+description: Security guardrails
+alwaysApply: true
+id: security
+title: "Security guardrails"
+category: engineering
+order: 3
+---
+
+# Security guardrails
+
+Treat these as **merge blockers** regardless of stack:
+
+| Area | Requirement |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| **Authorization** | Every entrypoint validates actor + scope + resource before side effects |
+| **Multi-tenant isolation** | Scope column on every tenant row; every query filters; cache/storage key prefixes |
+| **Secrets** | Never in source, tests, examples, logs, or chat; inject at deploy |
+| **PII** | Classify fields; redact in logs/traces/errors by tier |
+| **Input** | Schema validation on all external input; explicit length/range/enum bounds |
+| **Queries** | No string interpolation of untrusted input into SQL/NoSQL paths |
+| **Dependencies** | Audit critical/high CVEs on a fixed SLA |
+
+## Data classification (four tiers)
+
+| Tier | Examples | Handling |
+| ------------ | ---------------------------------- | --------------------------------------- |
+| Confidential | Passwords, tokens, PAN, API keys | Never store/log plaintext |
+| Restricted | Email, phone, government ID | Encrypt sensitive columns; mask in logs |
+| Internal | IDs, slugs, correlation IDs | Plain storage; log-safe |
+| Public | Names, addresses in public catalog | Plain; log-safe |
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

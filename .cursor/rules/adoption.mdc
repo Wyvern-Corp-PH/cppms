@@ -1,0 +1,77 @@
+---
+description: Adoption checklist
+alwaysApply: true
+id: adoption
+title: "Adoption checklist"
+category: reference
+order: 1
+---
+
+# Adoption checklist
+
+Use this to roll out guardrails in **any** repo:
+
+## Phase A — Document policy (week 1)
+
+- [ ] Single coding standards doc (KISS, naming, errors, config)
+- [ ] Durable **folder-structure blueprint** (principles, path map, placement, naming) — [`folder-structure`](./folder-structure.mdc) · [`../references/engineering/folder-structure.md`](../references/engineering/folder-structure.md)
+- [ ] Security tier list + authorization rules
+- [ ] Testing pyramid + naming
+- [ ] Review severity tags defined
+- [ ] Agent rules mirror docs (if using AI assistants)
+
+## Phase B — Lint visibility (weeks 2–3)
+
+- [ ] Run `/setup-skills` § Lint & format — prefer **Oxlint + Oxfmt** from [`references/lint/`](../references/lint/README.md)
+- [ ] Migrating ESLint / Prettier / Biome? → `/migrate-oxlint` · `/migrate-oxfmt`
+- [ ] Enable strict rules at `warn` globally
+- [ ] Measure warning count per package
+- [ ] Split shared preset modules (one concern each) when using ESLint modular presets
+- [ ] Pre-commit on staged files (lefthook + lint-staged; stricter than global)
+- [ ] Scoped lint/format documented in `docs/agents/lint.md`
+
+## Phase C — Diff ratchet (weeks 4–5)
+
+- [ ] CI job: lint changed files vs merge-base
+- [ ] Layer 1: block new violations + count increases
+- [ ] Layer 2: boy-scout K with waiver escape hatch
+- [ ] Playbook for merge hygiene
+- [ ] Local run script with `BASE_REF` / `HEAD_REF`
+
+## Phase D — Custom validators (weeks 6–8)
+
+- [ ] File suffix or module boundary checker (if applicable)
+- [ ] Folder-placement / structure check against the blueprint (if applicable)
+- [ ] Config-literal scanner on added lines
+- [ ] Unit tests for classifiers
+- [ ] `ci:*` local aliases
+
+## Phase E — Contract mode (weeks 7–9)
+
+- [ ] Team has read [`contract-format`](../references/spec/contract-format.md) (§G §C §I §R §V §T §B + ownership + right-size)
+- [ ] Active `SPEC.md` uses that schema (concise; no prose-only contracts)
+- [ ] contract / build / contract-check / contract-backprop (+ grill / research / code-review / codebase-design as reach-for)
+- [ ] Right-size: typo → build only; high blast → grill + code-review first
+- [ ] Backprop protocol on test failure (§B + prefer new §V)
+- [ ] One pilot feature end-to-end through the chain (main thread — no sub-agents for the core loop)
+
+## Phase F — Agent workflows
+
+- [ ] Repo-root `AGENTS.md` from [`agents-root-template`](../references/pack/agents-root-template.md) — bootstrap, repo map, commands, learned facts
+- [ ] `.cursor/rules/` — all pack `*.mdc` installed and always-on
+- [ ] Skills under `.cursor/skills/<slug>/` (no parallel skill tree)
+- [ ] `/ship` orchestrator at `.cursor/commands/ship.md` + JSON run state
+- [ ] `.cursor/agents/` — subagent presets installed; delegation policy read
+- [ ] Compressed subagent output contracts honored (parent paraphrases for humans)
+- [ ] Run directory + resume semantics exercised once
+- [ ] Concise communication enabled for long sessions
+- [ ] Env branches + Release Please path documented (`dev`/`staging`/`main`) — [`release-lifecycle`](../references/ship/release-lifecycle.md); rebase-and-merge into `dev`
+
+## Phase G — Promote warn → error (ongoing)
+
+- [ ] Per-package promotion when warning count hits zero for N weeks
+- [ ] Track in engineering metrics / burn-down board
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

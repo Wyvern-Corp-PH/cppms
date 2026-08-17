@@ -1,0 +1,134 @@
+---
+description: "Agent skill library layout"
+alwaysApply: true
+id: skill-library
+title: "Agent skill library layout"
+category: agents
+order: 1
+---
+
+# Agent skill library layout
+
+A **vendor-agnostic layout** for encoding team knowledge so AI assistants invoke the right procedure at the right time. In this pack: **skills** → `.cursor/skills/<slug>/`, **rules** → `.cursor/rules/<slug>.mdc`, **agents** → `.cursor/agents/<name>.md`, **commands** → `.cursor/commands/`. Workflow topics (`ship`, `concise`, `simplicity`, `delegation`, `skill-library`) live under `rules/`; Cursor subagent presets live under `agents/`.
+
+### Root `AGENTS.md` (required)
+
+Every repo using this layout needs a **root `AGENTS.md`** — the agent's entry point. It is repo-specific and self-maintaining; the transferable patterns stay in this pack's `rules/`.
+
+| File | Scope | Agent updates? |
+| ---- | ----- | -------------- |
+| **Repo root `AGENTS.md`** | Bootstrap order, repo map, commands, learned facts | Yes — append discoveries |
+| **`.cursor/rules/<slug>.mdc`** | Transferable patterns (lint, contract mode, security, …) | Propose via PR only |
+| **`.cursor/skills/<slug>/`** | Procedures (`SKILL.md` + companions) | Propose new skills |
+
+Root `AGENTS.md` must include: bootstrap checklist, doc hierarchy, delivery pipeline with skill paths, decision router, **Repo map** (TODO rows agents fill), **Learned facts** (append-only), and **Self-maintenance** rules (when to update which section). Start from [`references/pack/agents-root-template.md`](../references/pack/agents-root-template.md).
+
+Agents read root `AGENTS.md` first every session, then [`../AGENTS.md`](../AGENTS.md) for pack routing — never duplicate a rule's body into either file.
+
+### Directory layout (this pack)
+
+```
+.cursor/
+  AGENTS.md                 # pack entry: pipelines, indexes, operating rules
+  agents/<name>.md          # Cursor subagent presets
+  commands/ship.md          # sole command
+  rules/<slug>.mdc          # topics + workflow + subagents.mdc (all always-on)
+  skills/<slug>/SKILL.md
+  references/<cat>/<slug>.md  # deep refs: spec/, ship/, engineering/, data-systems/, system-design-101/, refactoring/, lint/, pack/
+```
+
+Register skills in your assistant's skill manifest pointing at `.cursor/skills/<slug>/SKILL.md`.
+
+### Skill taxonomy
+
+| Tier | Purpose | Examples |
+| ---- | ------- | -------- |
+| **Delivery trunk** | Idea → PRD → tickets → code | grill, spec, to-tickets, build, tdd, code-review |
+| **Contract lifecycle** | Durable `SPEC.md` mode | contract, contract-check, contract-backprop |
+| **On-ramps** | Enter the trunk from a queue or a bug | triage, wayfinder, diagnosing-bugs, handoff |
+| **Design** | Vocabulary before restructuring | codebase-design, clean-ddd-hexagonal, domain-modeling · rule [`folder-structure`](./folder-structure.mdc) |
+| **Discipline** | YAGNI + token efficiency | simplicity (+ review/audit/debt companions) |
+| **Quality** | Cross-cutting standards | logging-best-practices, design |
+| **Landing** | Reviewable PR delivery | stacking-prs (`gh stack`; layer budgets) |
+| **Stack** | Framework/tool depth (opt-in per repo) | Per-language folders with `references/` subdocs |
+
+**Rule:** Core and pre-build skills are stack-agnostic. Stack skills are opt-in per repo — install only what you use.
+
+### SKILL.md anatomy
+
+Each skill file declares:
+
+```yaml
+---
+name: skill-id
+description: |
+  When to trigger (phrases, conditions). What it does NOT do.
+---
+```
+
+Body sections: **WHEN**, **STEPS**, **OUTPUT SHAPE**, **BOUNDARIES**, **NON-GOALS**.
+
+### Single-responsibility boundaries
+
+Section ownership detail → [`contract-format`](../references/spec/contract-format.md). Summary:
+
+| Skill | Contract writes | May write code? | May delegate? |
+| ----- | --------------- | --------------- | ------------- |
+| contract | Sole general editor (NEW / AMEND / §B+§V on bug) | No | No |
+| build | §T status only | Yes | No |
+| contract-check | None (read-only) | No | No |
+| contract-backprop | Via `contract` | Yes (fix + test) | No |
+| grill | §G + §C on OK | No | No |
+| research | Append §R | No | Optional gather |
+| code-review | None (report only) | No | Yes (review axes) |
+| delegation | None | Builder only, ≤2 files | Yes |
+
+**Contract lifecycle:** no sub-agents. Delegation / `/ship` are separate Cursor surfaces — they must not bypass section ownership.
+
+Violating boundaries causes drift — the contract says one thing, code another, and no skill owns the fix.
+
+### Stack skill pattern
+
+Framework skills follow progressive disclosure:
+
+1. **SKILL.md** — when to use, guardrails, output contract, link to references
+2. **references/** — deep docs loaded only when needed (keeps main context small)
+3. **rules/** (optional) — one file per lintable pattern
+
+Entry-point skill maps commands to specialized skills (e.g. "daily workflow" → "migrations" + "functional tests").
+
+### Agent presets (`.cursor/agents/`)
+
+This pack ships **Tier 1** Cursor subagents under [`../agents/`](../agents/). Workflow essays stay rules: `ship`, `concise`, `delegation`, `skill-library`.
+
+Each subagent file uses YAML frontmatter:
+
+```yaml
+---
+name: investigator
+description: When to delegate — be specific; Agent reads this to auto-delegate
+model: inherit          # or a model ID, e.g. claude-opus-4-8[effort=high]
+readonly: true          # no file edits
+is_background: false    # true = non-blocking parallel work
+---
+```
+
+Delegation rules for the parent agent live in **[`subagents.mdc`](./subagents.mdc)** (`alwaysApply: true`).
+
+| Preset | readonly | Typical use |
+| ------ | -------- | ----------- |
+| investigator | yes | file:line search |
+| builder | no | ≤2 file surgical edit |
+| diff-reviewer | yes | diff audit |
+| verifier | yes | post-build check |
+| ci-investigator | yes | CI log root cause (background) |
+| ship-setup / ship-spec / ship-spec-review / ship-execute / ship-review / ship-verify | varies | `/ship` phases |
+| design-architect / design-auditor | yes | Phase 6 design · Phase 8 design audit |
+
+Stack specialists (Symfony, Doctrine, …) are optional at the consuming repo — not in this pack.
+
+Built-in Cursor subagents (`explore`, `bash`, `browser`) need no config.
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)

@@ -1,0 +1,44 @@
+---
+description: Anti-patterns
+alwaysApply: true
+id: anti-patterns
+title: "Anti-patterns"
+category: reference
+order: 2
+---
+
+# Anti-patterns
+
+| Anti-pattern | Why it fails |
+| --------------------------------------------- | ------------------------------------------ |
+| Whole-repo `lint --fix` during warn burn-down | Mass unrelated diff; blame noise |
+| CI full-tree lint as only gate | Blocks on legacy; stalls teams |
+| Docs without matching checks | Standards become suggestions |
+| Ticket IDs in code comments | Rot when tooling changes |
+| Cross-merging feature branches | Ratchet sees phantom "your" lines |
+| Orchestrator implements code itself | Context blow-up; no separation of concerns |
+| Subagent prose for simple lookups | Wastes parent context budget |
+| Boy-scout uncapped | Every touch demands full file cleanup |
+| `any` / untyped escape hatches in new code | Debt migrates forward |
+| Secrets in repo "for local dev only" | Leak path to production |
+| Plan-then-execute without backprop | Same bug class recurs; no contract memory |
+| Multiple skills rewriting the same § | Drift; breaks sectioned ownership |
+| Prose SPEC without `§` addressing / concise | Token waste; ambiguous commits/PRs |
+| Second contract format beside SPEC.md | Agents diverge; /ship and ad-hoc disagree |
+| SDD core via sub-agent swarm | Context blow-up; contract mode non-goal |
+| Full grill→review chain for a typo | Ceremony > value (violates right-size) |
+| Build retries without classifying failure | Silent spec/code divergence |
+| Invariant without test | Rule is fiction |
+| Adversarial review on trivial changes | Hallucinated flaws; wasted budget |
+| Deepen mid-feature under deadline | Churn disguised as refactor |
+| Scattered logs per request | Cannot query; debug by grep lottery |
+| Stack skills installed but never referenced | Dead weight; confuses agent routing |
+| New top-level folders without updating the layout map | Second tree; agents place files at random |
+| Organizing large apps only by file type (`hooks/`, `utils/`) | No feature locality; placement fights change |
+| Ideal greenfield tree that ignores the repo on disk | Blueprint lies; reviews can't enforce |
+| One mega-PR for a multi-layer / AI-sized change | Review quality collapses; use `/stacking-prs` |
+| Stack layer over 30 files or multi-concern | Unreviewable; split before `gh stack submit` |
+
+---
+
+**Rules:** [.](.) · **Pack:** [AGENTS](../AGENTS.md)
