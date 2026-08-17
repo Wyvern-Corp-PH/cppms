@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "skills": {
+    "ask": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/ask/SKILL.md",
+      "computedHash": "5ec84a4c2d9021d99780e5222b2a9f532b53cca8237024eb6cb40ad370c667c5",
+      "localPath": ".cursor/skills/ask/SKILL.md",
+      "category": "agents"
+    },
+    "clean-ddd-hexagonal": {
+      "source": "ccheney/robust-skills",
+      "sourceType": "github",
+      "skillPath": "skills/clean-ddd-hexagonal/SKILL.md",
+      "computedHash": "b12f71751f32200e2306c092f558bbaca5a11827205928590b7caeac3b648dfd",
+      "localPath": ".cursor/skills/clean-ddd-hexagonal/SKILL.md",
+      "category": "engineering"
+    },
+    "code-review": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "computedHash": "7c3170d8b1b904418358af0474f82e74c89a2dd66c12c956caefdc0aa81ea09f",
+      "localPath": ".cursor/skills/code-review/SKILL.md",
+      "category": "quality-gates"
+    },
+    "codebase-design": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/codebase-design/SKILL.md",
+      "computedHash": "cdc3d683881cbe5ca367c954571e158861176aa9af8adad1b2c5edd9eb72fe05",
+      "localPath": ".cursor/skills/codebase-design/SKILL.md",
+      "category": "engineering"
+    },
+    "diagnosing-bugs": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/diagnosing-bugs/SKILL.md",
+      "computedHash": "44417076a76b40331f3816f21e76ea7c9d129e3f73cca2e159b69a56aaa838b2",
+      "localPath": ".cursor/skills/diagnosing-bugs/SKILL.md",
+      "category": "quality-gates"
+    },
+    "domain-modeling": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/domain-modeling/SKILL.md",
+      "computedHash": "b747e8b4dcd0f367ef940c290b14f858bf9576ad9961fd6684bacff5688f4a2b",
+      "localPath": ".cursor/skills/domain-modeling/SKILL.md",
+      "category": "sdd"
+    },
+    "grill-with-docs": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "computedHash": "96718e0a89e48c7d76cc9759c7094a82ff34eb89ddc46a30388063fa9812356f",
+      "localPath": ".cursor/skills/grill-with-docs/SKILL.md",
+      "category": "sdd"
+    },
+    "grill": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grill/SKILL.md",
+      "computedHash": "ac63b22655a6fa4a59468dda21415b773c0aaf5a7e2e27e2259eaabf02a840bc",
+      "localPath": ".cursor/skills/grill/SKILL.md",
+      "remappedFrom": "grilling",
+      "category": "sdd"
+    },
+    "handoff": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/handoff/SKILL.md",
+      "computedHash": "7b03a812d5ca10fa8fe69d4cf8a34542684db51f5db0271254b96074e9f3a243",
+      "localPath": ".cursor/skills/handoff/SKILL.md",
+      "category": "agents"
+    },
+    "build": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/build/SKILL.md",
+      "computedHash": "130cac2d72bfde8cd526bf3b754211e2fe00e84bc4d9f9c56f749b9541a3afad",
+      "localPath": ".cursor/skills/build/SKILL.md",
+      "remappedFrom": "implement",
+      "category": "sdd"
+    },
+    "improve-codebase-architecture": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "computedHash": "569299a60c8e93880f3b3c1eca55578f58f7e1a4155876edb4cb814da3d6b3ea",
+      "localPath": ".cursor/skills/improve-codebase-architecture/SKILL.md",
+      "category": "engineering"
+    },
+    "logging-best-practices": {
+      "source": "boristane/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/logging-best-practices/SKILL.md",
+      "computedHash": "3fbf61116d3889fe4a5b2668b5835a90ce719e4a473d6378ac5f4d1169d831ab",
+      "localPath": ".cursor/skills/logging-best-practices/SKILL.md",
+      "category": "quality-gates"
+    },
+    "prototype": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/prototype/SKILL.md",
+      "computedHash": "aa385376b4bf4b5d69378e606f1cce3d98578ecba02c25273cd4a3e4deaceedb",
+      "localPath": ".cursor/skills/prototype/SKILL.md",
+      "category": "sdd"
+    },
+    "research": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/research/SKILL.md",
+      "computedHash": "0ce7d7a48175ab30c80240df350a73c216489f775324c8d27c8a10b1b38a49bf",
+      "localPath": ".cursor/skills/research/SKILL.md",
+      "category": "sdd"
+    },
+    "resolving-merge-conflicts": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/resolving-merge-conflicts/SKILL.md",
+      "computedHash": "6a005119c18c477c2122321a380a43d40242bae3cc7027125f13497d90875be2",
+      "localPath": ".cursor/skills/resolving-merge-conflicts/SKILL.md",
+      "category": "quality-gates"
+    },
+    "setup-skills": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/setup-skills/SKILL.md",
+      "computedHash": "509889c1c4970485fdd558df50142d4bf28d6f40866923637c32e64689c9fbda",
+      "localPath": ".cursor/skills/setup-skills/SKILL.md",
+      "category": "agents"
+    },
+    "tdd": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "7ac19bf391ceb23266ed5b4f81068201eaa38dcf76d0b59850d49c2c9e426d63",
+      "localPath": ".cursor/skills/tdd/SKILL.md",
+      "category": "quality-gates"
+    },
+    "teach": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/teach/SKILL.md",
+      "computedHash": "0c06821a21052b8a054f04c74223db2f1fb5868bbe0da76674d0892a872b3c56",
+      "localPath": ".cursor/skills/teach/SKILL.md",
+      "category": "agents"
+    },
+    "spec": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/spec/SKILL.md",
+      "computedHash": "4049d9955a79642ca945e844362d889060787167719bcca0b0cd6f53a95dc9e0",
+      "localPath": ".cursor/skills/spec/SKILL.md",
+      "remappedFrom": "to-spec",
+      "category": "sdd"
+    },
+    "to-tickets": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-tickets/SKILL.md",
+      "computedHash": "733df2a51c28078b6b3b8b96ee0c0a70e846163444bf202422d5a1f17bfabea6",
+      "localPath": ".cursor/skills/to-tickets/SKILL.md",
+      "category": "agents"
+    },
+    "triage": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/triage/SKILL.md",
+      "computedHash": "8695824ffe756567f6cf3b758853a094a9c974bf96226cde88b0b6c08099dabc",
+      "localPath": ".cursor/skills/triage/SKILL.md",
+      "category": "agents"
+    },
+    "wayfinder": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/wayfinder/SKILL.md",
+      "computedHash": "731db837ef3b7e03d6742b296a58ab48c8a0867320d5af269611e21a80059607",
+      "localPath": ".cursor/skills/wayfinder/SKILL.md",
+      "category": "agents"
+    },
+    "writing-great-skills": {
+      "source": "upstream/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/writing-great-skills/SKILL.md",
+      "computedHash": "141d1a43348257160910bdb5d828ca6f404fb8bb1dff72ec7c619434381fde6d",
+      "localPath": ".cursor/skills/writing-great-skills/SKILL.md",
+      "category": "agents"
+    }
+  }
+}
