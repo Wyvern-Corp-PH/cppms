@@ -79,19 +79,25 @@ const jsOwnership = jsOwnershipSandbox.module.exports as {
 
 function ownershipHookEvent(options: {
   superuser?: boolean
+  role?: string
   fields?: Record<string, unknown>
   original?: Record<string, unknown>
 }) {
   const next = vi.fn()
+  const set = vi.fn()
   const fields = options.fields ?? {}
   return {
     next,
+    set,
     event: {
       next,
       hasSuperuserAuth: () => options.superuser === true,
+      auth: options.role
+        ? { get: (field: string) => (field === "role" ? options.role : undefined) }
+        : undefined,
       record: {
         get: (field: string) => fields[field],
-        set: vi.fn(),
+        set,
         original: options.original ?? {},
       },
     },
@@ -496,8 +502,9 @@ describe("JS hook and TS ownership list parity", () => {
 
 describe("JS applyProjectFieldOwnership request chain", () => {
   it("should call next once when Super Admin creates a project", () => {
-    const { event, next } = ownershipHookEvent({ superuser: true })
+    const { event, next, set } = ownershipHookEvent({ superuser: true })
     jsOwnership.applyProjectFieldOwnership(event, true)
+    expect(set).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()
   })
 
@@ -510,11 +517,36 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     expect(next).toHaveBeenCalledOnce()
   })
 
+  it("should set lgu_encoded_at then call next once when LGU updates", () => {
+    const { event, next, set } = ownershipHookEvent({
+      role: "Municipality",
+    })
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(set).toHaveBeenCalledOnce()
+    expect(set).toHaveBeenCalledWith("lgu_encoded_at", expect.any(String))
+    expect(next).toHaveBeenCalledOnce()
+    expect(set.mock.invocationCallOrder[0]).toBeLessThan(
+      next.mock.invocationCallOrder[0]!
+    )
+  })
+
   it("should throw and skip next when the actor has no role", () => {
     const { event, next } = ownershipHookEvent({})
     expect(() => jsOwnership.applyProjectFieldOwnership(event, true)).toThrow(
       BadRequestError
     )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should throw and skip next when PPDO create stuffs contractor", () => {
+    const { event, next, set } = ownershipHookEvent({
+      role: "PPDO",
+      fields: { contractor: "Build Co" },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, true)).toThrow(
+      BadRequestError
+    )
+    expect(set).not.toHaveBeenCalled()
     expect(next).not.toHaveBeenCalled()
   })
 })
