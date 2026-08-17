@@ -219,6 +219,9 @@ function applyProjectFieldOwnership(event, isCreate) {
   if (result.setLguEncodedAt) {
     event.record.set("lgu_encoded_at", new Date().toISOString())
   }
+  if (typeof event.next === "function") {
+    event.next()
+  }
 }
 
 module.exports = {

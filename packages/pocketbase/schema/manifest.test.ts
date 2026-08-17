@@ -915,5 +915,18 @@ describe("PPDO and LGU project ownership", () => {
     expect(hookSource).toContain("BadRequestError")
     expect(hookSource).not.toContain("onRecordUpdate(")
   })
+
+  it("calls event.next inside applyProjectFieldOwnership after an allowed write", () => {
+    const start = hookSource.indexOf("function applyProjectFieldOwnership")
+    const applyFn = hookSource.slice(
+      start,
+      hookSource.indexOf("\nmodule.exports", start)
+    )
+    const withoutComments = applyFn
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "")
+    expect(start).toBeGreaterThan(-1)
+    expect(withoutComments).toMatch(/event\.next\s*\(/)
+  })
 })
 

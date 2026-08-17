@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { runInNewContext } from "node:vm"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   changedProjectFields,
@@ -48,9 +48,17 @@ const ppdoCreateZeroFilled = {
   moa_file: [],
 }
 
+class BadRequestError extends Error {
+  constructor(message?: string) {
+    super(message)
+    this.name = "BadRequestError"
+  }
+}
+
 const jsOwnershipSandbox = {
   module: { exports: {} as Record<string, unknown> },
   exports: {} as Record<string, unknown>,
+  BadRequestError,
 }
 runInNewContext(
   readFileSync(
@@ -66,6 +74,28 @@ const jsOwnership = jsOwnershipSandbox.module.exports as {
   PPDO_OWNED_FIELDS: readonly string[]
   LGU_OWNED_FIELDS: readonly string[]
   evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
+  applyProjectFieldOwnership: (event: unknown, isCreate: boolean) => void
+}
+
+function ownershipHookEvent(options: {
+  superuser?: boolean
+  fields?: Record<string, unknown>
+  original?: Record<string, unknown>
+}) {
+  const next = vi.fn()
+  const fields = options.fields ?? {}
+  return {
+    next,
+    event: {
+      next,
+      hasSuperuserAuth: () => options.superuser === true,
+      record: {
+        get: (field: string) => fields[field],
+        set: vi.fn(),
+        original: options.original ?? {},
+      },
+    },
+  }
 }
 
 describe("project field ownership", () => {
@@ -461,5 +491,30 @@ describe("JS hook and TS ownership list parity", () => {
         evaluateProjectFieldWrite(options)
       )
     }
+  })
+})
+
+describe("JS applyProjectFieldOwnership request chain", () => {
+  it("should call next once when Super Admin creates a project", () => {
+    const { event, next } = ownershipHookEvent({ superuser: true })
+    jsOwnership.applyProjectFieldOwnership(event, true)
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should call next once when Super Admin updates a project", () => {
+    const { event, next } = ownershipHookEvent({
+      superuser: true,
+      original: { name: "Existing road" },
+    })
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should throw and skip next when the actor has no role", () => {
+    const { event, next } = ownershipHookEvent({})
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, true)).toThrow(
+      BadRequestError
+    )
+    expect(next).not.toHaveBeenCalled()
   })
 })
