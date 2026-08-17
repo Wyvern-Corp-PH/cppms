@@ -90,6 +90,22 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
+  it("should coerce string supporting_docs to a file list like other project file fields", () => {
+    const result = projectRecordSchema.safeParse({
+      ...base,
+      name: "New project with upload",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      supporting_docs: "support.pdf",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.supporting_docs).toEqual(["support.pdf"])
+    }
+  })
+
   it("retains scholarship student counts on project records (V112)", () => {
     const result = projectRecordSchema.safeParse({
       ...base,

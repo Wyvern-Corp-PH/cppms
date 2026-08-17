@@ -84,7 +84,7 @@ export const projectRecordSchema = baseRecordSchema.extend({
   project_photos: pbFileList,
   lgu_encoded_at: pbEmptyAsUndefined(z.string().optional()),
   resolution_file: pbFileList,
-  supporting_docs: z.array(z.string()).optional(),
+  supporting_docs: pbFileList,
   progress_pct: pbNumber.pipe(z.number().min(0).max(100)).optional(),
   approval_status: pbEmptyAsUndefined(approvalStatusSchema.optional()),
   approved_at: z.string().optional(),
