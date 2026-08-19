@@ -112,6 +112,14 @@ function isLguOverrideLocked(field: string): boolean {
   return (LGU_OVERRIDE_LOCKED_FIELDS as readonly string[]).includes(field)
 }
 
+function isApprovalWorkflowStatusWrite(
+  changed: string[],
+  submitted: ProjectFieldMap
+): boolean {
+  if (changed.includes("approval_status")) return true
+  return changed.includes("status") && submitted.status === "For Revision"
+}
+
 function isLguRole(role: string | undefined): boolean {
   return role === "Municipality" || role === "Barangay"
 }
@@ -256,6 +264,9 @@ export function evaluateProjectFieldWrite(options: {
   if (isProvincialOverride(role)) {
     if (!isCreate) {
       for (const field of changed) {
+        if (field === "status" && isApprovalWorkflowStatusWrite(changed, submitted)) {
+          continue
+        }
         if (isLguOverrideLocked(field)) return reject(field)
       }
     }

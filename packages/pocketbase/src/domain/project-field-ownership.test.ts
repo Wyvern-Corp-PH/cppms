@@ -441,6 +441,49 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
+    "lets %s write Completed status when approval_status is on the same payload",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ready for Review",
+        approval_status: "pending",
+      }
+      const options = {
+        role,
+        isCreate: false,
+        original,
+        submitted: {
+          status: "Completed",
+          approval_status: "approved",
+          approved_by: "province-user",
+          approved_at: "2026-08-19",
+        },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "still rejects %s Edit-only status writes without approval_status",
+    (role) => {
+      const options = {
+        role,
+        isCreate: false,
+        original: { ...ppdoCreate, status: "Ongoing" },
+        submitted: { status: "Planning" },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({
+        ok: false,
+        error: "You cannot update field 'status'.",
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
     "lets %s echo unchanged LGU-owned fields while saving other overrides",
     (role) => {
       const original = {
@@ -796,6 +839,26 @@ describe("JS applyProjectFieldOwnership request chain", () => {
       /You cannot update field 'status'/
     )
     expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should call next when Province approves with status and approval_status", () => {
+    const { event, next } = ownershipHookEvent({
+      role: "Province",
+      fields: {
+        status: "Completed",
+        approval_status: "approved",
+        approved_by: "province-user",
+        approved_at: "2026-08-19",
+        name: "Existing road",
+      },
+      original: {
+        status: "Ready for Review",
+        approval_status: "pending",
+        name: "Existing road",
+      },
+    })
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
   })
 
   it("should call next when Super Admin echoes leftover dates", () => {

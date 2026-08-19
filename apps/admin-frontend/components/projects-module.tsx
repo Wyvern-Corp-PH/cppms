@@ -346,19 +346,15 @@ function ProjectCard({
   progressPct,
   onEdit,
   onDelete,
-  onStatusOpen,
   canUpdate,
   canDelete,
-  canChangeStatus,
 }: {
   project: ProjectRecord
   progressPct: number
   onEdit: () => void
   onDelete: () => void
-  onStatusOpen: () => void
   canUpdate: boolean
   canDelete: boolean
-  canChangeStatus: boolean
 }) {
   const hasActions = canUpdate || canDelete
 
@@ -416,11 +412,6 @@ function ProjectCard({
               {canUpdate ? (
                 <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
               ) : null}
-              {canChangeStatus ? (
-                <DropdownMenuItem onClick={onStatusOpen}>
-                  Change status
-                </DropdownMenuItem>
-              ) : null}
               {canDelete ? (
                 <DropdownMenuItem
                   className="text-destructive"
@@ -474,7 +465,6 @@ export function ProjectsModule() {
   >([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
-  const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importFiles, setImportFiles] = useState<File[]>([])
   const [importResult, setImportResult] = useState<ProjectImportResult | null>(
@@ -911,18 +901,6 @@ export function ProjectsModule() {
     }
   }
 
-  async function handleStatusChange(
-    project: ProjectRecord,
-    nextStatus: ProjectRecord["status"]
-  ) {
-    if (!canUpdateProjects) {
-      return
-    }
-    const pb = getPocketBase()
-    await pb.collection("projects").update(project.id, { status: nextStatus })
-    await loadProjects()
-  }
-
   async function handleDelete(project: ProjectRecord) {
     if (!canDeleteProjects) {
       return
@@ -1180,10 +1158,8 @@ export function ProjectsModule() {
               )}
               onEdit={() => openEdit(project)}
               onDelete={() => void handleDelete(project)}
-              onStatusOpen={() => setStatusTarget(project)}
               canUpdate={canUpdateProjects}
               canDelete={canDeleteProjects}
-              canChangeStatus={false}
             />
           ))}
         </div>
@@ -1619,51 +1595,6 @@ export function ProjectsModule() {
               disabled={saving}
             >
               {saving ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={statusTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setStatusTarget(null)
-        }}
-      >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Change status</DialogTitle>
-            <DialogDescription>
-              Select the next status for this project.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="space-y-1">
-            {statusOptions.map((value) => (
-              <li key={value}>
-                <button
-                  type="button"
-                  className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    if (statusTarget)
-                      void handleStatusChange(
-                        statusTarget,
-                        value as ProjectRecord["status"]
-                      )
-                    setStatusTarget(null)
-                  }}
-                >
-                  {value}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setStatusTarget(null)}
-            >
-              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
