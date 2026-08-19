@@ -89,18 +89,24 @@ describe("PublicProjectDetail", () => {
     expect(
       screen.getByText("Replacement span at the east bank approach.")
     ).toBeInTheDocument()
-    expect(screen.getByText("Ongoing")).toBeInTheDocument()
+    expect(screen.getAllByText("Ongoing").length).toBeGreaterThan(0)
     expect(screen.getByText("Infrastructure")).toBeInTheDocument()
     expect(
       screen.getByText("Tuguegarao City / Centro 01 (Bagumbayan)")
     ).toBeInTheDocument()
     expect(screen.getByText("East bank approach")).toBeInTheDocument()
     expect(screen.getByText("Acme Builders")).toBeInTheDocument()
+    expect(screen.getByText("Project Status")).toBeInTheDocument()
     expect(screen.getByText("Period of Implementation")).toBeInTheDocument()
     expect(screen.getByText("FY 2026 Q1–Q4")).toBeInTheDocument()
     expect(screen.queryByText("Start Date")).not.toBeInTheDocument()
     expect(screen.queryByText("End Date")).not.toBeInTheDocument()
+    expect(screen.getByText("Budget Year")).toBeInTheDocument()
     expect(screen.getByText("2026")).toBeInTheDocument()
+    expect(screen.getByText("Fund Source")).toBeInTheDocument()
+    expect(screen.getByText("Funding Year")).toBeInTheDocument()
+    expect(screen.getByText("Main Account")).toBeInTheDocument()
+    expect(screen.getByText("Sub Account")).toBeInTheDocument()
     expect(screen.getByText("₱2,500,000")).toBeInTheDocument()
     expect(screen.getByText("42%")).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
@@ -113,6 +119,104 @@ describe("PublicProjectDetail", () => {
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /new project/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/unpublished/i)).not.toBeInTheDocument()
+  })
+
+  it("should show fund source year, main, and sub separately from budget year", async () => {
+    store.project = {
+      ...publishedProject,
+      budget_year: 2026,
+      funding_year: 2025,
+      fund_source: "General Fund",
+      sub_account: "GF - Proper",
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Budget Year")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Budget Year").closest("div")).toHaveTextContent("2026")
+    expect(screen.getByText("Funding Year").closest("div")).toHaveTextContent("2025")
+    expect(screen.getByText("Main Account").closest("div")).toHaveTextContent(
+      "General Fund"
+    )
+    expect(screen.getByText("Sub Account").closest("div")).toHaveTextContent(
+      "GF - Proper"
+    )
+  })
+
+  it("should show dashes for empty fund source parts on legacy rows", async () => {
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Funding Year")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Funding Year").closest("div")).toHaveTextContent("—")
+    expect(screen.getByText("Main Account").closest("div")).toHaveTextContent("—")
+    expect(screen.getByText("Sub Account").closest("div")).toHaveTextContent("—")
+  })
+
+  it("should list MOA as a named download and never embed it as an image", async () => {
+    store.project = {
+      ...publishedProject,
+      moa_file: ["signed-moa.png"],
+      project_photos: ["site.jpg"],
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "signed-moa.png" })).toBeInTheDocument()
+    })
+
+    const moaLink = screen.getByRole("link", { name: "signed-moa.png" })
+    expect(moaLink).toHaveAttribute(
+      "href",
+      "http://localhost:8090/api/files/p/bridge-1/signed-moa.png"
+    )
+    expect(screen.queryByRole("img", { name: /signed-moa/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryAllByRole("img").every(
+        (img) => !img.getAttribute("src")?.includes("signed-moa.png")
+      )
+    ).toBe(true)
+
+    const photo = screen.getByRole("img", { name: /project photo/i })
+    expect(photo).toHaveAttribute(
+      "src",
+      "http://localhost:8090/api/files/p/bridge-1/site.jpg"
+    )
+  })
+
+  it("should list resolution and supporting documents as named downloads", async () => {
+    store.project = {
+      ...publishedProject,
+      resolution_file: ["reso-12.pdf"],
+      supporting_docs: ["support-a.pdf", "support-b.pdf"],
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "reso-12.pdf" })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Resolution")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "reso-12.pdf" })).toHaveAttribute(
+      "href",
+      "http://localhost:8090/api/files/p/bridge-1/reso-12.pdf"
+    )
+    expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "support-a.pdf" })).toHaveAttribute(
+      "href",
+      "http://localhost:8090/api/files/p/bridge-1/support-a.pdf"
+    )
+    expect(screen.getByRole("link", { name: "support-b.pdf" })).toHaveAttribute(
+      "href",
+      "http://localhost:8090/api/files/p/bridge-1/support-b.pdf"
+    )
   })
 
   it("shows scholarship student count and project photos when present", async () => {
