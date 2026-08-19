@@ -40,6 +40,14 @@ export const LGU_OWNED_FIELDS = [
   "supporting_docs",
 ] as const
 
+export const LGU_OVERRIDE_LOCKED_FIELDS = [
+  "status",
+  "contractor",
+  "bid_price",
+  "start_date",
+  "target_end_date",
+] as const
+
 export function projectFieldFilledByLabel(field: string): string | null {
   if ((PPDO_OWNED_FIELDS as readonly string[]).includes(field)) {
     return "filled by PPDO"
@@ -98,6 +106,10 @@ function valuesEqual(left: unknown, right: unknown): boolean {
 
 function isProvincialOverride(role: string | undefined): boolean {
   return role === "Super Admin" || role === "Province"
+}
+
+function isLguOverrideLocked(field: string): boolean {
+  return (LGU_OVERRIDE_LOCKED_FIELDS as readonly string[]).includes(field)
 }
 
 function isLguRole(role: string | undefined): boolean {
@@ -162,7 +174,7 @@ export function projectPayloadForActor(
   for (const [field, value] of Object.entries(submitted)) {
     if (value === undefined) continue
     const allowed =
-      owned.has("*") ||
+      (owned.has("*") && (isCreate || !isLguOverrideLocked(field))) ||
       owned.has(field) ||
       isCreateDefaultAllowed(field, value, isCreate)
     if (!allowed) continue
@@ -178,7 +190,7 @@ export function isProjectFieldEditable(
   isCreate: boolean
 ): boolean {
   if (field === "lgu_encoded_at") return false
-  if (isProvincialOverride(role)) return true
+  if (isProvincialOverride(role)) return !isLguOverrideLocked(field)
   const owned = ownedProjectFieldsForActor(role, original, isCreate)
   if (!owned.has(field)) return false
   if (field === "status" && isLguRole(role)) {
@@ -196,7 +208,7 @@ export function statusOptionsForActor(
   original: ProjectFieldMap | null | undefined,
   catalog: readonly string[]
 ): string[] {
-  if (isProvincialOverride(role)) return [...catalog]
+  if (isProvincialOverride(role)) return [currentStatus]
   if (role === "PPDO") {
     if (hasLguEncodedAt(original)) return [currentStatus]
     return [...catalog]
@@ -242,6 +254,11 @@ export function evaluateProjectFieldWrite(options: {
   }
 
   if (isProvincialOverride(role)) {
+    if (!isCreate) {
+      for (const field of changed) {
+        if (isLguOverrideLocked(field)) return reject(field)
+      }
+    }
     return { ok: true, setLguEncodedAt: false }
   }
 

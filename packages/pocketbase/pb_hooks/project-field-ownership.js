@@ -27,10 +27,19 @@ const LGU_OWNED_FIELDS = [
   "resolution_file",
   "supporting_docs",
 ]
+const LGU_OVERRIDE_LOCKED_FIELDS = [
+  "status",
+  "contractor",
+  "bid_price",
+  "start_date",
+  "target_end_date",
+]
 const PROJECT_FIELDS = [
   ...PPDO_OWNED_FIELDS,
   ...LGU_OWNED_FIELDS,
   "status",
+  "start_date",
+  "target_end_date",
   "lgu_level",
   "progress_pct",
   "lgu_encoded_at",
@@ -75,6 +84,10 @@ function valuesEqual(left, right) {
 
 function isProvincialOverride(role) {
   return role === "Super Admin" || role === "Province"
+}
+
+function isLguOverrideLocked(field) {
+  return LGU_OVERRIDE_LOCKED_FIELDS.includes(field)
 }
 
 function isLguRole(role) {
@@ -132,7 +145,14 @@ function evaluateProjectFieldWrite(options) {
   const changed = changedProjectFields(original, submitted)
 
   if (changed.includes("lgu_encoded_at")) return reject("lgu_encoded_at")
-  if (isProvincialOverride(role)) return { ok: true, setLguEncodedAt: false }
+  if (isProvincialOverride(role)) {
+    if (!isCreate) {
+      for (const field of changed) {
+        if (isLguOverrideLocked(field)) return reject(field)
+      }
+    }
+    return { ok: true, setLguEncodedAt: false }
+  }
   if (role !== "PPDO" && !isLguRole(role)) {
     return { ok: false, error: "You cannot update this project." }
   }
@@ -225,6 +245,7 @@ function applyProjectFieldOwnership(event, isCreate) {
 module.exports = {
   PPDO_OWNED_FIELDS,
   LGU_OWNED_FIELDS,
+  LGU_OVERRIDE_LOCKED_FIELDS,
   evaluateProjectFieldWrite,
   applyProjectFieldOwnership,
 }

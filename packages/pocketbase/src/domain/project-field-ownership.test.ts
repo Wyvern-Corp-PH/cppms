@@ -9,6 +9,7 @@ import {
   evaluateProjectFieldWrite,
   isProjectFieldEditable,
   LGU_OWNED_FIELDS,
+  LGU_OVERRIDE_LOCKED_FIELDS,
   LGU_PHASE_STATUS,
   PPDO_OWNED_FIELDS,
   projectFieldFilledByLabel,
@@ -71,6 +72,7 @@ runInNewContext(
 const jsOwnership = jsOwnershipSandbox.module.exports as {
   PPDO_OWNED_FIELDS: readonly string[]
   LGU_OWNED_FIELDS: readonly string[]
+  LGU_OVERRIDE_LOCKED_FIELDS: readonly string[]
   evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
   applyProjectFieldOwnership: (event: unknown, isCreate: boolean) => void
 }
@@ -390,14 +392,93 @@ describe("project field ownership", () => {
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
-  it("lets Super Admin and Province mutate both sides without setting the marker", () => {
+  it("lets Super Admin and Province mutate PPDO-owned fields without setting the marker", () => {
     const result = evaluateProjectFieldWrite({
       role: "Province",
       isCreate: false,
       original: ppdoCreate,
-      submitted: { name: "Renamed", contractor: "Build Co" },
+      submitted: { name: "Renamed", fund_source: "General Fund" },
     })
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+  })
+
+  it.each(["Province", "Super Admin"] as const)(
+    "rejects %s changing LGU-owned status, contractor, bid price, or leftover dates",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
+        contractor: "Build Co",
+        bid_price: 100,
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+      }
+      for (const [field, value] of [
+        ["status", "Planning"],
+        ["contractor", "Other Co"],
+        ["bid_price", 200],
+        ["start_date", "2026-07-01"],
+        ["target_end_date", "2026-11-01"],
+      ] as const) {
+        const result = evaluateProjectFieldWrite({
+          role,
+          isCreate: false,
+          original,
+          submitted: { [field]: value },
+        })
+        expect(result).toEqual({
+          ok: false,
+          error: `You cannot update field '${field}'.`,
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite({
+          role,
+          isCreate: false,
+          original,
+          submitted: { [field]: value },
+        })).toEqual(result)
+      }
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "lets %s echo unchanged LGU-owned fields while saving other overrides",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
+        contractor: "Build Co",
+        bid_price: 100,
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+      }
+      const result = evaluateProjectFieldWrite({
+        role,
+        isCreate: false,
+        original,
+        submitted: {
+          name: "Renamed",
+          status: "Ongoing",
+          contractor: "Build Co",
+          bid_price: 100,
+          start_date: "2026-06-01",
+          target_end_date: "2026-12-01",
+        },
+      })
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+    }
+  )
+
+  it("keeps leftover start and end dates off LGU_OWNED_FIELDS and on the override lock list", () => {
+    expect(LGU_OVERRIDE_LOCKED_FIELDS).toEqual([
+      "status",
+      "contractor",
+      "bid_price",
+      "start_date",
+      "target_end_date",
+    ])
+    expect(LGU_OWNED_FIELDS).not.toContain("start_date")
+    expect(LGU_OWNED_FIELDS).not.toContain("target_end_date")
+    expect(LGU_OWNED_FIELDS).not.toContain("status")
   })
 
   it("does not treat unchanged echoed fields as writes", () => {
@@ -535,7 +616,53 @@ describe("project field ownership", () => {
     })
     expect(
       projectPayloadForActor("Province", ppdoCreate, false, submitted)
-    ).toEqual(submitted)
+    ).toEqual({ name: "Charter Bridge", progress_pct: 50 })
+  })
+
+  it("locks LGU override fields for Province and Super Admin while leaving other fields editable", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "Ongoing",
+      contractor: "Build Co",
+    }
+    for (const role of ["Province", "Super Admin"] as const) {
+      expect(isProjectFieldEditable(role, "status", original, false)).toBe(false)
+      expect(isProjectFieldEditable(role, "contractor", original, false)).toBe(
+        false
+      )
+      expect(isProjectFieldEditable(role, "bid_price", original, false)).toBe(
+        false
+      )
+      expect(isProjectFieldEditable(role, "start_date", original, false)).toBe(
+        false
+      )
+      expect(
+        isProjectFieldEditable(role, "target_end_date", original, false)
+      ).toBe(false)
+      expect(isProjectFieldEditable(role, "name", original, false)).toBe(true)
+      expect(isProjectFieldEditable(role, "fund_source", original, false)).toBe(
+        true
+      )
+      expect(statusOptionsForActor(role, "Ongoing", original, [
+        "Planning",
+        "Ongoing",
+        "Completed",
+      ])).toEqual(["Ongoing"])
+    }
+    expect(
+      isProjectFieldEditable("Municipality", "contractor", original, false)
+    ).toBe(true)
+    expect(isProjectFieldEditable("Barangay", "bid_price", original, false)).toBe(
+      true
+    )
+    expect(
+      isProjectFieldEditable(
+        "Municipality",
+        "status",
+        { ...original, status: "Ongoing" },
+        false
+      )
+    ).toBe(true)
   })
 
   it("does not offer Planning, Procurement, or Ongoing when LGU status is terminal", () => {
@@ -559,6 +686,9 @@ describe("JS hook and TS ownership list parity", () => {
   it("keeps owned-field lists identical", () => {
     expect([...jsOwnership.PPDO_OWNED_FIELDS]).toEqual([...PPDO_OWNED_FIELDS])
     expect([...jsOwnership.LGU_OWNED_FIELDS]).toEqual([...LGU_OWNED_FIELDS])
+    expect([...jsOwnership.LGU_OVERRIDE_LOCKED_FIELDS]).toEqual([
+      ...LGU_OVERRIDE_LOCKED_FIELDS,
+    ])
   })
 
   it("matches evaluateProjectFieldWrite on the ownership cases", () => {
@@ -605,7 +735,17 @@ describe("JS hook and TS ownership list parity", () => {
         role: "Province",
         isCreate: false,
         original: ppdoCreate,
-        submitted: { name: "Renamed", contractor: "Build Co" },
+        submitted: { name: "Renamed", fund_source: "General Fund" },
+      },
+      {
+        role: "Super Admin",
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          contractor: "Build Co",
+          start_date: "2026-06-01",
+        },
+        submitted: { contractor: "Other Co", start_date: "2026-07-01" },
       },
     ] as const
 
@@ -629,6 +769,48 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     const { event, next } = ownershipHookEvent({
       superuser: true,
       original: { name: "Existing road" },
+    })
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should reject Super Admin changing leftover start_date on update", () => {
+    const { event, next } = ownershipHookEvent({
+      superuser: true,
+      fields: { start_date: "2026-07-01", name: "Existing road" },
+      original: { start_date: "2026-06-01", name: "Existing road" },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
+      BadRequestError
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should reject Province changing status on update", () => {
+    const { event, next } = ownershipHookEvent({
+      role: "Province",
+      fields: { status: "Planning", name: "Existing road" },
+      original: { status: "Ongoing", name: "Existing road" },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
+      /You cannot update field 'status'/
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should call next when Super Admin echoes leftover dates", () => {
+    const { event, next } = ownershipHookEvent({
+      superuser: true,
+      fields: {
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        name: "Existing road",
+      },
+      original: {
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        name: "Existing road",
+      },
     })
     jsOwnership.applyProjectFieldOwnership(event, false)
     expect(next).toHaveBeenCalledOnce()

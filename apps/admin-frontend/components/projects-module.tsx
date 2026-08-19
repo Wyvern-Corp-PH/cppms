@@ -429,8 +429,6 @@ export function ProjectsModule() {
   const canDeleteProjects = actor
     ? canAccess(actor, "projects.delete")
     : false
-  const canChangeStatus =
-    actor?.role === "Super Admin" || actor?.role === "Province"
   const actorRole = typeof actor?.role === "string" ? actor.role : undefined
 
   function clearUploadFiles() {
@@ -1098,7 +1096,7 @@ export function ProjectsModule() {
               onStatusOpen={() => setStatusTarget(project)}
               canUpdate={canUpdateProjects}
               canDelete={canDeleteProjects}
-              canChangeStatus={canChangeStatus}
+              canChangeStatus={false}
             />
           ))}
         </div>

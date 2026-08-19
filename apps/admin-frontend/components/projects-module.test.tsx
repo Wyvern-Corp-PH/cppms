@@ -636,34 +636,39 @@ describe("ProjectsModule (J4)", () => {
     expect(list?.className).not.toContain("no-scrollbar")
   })
 
-  it("keeps status change dialog responsive at zoomed viewports", async () => {
-    const user = userEvent.setup()
-    store.projects.push({
-      id: "1",
-      collectionId: "p",
-      collectionName: "projects",
-      created: "",
-      updated: "",
-      name: "Bridge",
-      category: "Infrastructure",
-      status: "Planning",
-      budget_year: 2026,
-      progress_pct: 0,
-    })
+  it.each(["Super Admin", "Province"] as const)(
+    "hides Change status in the card menu for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-status-menu`,
+        role,
+        account_status: "Active",
+      }
+      store.projects.push({
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 0,
+      })
 
-    render(<ProjectsModule />)
+      render(<ProjectsModule />)
 
-    await user.click(
-      await screen.findByRole("button", { name: /actions for bridge/i })
-    )
-    await user.click(await screen.findByRole("menuitem", { name: /change status/i }))
-
-    const dialog = await screen.findByRole("dialog")
-    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
-    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
-    expect(dialog).toHaveClass("overflow-y-auto")
-    expect(dialog).toHaveClass("sm:max-w-xs")
-  })
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      expect(
+        screen.queryByRole("menuitem", { name: /change status/i })
+      ).not.toBeInTheDocument()
+      expect(await screen.findByRole("menuitem", { name: /^edit$/i })).toBeInTheDocument()
+    }
+  )
 
   it("derives municipality choices from hierarchy-only barangay rows", async () => {
     const user = userEvent.setup()
@@ -867,6 +872,55 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
   })
 
+  it("lets scoped Municipality edit LGU-owned fields including status", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+    ]
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+
+    render(<ProjectsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /actions for bridge/i }))
+    expect(screen.queryByRole("menuitem", { name: /change status/i })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    expect(screen.getByLabelText(/project name/i)).toBeDisabled()
+    expect(screen.getByRole("combobox", { name: /^status$/i })).not.toBeDisabled()
+    expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
+    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+  })
+
   it("shows Edit in ⋮ and saves project updates for Province (V1/V2)", async () => {
     const user = userEvent.setup()
     store.authRecord = {
@@ -906,6 +960,12 @@ describe("ProjectsModule (J4)", () => {
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
 
     expect(screen.getByRole("heading", { name: /edit project/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/project name/i)).not.toBeDisabled()
+    expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
+    expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
+    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
     await user.clear(screen.getByLabelText(/project name/i))
     await user.type(screen.getByLabelText(/project name/i), "Bridge Renamed")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
@@ -955,6 +1015,11 @@ describe("ProjectsModule (J4)", () => {
       await screen.findByRole("button", { name: /actions for bridge/i })
     )
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
+    expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
+    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     expect(
