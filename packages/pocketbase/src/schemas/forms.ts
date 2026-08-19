@@ -146,57 +146,11 @@ export const projectMutateSchema = z
     }
   })
 
-export function projectMutateSchemaForActor(
-  role: string | undefined,
-  isCreate: boolean
-) {
-  if (role !== "PPDO" || !isCreate) return projectMutateSchema
-  return projectMutateSchema.superRefine((value, ctx) => {
-    if (!value.description?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["description"],
-        message: "Description is required.",
-      })
-    }
-    if (!value.location?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["location"],
-        message: "Location is required.",
-      })
-    }
-    if (value.barangay?.trim() && !value.municipality?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["municipality"],
-        message: "Municipality is required.",
-      })
-    }
-  })
-}
-
-export const budgetAllocationMutateSchema = z.object({
-  project: z.string().min(1, "Project is required."),
-  amount: z.coerce.number().positive("Amount must be greater than zero."),
-  year: z.coerce.number().int().min(2000).max(2100),
-  date: z.string().min(1),
-  description: z.string().optional(),
-  allocated_by: z.string().optional(),
-})
-
-const mainAccountsRequiringSubAccount = new Set(["General Fund", "Trust Fund"])
-
-const budgetExpenseBaseSchema = z.object({
-  project: z.string().min(1, "Project is required."),
-  amount: z.coerce.number().positive("Amount must be greater than zero."),
-  year: z.coerce.number().int().min(2000).max(2100),
-  main_account: z.string().trim().min(1, "Main account is required."),
-  sub_account: z.string().optional(),
-  date: z.string().min(1),
-  receipt_number: z.string().optional(),
-  description: z.string().optional(),
-})
+const PROJECT_FORM_OWNERS = new Set(["PPDO", "Province", "Super Admin"])
+const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
+  "General Fund",
+  "Trust Fund",
+])
 
 function refineBudgetExpenseSubAccount(
   value: { main_account: string; sub_account?: string },
@@ -210,7 +164,7 @@ function refineBudgetExpenseSubAccount(
     })
   }
   if (
-    mainAccountsRequiringSubAccount.has(value.main_account) &&
+    MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT.has(value.main_account) &&
     !value.sub_account?.trim()
   ) {
     ctx.addIssue({
@@ -220,6 +174,84 @@ function refineBudgetExpenseSubAccount(
     })
   }
 }
+
+export function projectMutateSchemaForActor(
+  role: string | undefined,
+  isCreate: boolean,
+  options?: { form?: boolean }
+) {
+  const ownsFormFields = PROJECT_FORM_OWNERS.has(role ?? "")
+  const requireIdentity = options?.form ? ownsFormFields : role === "PPDO" && isCreate
+  const requireFundSource = Boolean(options?.form) && ownsFormFields
+
+  if (!requireIdentity && !requireFundSource) return projectMutateSchema
+
+  return projectMutateSchema.superRefine((value, ctx) => {
+    if (requireIdentity) {
+      if (!value.description?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["description"],
+          message: "Description is required.",
+        })
+      }
+      if (!value.location?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["location"],
+          message: "Location is required.",
+        })
+      }
+      if (value.barangay?.trim() && !value.municipality?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["municipality"],
+          message: "Municipality is required.",
+        })
+      }
+    }
+    if (!requireFundSource) return
+    if (value.funding_year == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["funding_year"],
+        message: "Funding year is required.",
+      })
+    }
+    if (!value.fund_source) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fund_source"],
+        message: "Main account is required.",
+      })
+      return
+    }
+    refineBudgetExpenseSubAccount(
+      { main_account: value.fund_source, sub_account: value.sub_account },
+      ctx
+    )
+  })
+}
+
+export const budgetAllocationMutateSchema = z.object({
+  project: z.string().min(1, "Project is required."),
+  amount: z.coerce.number().positive("Amount must be greater than zero."),
+  year: z.coerce.number().int().min(2000).max(2100),
+  date: z.string().min(1),
+  description: z.string().optional(),
+  allocated_by: z.string().optional(),
+})
+
+const budgetExpenseBaseSchema = z.object({
+  project: z.string().min(1, "Project is required."),
+  amount: z.coerce.number().positive("Amount must be greater than zero."),
+  year: z.coerce.number().int().min(2000).max(2100),
+  main_account: z.string().trim().min(1, "Main account is required."),
+  sub_account: z.string().optional(),
+  date: z.string().min(1),
+  receipt_number: z.string().optional(),
+  description: z.string().optional(),
+})
 
 export const budgetExpenseMutateSchema = budgetExpenseBaseSchema.superRefine(
   refineBudgetExpenseSubAccount

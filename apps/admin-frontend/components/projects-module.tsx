@@ -699,7 +699,9 @@ export function ProjectsModule() {
 
   async function handleSave() {
     setFormError(null)
-    const parsed = projectMutateSchemaForActor(actorRole, !editing).safeParse({
+    const parsed = projectMutateSchemaForActor(actorRole, !editing, {
+      form: true,
+    }).safeParse({
       name: form.name,
       description: form.description,
       category: form.category,
@@ -1292,17 +1294,19 @@ export function ProjectsModule() {
                 />
                 <FieldError>{fieldErrors.name}</FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.description)}>
                 <FieldLabel htmlFor="project-description">Description</FieldLabel>
                 <FieldOwnerHint field="description" />
                 <Textarea
                   id="project-description"
                   value={form.description}
                   disabled={fieldLocked("description")}
+                  aria-invalid={Boolean(fieldErrors.description)}
                   onChange={(event) =>
                     setForm({ ...form, description: event.target.value })
                   }
                 />
+                <FieldError>{fieldErrors.description}</FieldError>
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.category)}>
@@ -1394,7 +1398,7 @@ export function ProjectsModule() {
                 </Field>
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.municipality)}>
                   <FieldLabel>Municipality</FieldLabel>
                   <FieldOwnerHint field="municipality" />
                   <LocationCombobox
@@ -1416,6 +1420,7 @@ export function ProjectsModule() {
                     }
                     disabled={fieldLocked("municipality")}
                   />
+                  <FieldError>{fieldErrors.municipality}</FieldError>
                 </Field>
                 <Field>
                   <FieldLabel>Barangay</FieldLabel>
@@ -1443,17 +1448,19 @@ export function ProjectsModule() {
                   />
                 </Field>
               </div>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.location)}>
                 <FieldLabel htmlFor="project-location">Location</FieldLabel>
                 <FieldOwnerHint field="location" />
                 <Input
                   id="project-location"
                   value={form.location}
                   disabled={fieldLocked("location")}
+                  aria-invalid={Boolean(fieldErrors.location)}
                   onChange={(event) =>
                     setForm({ ...form, location: event.target.value })
                   }
                 />
+                <FieldError>{fieldErrors.location}</FieldError>
               </Field>
               <FundSourceFields
                 value={{

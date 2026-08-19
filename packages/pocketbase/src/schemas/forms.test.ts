@@ -165,6 +165,147 @@ describe("projectMutateSchema (V34)", () => {
     expect(complete.success).toBe(true)
   })
 
+  it("requires fund source on the form when the actor owns it", () => {
+    const schema = projectMutateSchemaForActor("PPDO", true, { form: true })
+    const missing = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Provincial hall",
+    })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      const errors = fieldErrorsFromZod(missing.error)
+      expect(errors.fund_source).toBe("Main account is required.")
+      expect(errors.funding_year).toBe("Funding year is required.")
+      expect(errors.contractor).toBeUndefined()
+      expect(errors.bid_price).toBeUndefined()
+    }
+
+    const gfMissingSub = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Provincial hall",
+      funding_year: 2025,
+      fund_source: "General Fund",
+    })
+    expect(gfMissingSub.success).toBe(false)
+    if (!gfMissingSub.success) {
+      expect(fieldErrorsFromZod(gfMissingSub.error).sub_account).toBe(
+        "Sub account is required."
+      )
+    }
+
+    const othersMissingPurpose = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Provincial hall",
+      funding_year: 2025,
+      fund_source: "Others",
+    })
+    expect(othersMissingPurpose.success).toBe(false)
+    if (!othersMissingPurpose.success) {
+      expect(fieldErrorsFromZod(othersMissingPurpose.error).sub_account).toBe(
+        "Other purpose is required."
+      )
+    }
+
+    const sef = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Provincial hall",
+      funding_year: 2025,
+      fund_source: "Special Education Fund",
+    })
+    expect(sef.success).toBe(true)
+  })
+
+  it("does not require fund source on PPDO create used by excel import", () => {
+    const schema = projectMutateSchemaForActor("PPDO", true)
+    const result = schema.safeParse({
+      name: "Imported road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Phase 1",
+      location: "Tuguegarao City",
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.fund_source).toBeUndefined()
+      expect(result.data.funding_year).toBeUndefined()
+      expect(result.data.contractor).toBeUndefined()
+      expect(result.data.bid_price).toBeUndefined()
+    }
+  })
+
+  it("requires owned identity fields on PPDO form edit", () => {
+    const schema = projectMutateSchemaForActor("PPDO", false, { form: true })
+    const missing = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+    })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      const errors = fieldErrorsFromZod(missing.error)
+      expect(errors.description).toMatch(/required/i)
+      expect(errors.location).toMatch(/required/i)
+      expect(errors.fund_source).toBe("Main account is required.")
+    }
+  })
+
+  it("does not require PPDO-owned empties on municipality edit", () => {
+    const schema = projectMutateSchemaForActor("Municipality", false, {
+      form: true,
+    })
+    const result = schema.safeParse({
+      name: "Bridge",
+      category: "Infrastructure",
+      status: "Ongoing",
+      budget_year: 2026,
+      contractor: "Local Builders",
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.description).toBeUndefined()
+      expect(result.data.location).toBeUndefined()
+      expect(result.data.fund_source).toBeUndefined()
+    }
+  })
+
+  it("requires fund source on Super Admin form create", () => {
+    const schema = projectMutateSchemaForActor("Super Admin", true, {
+      form: true,
+    })
+    const missing = schema.safeParse({
+      name: "City Bridge",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Span",
+      location: "East bank",
+    })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      expect(fieldErrorsFromZod(missing.error).fund_source).toBe(
+        "Main account is required."
+      )
+    }
+  })
+
   it("accepts Period of Implementation separately from start and end dates", () => {
     const result = projectMutateSchema.safeParse({
       name: "Bridge repair",

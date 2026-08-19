@@ -84,6 +84,17 @@ vi.mock("xlsx", () => ({
 import * as XLSX from "xlsx"
 import { ProjectsModule } from "./projects-module"
 
+async function fillOwnedFundSource(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByLabelText(/^funding year$/i))
+  await user.click(
+    await screen.findByRole("option", { name: String(new Date().getFullYear()) })
+  )
+  await user.click(screen.getByLabelText(/^main account$/i))
+  await user.click(
+    await screen.findByRole("option", { name: "Special Education Fund" })
+  )
+}
+
 describe("ProjectsModule (J4)", () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
@@ -388,9 +399,13 @@ describe("ProjectsModule (J4)", () => {
     const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
     expect(payload).not.toHaveProperty("contractor")
     expect(payload).not.toHaveProperty("bid_price")
+    expect(payload).not.toHaveProperty("fund_source")
+    expect(payload).not.toHaveProperty("funding_year")
     expect(
       screen.queryByText(/Bid Price is required/i)
     ).not.toBeInTheDocument()
+    expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/funding year is required/i)).not.toBeInTheDocument()
   })
 
   it("imports multiple Excel files and reports filename row errors", async () => {
@@ -593,6 +608,7 @@ describe("ProjectsModule (J4)", () => {
 
     await user.click(await screen.findByTestId("create-project"))
     await user.type(screen.getByLabelText(/project name/i), "City Bridge")
+    await user.type(screen.getByLabelText(/^description$/i), "Span repair")
     await user.click(screen.getByRole("combobox", { name: /^municipality$/i }))
     await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
     await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
@@ -600,6 +616,7 @@ describe("ProjectsModule (J4)", () => {
       await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
     )
     await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
+    await fillOwnedFundSource(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -802,6 +819,74 @@ describe("ProjectsModule (J4)", () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
+  it("blocks create save and names empty required fields the actor owns", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    expect(await screen.findByText(/project name is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/description is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/location is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/funding year is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/main account is required/i)).toBeInTheDocument()
+    expect(screen.queryByText(/contractor is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/bid price is required/i)).not.toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it("does not block municipality edit when PPDO-owned fields are empty", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "",
+        contractor: "Build Co",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+    ]
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.clear(screen.getByLabelText(/^contractor$/i))
+    await user.type(screen.getByLabelText(/^contractor$/i), "Local Builders")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({ contractor: "Local Builders" })
+      )
+    })
+    expect(screen.queryByText(/description is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/location is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/funding year is required/i)).not.toBeInTheDocument()
+  })
+
   it("hides project mutation controls for users without project policy", async () => {
     store.authRecord = {
       id: "u1",
@@ -948,6 +1033,8 @@ describe("ProjectsModule (J4)", () => {
         budget_year: 2026,
         bid_price: 200_000,
         progress_pct: 25,
+        funding_year: 2025,
+        fund_source: "Special Education Fund",
       },
     ]
     updateMock.mockResolvedValue({})
@@ -1005,6 +1092,8 @@ describe("ProjectsModule (J4)", () => {
         budget_year: 2026,
         bid_price: 200_000,
         progress_pct: 25,
+        funding_year: 2025,
+        fund_source: "Special Education Fund",
       },
     ]
     updateMock.mockRejectedValueOnce(new Error("Failed to update record."))
@@ -1115,6 +1204,7 @@ describe("ProjectsModule (J4)", () => {
     await user.type(screen.getByLabelText(/project name/i), "Charter Road")
     await user.type(screen.getByLabelText(/^description$/i), "Charter encoding")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
+    await fillOwnedFundSource(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -1220,6 +1310,8 @@ describe("ProjectsModule (J4)", () => {
 
     await user.click(await screen.findByTestId("create-project"))
     await user.type(screen.getByLabelText(/project name/i), "Funded Road")
+    await user.type(screen.getByLabelText(/^description$/i), "Funded span")
+    await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
     await user.click(screen.getByLabelText(/^funding year$/i))
     await user.click(await screen.findByRole("option", { name: "2024" }))
     await user.click(screen.getByLabelText(/^main account$/i))
@@ -1302,6 +1394,8 @@ describe("ProjectsModule (J4)", () => {
       budget_year: 2026,
       bid_price: 200_000,
       progress_pct: 25,
+      funding_year: 2025,
+      fund_source: "Special Education Fund",
       ...overrides,
     }
   }
