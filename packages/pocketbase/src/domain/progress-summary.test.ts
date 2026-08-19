@@ -122,23 +122,33 @@ describe("filterProgressUpdatesByToPctRange", () => {
     { id: "late", to_pct: 90, from_pct: 0 },
   ]
 
-  it("should keep all rows when the range is All", () => {
-    expect(filterProgressUpdatesByToPctRange(history, "all")).toEqual(history)
+  it("should keep all rows when both bounds are empty", () => {
+    expect(filterProgressUpdatesByToPctRange(history, {})).toEqual(history)
+    expect(
+      filterProgressUpdatesByToPctRange(history, { from: null, to: null })
+    ).toEqual(history)
   })
 
-  it("should keep only the matching to_pct row in each locked bucket", () => {
+  it("should keep rows whose to_pct is within inclusive custom bounds", () => {
     expect(
-      filterProgressUpdatesByToPctRange(history, "0-75").map((row) => row.id)
-    ).toEqual(["early"])
-    expect(
-      filterProgressUpdatesByToPctRange(history, "76-80").map((row) => row.id)
-    ).toEqual(["mid"])
-    expect(
-      filterProgressUpdatesByToPctRange(history, "81-100").map((row) => row.id)
-    ).toEqual(["late"])
+      filterProgressUpdatesByToPctRange(history, { from: 70, to: 78 }).map(
+        (row) => row.id
+      )
+    ).toEqual(["early", "mid"])
   })
 
-  it("should include bucket endpoints and ignore from_pct", () => {
+  it("should treat an empty from bound as open lower and empty to as open upper", () => {
+    expect(
+      filterProgressUpdatesByToPctRange(history, { to: 78 }).map((row) => row.id)
+    ).toEqual(["early", "mid"])
+    expect(
+      filterProgressUpdatesByToPctRange(history, { from: 78 }).map(
+        (row) => row.id
+      )
+    ).toEqual(["mid", "late"])
+  })
+
+  it("should include endpoints and ignore from_pct on the update row", () => {
     const edges = [
       { id: "at-75", to_pct: 75, from_pct: 90 },
       { id: "at-76", to_pct: 76, from_pct: 0 },
@@ -146,14 +156,10 @@ describe("filterProgressUpdatesByToPctRange", () => {
       { id: "at-81", to_pct: 81, from_pct: 0 },
     ]
     expect(
-      filterProgressUpdatesByToPctRange(edges, "0-75").map((row) => row.id)
-    ).toEqual(["at-75"])
-    expect(
-      filterProgressUpdatesByToPctRange(edges, "76-80").map((row) => row.id)
+      filterProgressUpdatesByToPctRange(edges, { from: 76, to: 80 }).map(
+        (row) => row.id
+      )
     ).toEqual(["at-76", "at-80"])
-    expect(
-      filterProgressUpdatesByToPctRange(edges, "81-100").map((row) => row.id)
-    ).toEqual(["at-81"])
   })
 })
 

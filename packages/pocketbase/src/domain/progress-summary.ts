@@ -121,40 +121,24 @@ export function countUpdatesToday(
   }).length
 }
 
-export const PROGRESS_HISTORY_RANGE_OPTIONS = [
-  { id: "all", label: "All" },
-  { id: "0-75", label: "0–75%" },
-  { id: "76-80", label: "76–80%" },
-  { id: "81-100", label: "81–100%" },
-] as const
-
-export type ProgressHistoryRangeId =
-  (typeof PROGRESS_HISTORY_RANGE_OPTIONS)[number]["id"]
-
-const PROGRESS_HISTORY_RANGE_BOUNDS: Record<
-  Exclude<ProgressHistoryRangeId, "all">,
-  readonly [number, number]
-> = {
-  "0-75": [0, 75],
-  "76-80": [76, 80],
-  "81-100": [81, 100],
+export type ProgressHistoryPctBounds = {
+  from?: number | null
+  to?: number | null
 }
 
-export function isProgressHistoryRangeId(
-  value: string
-): value is ProgressHistoryRangeId {
-  return PROGRESS_HISTORY_RANGE_OPTIONS.some((option) => option.id === value)
-}
-
-/** Filter history rows by recorded completion (`to_pct`). Unknown range → All. */
+/** Filter history rows by recorded completion (`to_pct`). Empty bound = open. */
 export function filterProgressUpdatesByToPctRange<
   T extends Pick<ProgressUpdateRecord, "to_pct">,
->(updates: readonly T[], range: string): T[] {
-  if (!isProgressHistoryRangeId(range) || range === "all") {
-    return [...updates]
-  }
-  const [min, max] = PROGRESS_HISTORY_RANGE_BOUNDS[range]
-  return updates.filter((update) => update.to_pct >= min && update.to_pct <= max)
+>(
+  updates: readonly T[],
+  bounds: ProgressHistoryPctBounds = {}
+): T[] {
+  const { from, to } = bounds
+  return updates.filter((update) => {
+    if (from != null && update.to_pct < from) return false
+    if (to != null && update.to_pct > to) return false
+    return true
+  })
 }
 
 export function buildProgressSummaryCards(

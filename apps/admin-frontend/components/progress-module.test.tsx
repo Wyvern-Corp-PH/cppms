@@ -489,7 +489,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
-  it("filters Progress Update History by to_pct buckets on the detail panel and dialog", async () => {
+  it("filters Progress Update History by custom From%/To% on the detail panel and dialog", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -546,6 +546,8 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByText("City Bridge")).toBeInTheDocument()
     })
 
+    expect(screen.queryByLabelText(/^from %$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^to %$/i)).not.toBeInTheDocument()
     expect(
       screen.queryByLabelText(/filter by progress range/i)
     ).not.toBeInTheDocument()
@@ -558,51 +560,58 @@ describe("ProgressModule (V81, V84)", () => {
 
     const dialog = await screen.findByRole("dialog")
     const panel = screen.getByTestId("progress-detail-panel")
-    const dialogRange = within(dialog).getByLabelText(
-      /filter by progress range/i
-    )
-    const panelRange = within(panel).getByLabelText(
-      /filter by progress range/i,
-      { hidden: true }
-    )
+    const dialogFrom = within(dialog).getByLabelText(/^from %$/i)
+    const dialogTo = within(dialog).getByLabelText(/^to %$/i)
+    const panelFrom = within(panel).getByLabelText(/^from %$/i, {
+      hidden: true,
+    })
+    const panelTo = within(panel).getByLabelText(/^to %$/i, { hidden: true })
 
-    expect(dialogRange).toBeInTheDocument()
-    expect(panelRange).toBeInTheDocument()
-    expect(within(dialog).queryByRole("spinbutton")).not.toBeInTheDocument()
+    expect(dialogFrom).toBeInTheDocument()
+    expect(dialogTo).toBeInTheDocument()
+    expect(panelFrom).toBeInTheDocument()
+    expect(panelTo).toBeInTheDocument()
     expect(
-      within(dialog).queryByLabelText(/minimum|maximum|min–max|custom range/i)
+      within(dialog).queryByLabelText(/filter by progress range/i)
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole("option", { name: /0–75%|76–80%|81–100%/i })
     ).not.toBeInTheDocument()
 
     expect(within(dialog).getByText("early band")).toBeInTheDocument()
     expect(within(dialog).getByText("mid band")).toBeInTheDocument()
     expect(within(dialog).getByText("late band")).toBeInTheDocument()
 
-    await user.click(dialogRange)
-    await user.click(await screen.findByRole("option", { name: "0–75%" }))
+    await user.clear(dialogFrom)
+    await user.type(dialogFrom, "70")
+    await user.clear(dialogTo)
+    await user.type(dialogTo, "78")
     expect(within(dialog).getByText("early band")).toBeInTheDocument()
-    expect(within(dialog).queryByText("mid band")).not.toBeInTheDocument()
+    expect(within(dialog).getByText("mid band")).toBeInTheDocument()
     expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
     expect(
       within(panel).getByText("early band", { hidden: true })
     ).toBeInTheDocument()
     expect(
-      within(panel).queryByText("mid band", { hidden: true })
+      within(panel).queryByText("late band", { hidden: true })
     ).not.toBeInTheDocument()
 
-    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
-    await user.click(await screen.findByRole("option", { name: "76–80%" }))
+    await user.clear(dialogFrom)
+    await user.clear(dialogTo)
+    await user.type(dialogFrom, "78")
     expect(within(dialog).getByText("mid band")).toBeInTheDocument()
-    expect(within(dialog).queryByText("early band")).not.toBeInTheDocument()
-    expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
-
-    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
-    await user.click(await screen.findByRole("option", { name: "81–100%" }))
     expect(within(dialog).getByText("late band")).toBeInTheDocument()
     expect(within(dialog).queryByText("early band")).not.toBeInTheDocument()
-    expect(within(dialog).queryByText("mid band")).not.toBeInTheDocument()
 
-    await user.click(within(dialog).getByLabelText(/filter by progress range/i))
-    await user.click(await screen.findByRole("option", { name: "All" }))
+    await user.clear(dialogFrom)
+    await user.clear(dialogTo)
+    await user.type(dialogTo, "70")
+    expect(within(dialog).getByText("early band")).toBeInTheDocument()
+    expect(within(dialog).queryByText("mid band")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
+
+    await user.clear(dialogFrom)
+    await user.clear(dialogTo)
     expect(within(dialog).getByText("early band")).toBeInTheDocument()
     expect(within(dialog).getByText("mid band")).toBeInTheDocument()
     expect(within(dialog).getByText("late band")).toBeInTheDocument()

@@ -23,11 +23,8 @@ import {
   canShowUpdateProgress,
   effectiveProgressPct,
   filterProgressUpdatesByToPctRange,
-  isProgressHistoryRangeId,
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
-  PROGRESS_HISTORY_RANGE_OPTIONS,
-  type ProgressHistoryRangeId,
 } from "@workspace/pocketbase/domain/progress-summary"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
@@ -70,14 +67,8 @@ import {
   FieldLabel,
   FieldSet,
 } from "@workspace/ui/components/field"
+import { Input } from "@workspace/ui/components/input"
 import { Progress } from "@workspace/ui/components/progress"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
 import { Slider } from "@workspace/ui/components/slider"
 import { Textarea } from "@workspace/ui/components/textarea"
 
@@ -141,44 +132,61 @@ const emptyCompletionDocuments = (): CompletionDocumentState => ({
   liquidation_documents: [],
 })
 
+function parseHistoryPctBound(value: string): number | undefined {
+  if (value.trim() === "") return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function ProgressUpdateHistory({
   updates,
-  range,
-  onRangeChange,
+  fromPct,
+  toPct,
+  onFromPctChange,
+  onToPctChange,
   projectName,
   userDisplay,
 }: {
   updates: readonly ProgressUpdateRecord[]
-  range: ProgressHistoryRangeId
-  onRangeChange: (range: ProgressHistoryRangeId) => void
+  fromPct: string
+  toPct: string
+  onFromPctChange: (value: string) => void
+  onToPctChange: (value: string) => void
   projectName: string
   userDisplay: Map<string, string>
 }) {
-  const visibleUpdates = filterProgressUpdatesByToPctRange(updates, range)
+  const visibleUpdates = filterProgressUpdatesByToPctRange(updates, {
+    from: parseHistoryPctBound(fromPct),
+    to: parseHistoryPctBound(toPct),
+  })
 
   return (
     <div>
       <h3 className="font-medium">Progress update history</h3>
-      <Select
-        value={range}
-        onValueChange={(next) =>
-          onRangeChange(isProgressHistoryRangeId(next) ? next : "all")
-        }
-      >
-        <SelectTrigger
-          className="mt-2 w-full"
-          aria-label="Filter by progress range"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PROGRESS_HISTORY_RANGE_OPTIONS.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FieldGroup className="mt-2 grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel>From %</FieldLabel>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            value={fromPct}
+            onChange={(event) => onFromPctChange(event.target.value)}
+            aria-label="From %"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>To %</FieldLabel>
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            value={toPct}
+            onChange={(event) => onToPctChange(event.target.value)}
+            aria-label="To %"
+          />
+        </Field>
+      </FieldGroup>
       <ul className="mt-2 space-y-2">
         {visibleUpdates.map((update) => (
           <li
@@ -446,8 +454,8 @@ export function ProgressModule() {
   })
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [historyRange, setHistoryRange] =
-    useState<ProgressHistoryRangeId>("all")
+  const [historyFromPct, setHistoryFromPct] = useState("")
+  const [historyToPct, setHistoryToPct] = useState("")
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1304,8 +1312,10 @@ export function ProgressModule() {
               </div>
               <ProgressUpdateHistory
                 updates={selectedUpdates}
-                range={historyRange}
-                onRangeChange={setHistoryRange}
+                fromPct={historyFromPct}
+                toPct={historyToPct}
+                onFromPctChange={setHistoryFromPct}
+                onToPctChange={setHistoryToPct}
                 projectName={selected.name}
                 userDisplay={userDisplay}
               />
@@ -1363,8 +1373,10 @@ export function ProgressModule() {
               </div>
               <ProgressUpdateHistory
                 updates={selectedUpdates}
-                range={historyRange}
-                onRangeChange={setHistoryRange}
+                fromPct={historyFromPct}
+                toPct={historyToPct}
+                onFromPctChange={setHistoryFromPct}
+                onToPctChange={setHistoryToPct}
                 projectName={selected.name}
                 userDisplay={userDisplay}
               />
