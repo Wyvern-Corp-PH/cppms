@@ -4,34 +4,73 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
-import { formatDisplayDate } from "@workspace/pocketbase/domain/format-display-date"
+import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import { formatProjectLocationContext } from "@workspace/pocketbase/domain/project-filters"
 import { recordFileUrl } from "@workspace/pocketbase/files"
-import { parseRecord, projectRecordSchema } from "@workspace/pocketbase/schemas"
-import type { ProjectRecord } from "@workspace/pocketbase/types"
+import {
+  parseRecord,
+  parseRecordList,
+  progressUpdateRecordSchema,
+  projectRecordSchema,
+} from "@workspace/pocketbase/schemas"
+import type {
+  ProgressUpdateRecord,
+  ProjectRecord,
+} from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Progress } from "@workspace/ui/components/progress"
 
 import { getPocketBase } from "@/lib/pocketbase"
 
+function sitePhotoNames(
+  value: ProgressUpdateRecord["site_photo"] | string | undefined
+): string[] {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+  return value ? [value] : []
+}
+
+function compareByRecencyDesc(
+  a: Pick<ProgressUpdateRecord, "created" | "updated_at" | "id">,
+  b: Pick<ProgressUpdateRecord, "created" | "updated_at" | "id">
+) {
+  const key = (row: typeof a) => row.created ?? row.updated_at ?? row.id
+  return key(b).localeCompare(key(a))
+}
+
 export function PublicProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<ProjectRecord | null>(null)
+  const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading")
 
   useEffect(() => {
     let cancelled = false
+    const pb = getPocketBase()
 
-    void getPocketBase()
-      .collection("projects")
-      .getOne(projectId)
-      .then((row) => {
+    void Promise.all([
+      pb.collection("projects").getOne(projectId),
+      pb
+        .collection("progress_updates")
+        .getFullList({
+          filter: `project = "${projectId}"`,
+          sort: "-created",
+        })
+        .catch(() => []),
+    ])
+      .then(([row, updateRows]) => {
         if (cancelled) return
         const parsed = parseRecord(projectRecordSchema, row)
         if (!parsed) {
           setStatus("missing")
           return
         }
+        const history = parseRecordList(
+          progressUpdateRecordSchema,
+          updateRows
+        ).sort(compareByRecencyDesc)
         setProject(parsed)
+        setUpdates(history)
         setStatus("ready")
       })
       .catch(() => {
@@ -81,8 +120,10 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
         <DetailField label="Municipality/Barangay" value={municipalityBarangay} />
         <DetailField label="Location" value={project.location || "—"} />
         <DetailField label="Contractor" value={project.contractor || "—"} />
-        <DetailField label="Start Date" value={formatDisplayDate(project.start_date)} />
-        <DetailField label="End Date" value={formatDisplayDate(project.target_end_date)} />
+        <DetailField
+          label="Period of Implementation"
+          value={project.period_of_implementation || "—"}
+        />
         <DetailField label="Funding Year" value={String(project.budget_year)} />
         <DetailField label="Total Budget" value={formatPhp(project.total_budget ?? 0)} />
       </dl>
@@ -110,6 +151,58 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
             )
           })}
         </div>
+      ) : null}
+      {updates.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Progress Update History</h2>
+          <ul className="space-y-3">
+            {updates.map((update) => {
+              const photosOnUpdate = sitePhotoNames(update.site_photo)
+              return (
+                <li
+                  key={update.id}
+                  className="border-b border-border pb-3 last:border-b-0"
+                >
+                  <p className="text-sm">
+                    {update.from_pct}% → {update.to_pct}%
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {formatDisplayDateTime(update.updated_at ?? update.created)}
+                  </p>
+                  {update.notes ? (
+                    <p className="text-xs">{update.notes}</p>
+                  ) : null}
+                  {photosOnUpdate.length > 0 ? (
+                    <div
+                      className={[
+                        "mt-1 grid gap-2",
+                        photosOnUpdate.length > 1 ? "sm:grid-cols-2" : "",
+                      ].join(" ")}
+                    >
+                      {photosOnUpdate.map((filename, index) => {
+                        const src = recordFileUrl(update, filename)
+                        if (!src) return null
+                        return (
+                          <img
+                            key={filename}
+                            src={src}
+                            alt={
+                              photosOnUpdate.length > 1
+                                ? `Site photo ${index + 1}`
+                                : "Site photo"
+                            }
+                            className="h-24 w-full max-w-xs rounded-md border border-border object-cover"
+                            loading="lazy"
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       ) : null}
     </article>
   )
