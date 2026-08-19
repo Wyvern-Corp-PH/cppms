@@ -1415,6 +1415,118 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it.each([
+    { role: "Municipality" as const, pct: 50 },
+    { role: "Municipality" as const, pct: 100 },
+    { role: "Barangay" as const, pct: 50 },
+    { role: "Barangay" as const, pct: 100 },
+  ])(
+    "lets $role update progress at $pct% with no percent-lock copy",
+    async ({ role, pct }) => {
+      if (role === "Municipality") {
+        useMunicipalityActor()
+      } else {
+        useBarangayActor()
+      }
+      store.projects = [
+        {
+          id: "1",
+          collectionId: "p",
+          collectionName: "projects",
+          created: "",
+          updated: "",
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "Ongoing",
+          budget_year: 2026,
+          progress_pct: pct,
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+        },
+      ]
+      store.updates = [
+        {
+          id: "u1",
+          collectionId: "updates",
+          collectionName: "progress_updates",
+          created: "2026-08-01 00:00:00.000Z",
+          project: "1",
+          from_pct: 0,
+          to_pct: pct,
+          notes: "Prior update",
+          site_photo: [],
+          updated_by:
+            role === "Municipality" ? "municipality-user" : "barangay-user",
+        },
+      ]
+
+      render(<ProgressModule />)
+
+      const row = await screen.findByTestId("progress-row-1")
+      const updateCta = within(row).getByRole("button", {
+        name: /update progress/i,
+      })
+      expect(updateCta).toBeEnabled()
+      expect(
+        screen.queryByText(
+          /locked at (50|100)|cannot update.*(50|100)\s*%|frozen at (50|100)|progress is locked/i
+        )
+      ).not.toBeInTheDocument()
+      expect(within(row).getByText(new RegExp(`0% → ${pct}%`))).toBeInTheDocument()
+    }
+  )
+
+  it("lets Municipality save a progress history update at 50%", async () => {
+    const user = userEvent.setup()
+    useMunicipalityActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 50,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-08-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 50,
+        notes: "Halfway",
+        site_photo: [],
+        updated_by: "municipality-user",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+  }, 20_000)
+
   it("submits progress and released amount together from the update modal", async () => {
     const user = userEvent.setup()
     useBarangayActor()
