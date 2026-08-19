@@ -215,12 +215,10 @@ function lastUpdatedLabel(updates: ProgressUpdateRecord[]): string {
 
 function canUpdateProjectProgress(
   project: ProjectRecord,
-  canCreateProgressUpdates: boolean,
-  projectUpdates: ProgressUpdateRecord[]
+  canCreateProgressUpdates: boolean
 ) {
   return canShowUpdateProgress({
     status: project.status,
-    effectivePct: effectiveProgressPct(project, projectUpdates),
     canCreateProgressUpdates,
   })
 }
@@ -670,16 +668,7 @@ export function ProgressModule() {
   }
 
   function openUpdateModal(project: ProjectRecord) {
-    const projectUpdates = updates.filter(
-      (update) => update.project === project.id
-    )
-    if (
-      !canUpdateProjectProgress(
-        project,
-        canCreateProgressUpdates,
-        projectUpdates
-      )
-    ) {
+    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
       return
     }
     if (expensesLoadError && requiresReleasedAmount) {
@@ -1022,13 +1011,7 @@ export function ProgressModule() {
     }
     const { projectUpdates, latestUpdate, latestExpense } =
       revisionContextFor(project)
-    if (
-      !canUpdateProjectProgress(
-        project,
-        canCreateProgressUpdates,
-        projectUpdates
-      )
-    ) {
+    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
       setFormError("This project is read-only for progress updates.")
       return
     }
@@ -1072,7 +1055,7 @@ export function ProgressModule() {
       ? canUpdateProgressUpdates
       : canCreateProgressUpdates
     if (
-      !canUpdateProjectProgress(project, canMutateThisPath, projectUpdates)
+      !canUpdateProjectProgress(project, canMutateThisPath)
     ) {
       setFormError("This project is read-only for progress updates.")
       return
@@ -1273,8 +1256,7 @@ export function ProgressModule() {
                   </Button>
                   {canUpdateProjectProgress(
                     project,
-                    canCreateProgressUpdates,
-                    projectUpdates
+                    canCreateProgressUpdates
                   ) ? (
                     <Button
                       type="button"
@@ -1329,8 +1311,7 @@ export function ProgressModule() {
               />
               {canUpdateProjectProgress(
                 selected,
-                canCreateProgressUpdates,
-                selectedUpdates
+                canCreateProgressUpdates
               ) ? (
                 <Button
                   type="button"
@@ -1389,8 +1370,7 @@ export function ProgressModule() {
               />
               {canUpdateProjectProgress(
                 selected,
-                canCreateProgressUpdates,
-                selectedUpdates
+                canCreateProgressUpdates
               ) ? (
                 <DialogFooter>
                   <Button

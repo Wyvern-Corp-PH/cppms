@@ -899,7 +899,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
-  it("hides Update Progress when effective progress is ≥100 except For Revision (V4)", async () => {
+  it("shows Update Progress at 100% for Planning, Ready for Review, and For Revision", async () => {
     useBarangayActor()
     store.projects = [
       {
@@ -947,13 +947,13 @@ describe("ProgressModule (V81, V84)", () => {
 
     const stuckRow = await screen.findByTestId("progress-row-stuck")
     expect(
-      within(stuckRow).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      within(stuckRow).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
 
     const readyRow = await screen.findByTestId("progress-row-ready")
     expect(
-      within(readyRow).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      within(readyRow).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
 
     const revisionRow = await screen.findByTestId("progress-row-revision")
     expect(
@@ -961,7 +961,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("hides Update Progress in detail panel when ≥100 except For Revision (V4)", async () => {
+  it("shows Update Progress in detail panel at 100% for Planning and For Revision", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1002,14 +1002,14 @@ describe("ProgressModule (V81, V84)", () => {
 
     const stuckDetail = await screen.findByRole("dialog")
     expect(
-      within(stuckDetail).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      within(stuckDetail).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
     expect(
-      within(screen.getByTestId("progress-detail-panel")).queryByRole(
-        "button",
-        { name: /update progress/i, hidden: true }
-      )
-    ).not.toBeInTheDocument()
+      within(screen.getByTestId("progress-detail-panel")).getByRole("button", {
+        name: /update progress/i,
+        hidden: true,
+      })
+    ).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: /close/i }))
 
     const revisionRow = await screen.findByTestId("progress-row-revision")
@@ -1029,7 +1029,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("blocks openUpdateModal for ≥100 Planning and opens for For Revision (V4)", async () => {
+  it("opens Update Progress modal for Planning at 100%", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1068,9 +1068,14 @@ describe("ProgressModule (V81, V84)", () => {
     ).not.toBeInTheDocument()
 
     const stuckRow = await screen.findByTestId("progress-row-stuck")
+    await user.click(
+      within(stuckRow).getByRole("button", { name: /update progress/i })
+    )
+
     expect(
-      within(stuckRow).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      await screen.findByRole("dialog", { name: /update progress/i })
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /cancel/i }))
 
     const revisionRow = await screen.findByTestId("progress-row-revision")
     await user.click(

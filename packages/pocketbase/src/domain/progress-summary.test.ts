@@ -56,71 +56,29 @@ describe("projectProgressPatchFromUpdate", () => {
   })
 })
 
-describe("canShowUpdateProgress (V4)", () => {
-  it("should show Update Progress when editable status and below 100", () => {
-    expect(
-      canShowUpdateProgress({
-        status: "Ongoing",
-        effectivePct: 86,
-        canCreateProgressUpdates: true,
-      })
-    ).toBe(true)
-  })
-
-  it("should keep Update Progress available at 50% (completion is not a freeze)", () => {
+describe("canShowUpdateProgress", () => {
+  it("should show Update Progress for editable statuses regardless of completion %", () => {
     for (const status of [
       "Planning",
       "Procurement",
       "Ongoing",
       "For Revision",
+      "Ready for Review",
     ] as const) {
       expect(
         canShowUpdateProgress({
           status,
-          effectivePct: 50,
           canCreateProgressUpdates: true,
         })
       ).toBe(true)
     }
   })
 
-  it("should hide Update Progress when effective ≥100 and not For Revision", () => {
-    expect(
-      canShowUpdateProgress({
-        status: "Planning",
-        effectivePct: 100,
-        canCreateProgressUpdates: true,
-      })
-    ).toBe(false)
-    expect(
-      canShowUpdateProgress({
-        status: "Ongoing",
-        effectivePct: 100,
-        canCreateProgressUpdates: true,
-      })
-    ).toBe(false)
-  })
-
-  it("should show Update Progress for For Revision even at 100", () => {
-    expect(
-      canShowUpdateProgress({
-        status: "For Revision",
-        effectivePct: 100,
-        canCreateProgressUpdates: true,
-      })
-    ).toBe(true)
-  })
-
-  it("should hide Update Progress for Ready for Review, Completed, Rejected", () => {
-    for (const status of [
-      "Ready for Review",
-      "Completed",
-      "Rejected",
-    ] as const) {
+  it("should hide Update Progress for Completed and Rejected", () => {
+    for (const status of ["Completed", "Rejected"] as const) {
       expect(
         canShowUpdateProgress({
           status,
-          effectivePct: 50,
           canCreateProgressUpdates: true,
         })
       ).toBe(false)
@@ -131,7 +89,6 @@ describe("canShowUpdateProgress (V4)", () => {
     expect(
       canShowUpdateProgress({
         status: "Ongoing",
-        effectivePct: 10,
         canCreateProgressUpdates: false,
       })
     ).toBe(false)
