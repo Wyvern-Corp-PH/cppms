@@ -404,6 +404,12 @@ export function ApprovalsModule() {
           parsed.data.action === "approve"
             ? new Date().toISOString().slice(0, 10)
             : undefined,
+        approved_by:
+          parsed.data.action === "approve" &&
+          actor?.id &&
+          actor.collectionName !== "_superusers"
+            ? actor.id
+            : undefined,
         rejection_reason:
           parsed.data.action === "reject" ? parsed.data.reason : undefined,
       })

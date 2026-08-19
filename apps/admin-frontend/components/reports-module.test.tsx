@@ -242,6 +242,54 @@ describe("ReportsModule (V12)", () => {
     expect(screen.queryByLabelText(/^filter to date$/i)).not.toBeInTheDocument()
   })
 
+  it("should show Approved By as the approving admin name and Pending when unapproved", async () => {
+    const user = userEvent.setup()
+    store.users = [
+      {
+        id: "province-user",
+        name: "Province Reviewer",
+        email: "province@example.test",
+      },
+    ]
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+      },
+      {
+        id: "p-pending",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Pending School",
+        category: "Education",
+        status: "Ready for Review",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Approved Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+      expect(screen.getByText("Pending School")).toBeInTheDocument()
+      expect(screen.getAllByText("Pending").length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+  })
+
   it("shows activity logs only to Super Admin", async () => {
     authState.user = {
       id: "u1",

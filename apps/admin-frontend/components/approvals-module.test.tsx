@@ -247,6 +247,43 @@ describe("ApprovalsModule (J5, V5)", () => {
         expect.objectContaining({
           status: "Completed",
           approval_status: "approved",
+          approved_by: "province-user",
+          approved_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+      expect(updateMock).toHaveBeenCalledWith(
+        "1",
+        expect.not.objectContaining({ approved_by: "Provincial Engineer" })
+      )
+    })
+  })
+
+  it("should write Super Admin users-collection id as approved_by with approved_at", async () => {
+    store.authRecord = {
+      id: "super-admin-user",
+      collectionId: "users",
+      collectionName: "users",
+      email: "super@example.test",
+      name: "Super Admin Reviewer",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /approve/i }))
+    await user.type(
+      screen.getByLabelText(/authority name/i),
+      "Provincial Engineer"
+    )
+    await user.click(screen.getByTestId("confirm-approval-action"))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({
+          approved_by: "super-admin-user",
+          approved_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
         })
       )
       expect(updateMock).toHaveBeenCalledWith(
