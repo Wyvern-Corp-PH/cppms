@@ -114,10 +114,20 @@ function isLguOverrideLocked(field: string): boolean {
 
 function isApprovalWorkflowStatusWrite(
   changed: string[],
-  submitted: ProjectFieldMap
+  submitted: ProjectFieldMap,
+  original?: ProjectFieldMap | null
 ): boolean {
-  if (changed.includes("approval_status")) return true
-  return changed.includes("status") && submitted.status === "For Revision"
+  const nextApproval =
+    submitted.approval_status !== undefined
+      ? submitted.approval_status
+      : original?.approval_status
+  if (submitted.status === "Completed") {
+    return changed.includes("approval_status") && nextApproval === "approved"
+  }
+  if (submitted.status === "Rejected") {
+    return changed.includes("approval_status") && nextApproval === "rejected"
+  }
+  return submitted.status === "For Revision" && nextApproval === "pending"
 }
 
 function isLguRole(role: string | undefined): boolean {
@@ -264,7 +274,10 @@ export function evaluateProjectFieldWrite(options: {
   if (isProvincialOverride(role)) {
     if (!isCreate) {
       for (const field of changed) {
-        if (field === "status" && isApprovalWorkflowStatusWrite(changed, submitted)) {
+        if (
+          field === "status" &&
+          isApprovalWorkflowStatusWrite(changed, submitted, original)
+        ) {
           continue
         }
         if (isLguOverrideLocked(field)) return reject(field)

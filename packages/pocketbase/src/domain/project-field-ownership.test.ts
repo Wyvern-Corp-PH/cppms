@@ -484,6 +484,75 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
+    "rejects %s mismatched approval_status and status pairs",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ready for Review",
+        approval_status: "pending",
+      }
+      for (const submitted of [
+        { status: "Planning", approval_status: "approved" },
+        { status: "Ongoing", approval_status: "pending" },
+        { status: "Completed", approval_status: "rejected" },
+        { status: "Rejected", approval_status: "approved" },
+        { status: "For Revision", approval_status: "approved" },
+      ]) {
+        const options = { role, isCreate: false, original, submitted }
+        const result = evaluateProjectFieldWrite(options)
+        expect(result).toEqual({
+          ok: false,
+          error: "You cannot update field 'status'.",
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+      }
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "lets %s write Rejected status when approval_status is rejected",
+    (role) => {
+      const options = {
+        role,
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "Ready for Review",
+          approval_status: "pending",
+        },
+        submitted: {
+          status: "Rejected",
+          approval_status: "rejected",
+          rejection_reason: "Incomplete liquidation package.",
+        },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "lets %s write For Revision when approval_status stays or is set pending",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ready for Review",
+        approval_status: "pending",
+      }
+      for (const submitted of [
+        { status: "For Revision" },
+        { status: "For Revision", approval_status: "pending" },
+      ]) {
+        const options = { role, isCreate: false, original, submitted }
+        const result = evaluateProjectFieldWrite(options)
+        expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+      }
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
     "lets %s echo unchanged LGU-owned fields while saving other overrides",
     (role) => {
       const original = {
@@ -859,6 +928,46 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     })
     jsOwnership.applyProjectFieldOwnership(event, false)
     expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should reject Province pairing approved with a non-Completed status", () => {
+    const { event, next } = ownershipHookEvent({
+      role: "Province",
+      fields: {
+        status: "Planning",
+        approval_status: "approved",
+        name: "Existing road",
+      },
+      original: {
+        status: "Ready for Review",
+        approval_status: "pending",
+        name: "Existing road",
+      },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
+      /You cannot update field 'status'/
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should reject Super Admin pairing pending with a non-revision status", () => {
+    const { event, next } = ownershipHookEvent({
+      superuser: true,
+      fields: {
+        status: "Ongoing",
+        approval_status: "pending",
+        name: "Existing road",
+      },
+      original: {
+        status: "Ready for Review",
+        approval_status: "pending",
+        name: "Existing road",
+      },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
+      /You cannot update field 'status'/
+    )
+    expect(next).not.toHaveBeenCalled()
   })
 
   it("should call next when Super Admin echoes leftover dates", () => {
