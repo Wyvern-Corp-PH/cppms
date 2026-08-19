@@ -40,6 +40,11 @@ const updateMock = vi.fn(
   }
 )
 
+const createMock = vi.fn(async (payload: Record<string, unknown>) => {
+  store.actions.push(payload)
+  return payload
+})
+
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     authStore: {
@@ -53,10 +58,7 @@ vi.mock("@/lib/pocketbase", () => ({
         if (name === "locations") return store.locations
         return []
       }),
-      create: vi.fn(async (payload: Record<string, unknown>) => {
-        store.actions.push(payload)
-        return payload
-      }),
+      create: createMock,
       update: updateMock,
     }),
   }),
@@ -134,7 +136,19 @@ describe("ApprovalsModule (J5, V5)", () => {
         liquidation_documents: ["liquidation.pdf"],
       },
     ]
-    updateMock.mockClear()
+    updateMock.mockReset()
+    updateMock.mockImplementation(
+      async (id: string, payload: Record<string, unknown>) => {
+        const index = store.projects.findIndex((row) => row.id === id)
+        store.projects[index] = { ...store.projects[index], ...payload }
+        return store.projects[index]
+      }
+    )
+    createMock.mockReset()
+    createMock.mockImplementation(async (payload: Record<string, unknown>) => {
+      store.actions.push(payload)
+      return payload
+    })
     store.projects = [
       {
         id: "1",
@@ -226,12 +240,70 @@ describe("ApprovalsModule (J5, V5)", () => {
 
     await waitFor(() => {
       expect(store.projects[0]?.status).toBe("Completed")
+      expect(store.projects[0]?.approval_status).toBe("approved")
       expect(store.actions[0]?.action).toBe("approve")
+      expect(updateMock).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({
+          status: "Completed",
+          approval_status: "approved",
+        })
+      )
       expect(updateMock).toHaveBeenCalledWith(
         "1",
         expect.not.objectContaining({ approved_by: "Provincial Engineer" })
       )
     })
+  })
+
+  it("rejects a review-ready project and updates status to Rejected", async () => {
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^reject$/i }))
+    fireEvent.change(await screen.findByLabelText(/reviewing authority name/i), {
+      target: { value: "Provincial Engineer" },
+    })
+    fireEvent.change(await screen.findByLabelText(/reason for rejection/i), {
+      target: { value: "Incomplete liquidation package." },
+    })
+    await user.click(screen.getByTestId("confirm-approval-action"))
+
+    await waitFor(() => {
+      expect(store.projects[0]?.status).toBe("Rejected")
+      expect(store.projects[0]?.approval_status).toBe("rejected")
+      expect(store.actions[0]?.action).toBe("reject")
+      expect(updateMock).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({
+          status: "Rejected",
+          approval_status: "rejected",
+          rejection_reason: "Incomplete liquidation package.",
+        })
+      )
+    })
+  })
+
+  it("surfaces an error when project status update fails", async () => {
+    updateMock.mockRejectedValueOnce(new Error("Failed to update project status."))
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /approve/i }))
+    await user.type(
+      screen.getByLabelText(/authority name/i),
+      "Provincial Engineer"
+    )
+    await user.click(screen.getByTestId("confirm-approval-action"))
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/failed to update project status/i)
+    expect(
+      screen.getByRole("dialog", { name: /approve project completion/i })
+    ).toBeInTheDocument()
+    expect(store.projects[0]?.status).toBe("Ready for Review")
+    expect(store.projects[0]?.approval_status).toBe("pending")
   })
 
   it("shows approval actions only to Province users and includes request revision", async () => {

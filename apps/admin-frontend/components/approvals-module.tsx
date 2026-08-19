@@ -232,6 +232,7 @@ export function ApprovalsModule() {
   const [completionDocError, setCompletionDocError] = useState<string | null>(
     null
   )
+  const [actionError, setActionError] = useState<string | null>(null)
   const actor = getPocketBase().authStore?.record
   const canCreateApprovalActions = actor
     ? canAccess(actor, "approval_actions.create")
@@ -371,6 +372,7 @@ export function ApprovalsModule() {
 
     setFieldErrors({})
     setCompletionDocError(null)
+    setActionError(null)
 
     if (action === "approve" && (selected.progress_pct ?? 0) >= 100) {
       const status = completionDocumentStatus(projectUpdates(selected.id))
@@ -383,37 +385,46 @@ export function ApprovalsModule() {
     }
 
     const pb = getPocketBase()
-    await pb.collection("approval_actions").create({
-      project: selected.id,
-      action: parsed.data.action,
-      authority_name: parsed.data.authority_name,
-      reason:
-        parsed.data.action === "reject" ||
-        parsed.data.action === "request_revision"
-          ? parsed.data.reason
-          : undefined,
-    })
+    try {
+      await pb.collection("approval_actions").create({
+        project: selected.id,
+        action: parsed.data.action,
+        authority_name: parsed.data.authority_name,
+        reason:
+          parsed.data.action === "reject" ||
+          parsed.data.action === "request_revision"
+            ? parsed.data.reason
+            : undefined,
+      })
 
-    await pb.collection("projects").update(selected.id, {
-      approval_status:
-        parsed.data.action === "approve"
-          ? "approved"
-          : parsed.data.action === "reject"
-            ? "rejected"
-            : "pending",
-      status:
-        parsed.data.action === "approve"
-          ? "Completed"
-          : parsed.data.action === "reject"
-            ? "Rejected"
-            : "For Revision",
-      approved_at:
-        parsed.data.action === "approve"
-          ? new Date().toISOString().slice(0, 10)
-          : undefined,
-      rejection_reason:
-        parsed.data.action === "reject" ? parsed.data.reason : undefined,
-    })
+      await pb.collection("projects").update(selected.id, {
+        approval_status:
+          parsed.data.action === "approve"
+            ? "approved"
+            : parsed.data.action === "reject"
+              ? "rejected"
+              : "pending",
+        status:
+          parsed.data.action === "approve"
+            ? "Completed"
+            : parsed.data.action === "reject"
+              ? "Rejected"
+              : "For Revision",
+        approved_at:
+          parsed.data.action === "approve"
+            ? new Date().toISOString().slice(0, 10)
+            : undefined,
+        rejection_reason:
+          parsed.data.action === "reject" ? parsed.data.reason : undefined,
+      })
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit approval action."
+      )
+      return
+    }
 
     setDialog(null)
     setAuthorityName("")
@@ -792,6 +803,7 @@ export function ApprovalsModule() {
         onOpenChange={() => {
           setDialog(null)
           setCompletionDocError(null)
+          setActionError(null)
         }}
       >
         <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
@@ -812,6 +824,11 @@ export function ApprovalsModule() {
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
+            {actionError ? (
+              <p className="text-destructive text-sm" role="alert">
+                {actionError}
+              </p>
+            ) : null}
             {completionDocError && selected ? (
               <div
                 className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm"
@@ -860,7 +877,10 @@ export function ApprovalsModule() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setDialog(null)}
+              onClick={() => {
+                setDialog(null)
+                setActionError(null)
+              }}
             >
               Cancel
             </Button>
