@@ -274,6 +274,9 @@ describe("ProjectsModule (J4)", () => {
     expect(
       screen.getByRole("button", { name: /download template/i })
     ).toBeInTheDocument()
+    expect(screen.getByText(/required headers:/i)).toHaveTextContent(
+      "Required headers: Project Name, Description, Location."
+    )
   })
 
   it("downloads an Excel template with exact project import headers", async () => {
@@ -286,13 +289,7 @@ describe("ProjectsModule (J4)", () => {
     )
 
     expect(XLSX.utils.aoa_to_sheet).toHaveBeenCalledWith([
-      [
-        "Project Name",
-        "Description",
-        "Location",
-        "Contractor",
-        "Bid Price",
-      ],
+      ["Project Name", "Description", "Location"],
     ])
     expect(XLSX.writeFile).toHaveBeenCalledWith(
       expect.anything(),
@@ -358,15 +355,13 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByText(/Row 3: Project Name is required/i)).toBeInTheDocument()
   })
 
-  it("rejects Excel import rows missing Bid Price", async () => {
+  it("imports Excel rows without Contractor or Bid Price columns", async () => {
     const user = userEvent.setup()
     xlsxState.rows = [
       {
         "Project Name": "Road Widening",
         Description: "Phase 1",
         Location: "Tuguegarao City",
-        Contractor: "BuildCo",
-        "Bid Price": "",
       },
     ]
     render(<ProjectsModule />)
@@ -380,10 +375,22 @@ describe("ProjectsModule (J4)", () => {
     )
     await user.click(screen.getByRole("button", { name: /^import projects$/i }))
 
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Road Widening",
+        description: "Phase 1",
+        location: "Tuguegarao City",
+      })
+    )
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty("contractor")
+    expect(payload).not.toHaveProperty("bid_price")
     expect(
-      await screen.findByText(/Row 2: Bid Price is required/i)
-    ).toBeInTheDocument()
-    expect(createMock).not.toHaveBeenCalled()
+      screen.queryByText(/Bid Price is required/i)
+    ).not.toBeInTheDocument()
   })
 
   it("imports multiple Excel files and reports filename row errors", async () => {

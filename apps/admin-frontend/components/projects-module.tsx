@@ -118,8 +118,6 @@ const PROJECT_IMPORT_HEADERS = [
   "Project Name",
   "Description",
   "Location",
-  "Contractor",
-  "Bid Price",
 ] as const
 
 function importCellText(row: Record<string, unknown>, header: string) {
@@ -777,17 +775,13 @@ export function ProjectsModule() {
           const rowNumber = index + 2
           const name = importCellText(row, "Project Name")
           const bidPriceValue = importCellText(row, "Bid Price")
-          const bidPrice = bidPriceValue ? parseImportBudget(bidPriceValue) : null
+          const bidPrice = bidPriceValue ? parseImportBudget(bidPriceValue) : undefined
 
           if (!name) {
             errors.push(importRowError(file, rowNumber, "Project Name is required."))
             continue
           }
-          if (!bidPriceValue) {
-            errors.push(importRowError(file, rowNumber, "Bid Price is required."))
-            continue
-          }
-          if (bidPrice === null) {
+          if (bidPriceValue && bidPrice === null) {
             errors.push(
               importRowError(file, rowNumber, "Bid Price must be a valid amount.")
             )
@@ -799,7 +793,7 @@ export function ProjectsModule() {
             description: importCellText(row, "Description") || undefined,
             location: importCellText(row, "Location") || undefined,
             contractor: importCellText(row, "Contractor") || undefined,
-            bid_price: bidPrice ?? undefined,
+            bid_price: bidPrice,
             category: "Infrastructure",
             status: "Planning",
             budget_year: new Date().getFullYear(),
