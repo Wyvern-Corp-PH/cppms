@@ -421,4 +421,101 @@ describe("DashboardModule (V9, V24)", () => {
     })
     expect(screen.getByTestId("dashboard-projects")).toHaveTextContent("1")
   })
+
+  it("should cap utilization at 100 percent and show Over Budget when released exceeds total budget", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        bid_price: 100_000,
+        progress_pct: 75,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "budget_expenses",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 150_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-10",
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dashboard-utilization-pct")).toHaveTextContent(
+        "100% spent"
+      )
+      expect(screen.getByTestId("dashboard-utilization-bar")).toHaveStyle({
+        width: "100%",
+      })
+      expect(screen.getByText("Over Budget")).toBeInTheDocument()
+      expect(screen.getByTestId("dashboard-utilization-totals")).toHaveTextContent(
+        "₱100,000"
+      )
+      expect(screen.getByTestId("dashboard-utilization-totals")).toHaveTextContent(
+        "₱150,000"
+      )
+    })
+    expect(screen.queryByText("150% spent")).not.toBeInTheDocument()
+  })
+
+  it("should show uncapped utilization and hide Over Budget when released is within total budget", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "projects",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        bid_price: 100_000,
+        progress_pct: 75,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "budget_expenses",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-10",
+      },
+    ]
+
+    render(<DashboardModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dashboard-utilization-pct")).toHaveTextContent(
+        "25% spent"
+      )
+      expect(screen.getByTestId("dashboard-utilization-bar")).toHaveStyle({
+        width: "25%",
+      })
+      expect(screen.queryByText("Over Budget")).not.toBeInTheDocument()
+      expect(screen.getByTestId("dashboard-utilization-totals")).toHaveTextContent(
+        "₱100,000"
+      )
+      expect(screen.getByTestId("dashboard-utilization-totals")).toHaveTextContent(
+        "₱25,000"
+      )
+    })
+  })
 })

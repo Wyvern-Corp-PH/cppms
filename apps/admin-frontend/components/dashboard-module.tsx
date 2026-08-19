@@ -189,9 +189,11 @@ export function DashboardModule() {
     )
   }
 
-  const utilizationPct =
-    budget.totalBudget > 0
-      ? Math.round((budget.totalSpent / budget.totalBudget) * 100)
+  const overBudget = budget.totalSpent > budget.totalBudget
+  const utilizationPct = overBudget
+    ? 100
+    : budget.totalBudget > 0
+      ? Math.min(100, Math.round((budget.totalSpent / budget.totalBudget) * 100))
       : 0
 
   return (
@@ -247,10 +249,29 @@ export function DashboardModule() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-(--radius-lg) border border-border bg-card p-4">
           <h2 className="text-sm font-semibold">Budget utilization</h2>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">{utilizationPct}% spent</p>
+          <p
+            className="mt-2 text-2xl font-semibold tabular-nums"
+            data-testid="dashboard-utilization-pct"
+          >
+            {utilizationPct}% spent
+          </p>
+          {overBudget ? (
+            <p className="text-destructive mt-1 text-sm font-medium">Over Budget</p>
+          ) : null}
           <div className="bg-muted mt-3 h-2 overflow-hidden rounded-full">
-            <span className="bg-primary block h-full" style={{ width: `${utilizationPct}%` }} />
+            <span
+              className="bg-primary block h-full"
+              data-testid="dashboard-utilization-bar"
+              style={{ width: `${utilizationPct}%` }}
+            />
           </div>
+          <p
+            className="text-muted-foreground mt-3 text-sm tabular-nums"
+            data-testid="dashboard-utilization-totals"
+          >
+            Total budget {formatPhp(budget.totalBudget)} · Amount released{" "}
+            {formatPhp(budget.totalSpent)}
+          </p>
         </div>
         <div className="rounded-(--radius-lg) border border-border bg-card p-4">
           <h2 className="text-sm font-semibold">Deadline heatmap</h2>
