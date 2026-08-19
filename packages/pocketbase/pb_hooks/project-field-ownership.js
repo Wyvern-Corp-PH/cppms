@@ -22,6 +22,8 @@ const LGU_OWNED_FIELDS = [
   "contractor",
   "bid_price",
   "project_photos",
+  "resolution_file",
+  "supporting_docs",
 ]
 const PROJECT_FIELDS = [
   ...PPDO_OWNED_FIELDS,

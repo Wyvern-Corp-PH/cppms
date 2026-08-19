@@ -2,6 +2,12 @@ const migrate = globalThis.migrate
 const TextField = globalThis.TextField
 const SelectField = globalThis.SelectField
 
+// tradeoff: same-wave drop of planning_status/procurement_status/moa_details —
+// rolling deploys can break old writers still sending these columns. Ceiling:
+// stop old app writers (or deploy app that no longer writes them) before running
+// this migration. Upgrade path: expand-contract (nullable keep → dual-write stop
+// → drop) if zero-downtime rolling is required.
+
 const DROPPED_PROJECT_FIELDS = [
   "planning_status",
   "procurement_status",

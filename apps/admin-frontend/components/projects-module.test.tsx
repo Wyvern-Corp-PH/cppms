@@ -358,6 +358,34 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByText(/Row 3: Project Name is required/i)).toBeInTheDocument()
   })
 
+  it("rejects Excel import rows missing Bid Price", async () => {
+    const user = userEvent.setup()
+    xlsxState.rows = [
+      {
+        "Project Name": "Road Widening",
+        Description: "Phase 1",
+        Location: "Tuguegarao City",
+        Contractor: "BuildCo",
+        "Bid Price": "",
+      },
+    ]
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+    await user.upload(
+      await screen.findByLabelText(/excel file/i),
+      new File(["workbook"], "projects.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+    )
+    await user.click(screen.getByRole("button", { name: /^import projects$/i }))
+
+    expect(
+      await screen.findByText(/Row 2: Bid Price is required/i)
+    ).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
   it("imports multiple Excel files and reports filename row errors", async () => {
     const user = userEvent.setup()
     xlsxState.workbooks = [

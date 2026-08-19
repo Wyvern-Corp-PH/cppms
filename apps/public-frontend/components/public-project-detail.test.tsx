@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const store = {
   project: null as Record<string, unknown> | null,
   updates: [] as Record<string, unknown>[],
+  updatesError: null as Error | null,
 }
 
 vi.mock("@/lib/pocketbase", () => ({
@@ -11,7 +12,10 @@ vi.mock("@/lib/pocketbase", () => ({
     collection: (name: string) => {
       if (name === "progress_updates") {
         return {
-          getFullList: vi.fn(async () => store.updates),
+          getFullList: vi.fn(async () => {
+            if (store.updatesError) throw store.updatesError
+            return store.updates
+          }),
         }
       }
       return {
@@ -70,6 +74,7 @@ describe("PublicProjectDetail", () => {
     process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://localhost:8090"
     store.project = { ...publishedProject }
     store.updates = []
+    store.updatesError = null
   })
 
   it("renders required public fields without login or mutate controls", async () => {
@@ -200,5 +205,22 @@ describe("PublicProjectDetail", () => {
       "/projects"
     )
     expect(screen.queryByRole("button", { name: /edit/i })).not.toBeInTheDocument()
+  })
+
+  it("surfaces progress history load failures without hiding the project", async () => {
+    store.updatesError = new Error("progress list failed")
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Cagayan River Bridge" })
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /unable to load progress update history/i
+    )
+    expect(screen.getByTestId("progress-history-error")).toBeInTheDocument()
   })
 })

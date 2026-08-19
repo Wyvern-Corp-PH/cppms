@@ -774,7 +774,11 @@ export function ProjectsModule() {
             errors.push(importRowError(file, rowNumber, "Project Name is required."))
             continue
           }
-          if (bidPriceValue && bidPrice === null) {
+          if (!bidPriceValue) {
+            errors.push(importRowError(file, rowNumber, "Bid Price is required."))
+            continue
+          }
+          if (bidPrice === null) {
             errors.push(
               importRowError(file, rowNumber, "Bid Price must be a valid amount.")
             )

@@ -304,6 +304,8 @@ describe("ApprovalsModule (J5, V5)", () => {
     ).toBeInTheDocument()
     expect(store.projects[0]?.status).toBe("Ready for Review")
     expect(store.projects[0]?.approval_status).toBe("pending")
+    expect(store.actions).toHaveLength(0)
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("shows approval actions only to Province users and includes request revision", async () => {

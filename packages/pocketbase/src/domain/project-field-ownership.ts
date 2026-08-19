@@ -34,6 +34,8 @@ export const LGU_OWNED_FIELDS = [
   "contractor",
   "bid_price",
   "project_photos",
+  "resolution_file",
+  "supporting_docs",
 ] as const
 
 export function projectFieldFilledByLabel(field: string): string | null {

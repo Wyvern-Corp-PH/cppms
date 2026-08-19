@@ -386,17 +386,7 @@ export function ApprovalsModule() {
 
     const pb = getPocketBase()
     try {
-      await pb.collection("approval_actions").create({
-        project: selected.id,
-        action: parsed.data.action,
-        authority_name: parsed.data.authority_name,
-        reason:
-          parsed.data.action === "reject" ||
-          parsed.data.action === "request_revision"
-            ? parsed.data.reason
-            : undefined,
-      })
-
+      // Update project first so a failed write never orphans an approval_actions row.
       await pb.collection("projects").update(selected.id, {
         approval_status:
           parsed.data.action === "approve"
@@ -416,6 +406,17 @@ export function ApprovalsModule() {
             : undefined,
         rejection_reason:
           parsed.data.action === "reject" ? parsed.data.reason : undefined,
+      })
+
+      await pb.collection("approval_actions").create({
+        project: selected.id,
+        action: parsed.data.action,
+        authority_name: parsed.data.authority_name,
+        reason:
+          parsed.data.action === "reject" ||
+          parsed.data.action === "request_revision"
+            ? parsed.data.reason
+            : undefined,
       })
     } catch (error) {
       setActionError(

@@ -269,7 +269,7 @@ describe("project field ownership", () => {
     })
   })
 
-  it("rejects unowned omitted-table fields such as resolution_file", () => {
+  it("rejects PPDO writes of LGU-owned resolution_file", () => {
     const result = evaluateProjectFieldWrite({
       role: "PPDO",
       isCreate: false,
@@ -280,6 +280,30 @@ describe("project field ownership", () => {
       ok: false,
       error: "You cannot update field 'resolution_file'.",
     })
+  })
+
+  it("allows LGU writes of resolution_file and supporting_docs", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "Ongoing",
+      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+    }
+    expect(
+      evaluateProjectFieldWrite({
+        role: "Municipality",
+        isCreate: false,
+        original,
+        submitted: { resolution_file: ["resolution.pdf"] },
+      }).ok
+    ).toBe(true)
+    expect(
+      evaluateProjectFieldWrite({
+        role: "Barangay",
+        isCreate: false,
+        original,
+        submitted: { supporting_docs: ["support.pdf"] },
+      }).ok
+    ).toBe(true)
   })
 
   it("rejects LGU writes of scholarship student count", () => {
@@ -380,6 +404,8 @@ describe("project field ownership", () => {
       "contractor",
       "bid_price",
       "project_photos",
+      "resolution_file",
+      "supporting_docs",
     ])
     expect(LGU_OWNED_FIELDS).not.toContain("start_date")
     expect(LGU_OWNED_FIELDS).not.toContain("target_end_date")
@@ -391,7 +417,12 @@ describe("project field ownership", () => {
     expect(projectFieldFilledByLabel("name")).toBe("filled by PPDO")
     expect(projectFieldFilledByLabel("bid_price")).toBe("filled by LGU/Barangay")
     expect(projectFieldFilledByLabel("status")).toBe("filled by LGU/Barangay")
-    expect(projectFieldFilledByLabel("resolution_file")).toBeNull()
+    expect(projectFieldFilledByLabel("resolution_file")).toBe(
+      "filled by LGU/Barangay"
+    )
+    expect(projectFieldFilledByLabel("supporting_docs")).toBe(
+      "filled by LGU/Barangay"
+    )
   })
 
   it("lets PPDO edit number_of_students when the current category is Scholarship", () => {

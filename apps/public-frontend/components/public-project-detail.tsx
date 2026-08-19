@@ -42,40 +42,48 @@ function compareByRecencyDesc(
 export function PublicProjectDetail({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<ProjectRecord | null>(null)
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
+  const [progressError, setProgressError] = useState<string | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading")
 
   useEffect(() => {
     let cancelled = false
     const pb = getPocketBase()
 
-    void Promise.all([
-      pb.collection("projects").getOne(projectId),
-      pb
-        .collection("progress_updates")
-        .getFullList({
-          filter: `project = "${projectId}"`,
-          sort: "-created",
-        })
-        .catch(() => []),
-    ])
-      .then(([row, updateRows]) => {
+    void (async () => {
+      try {
+        const row = await pb.collection("projects").getOne(projectId)
         if (cancelled) return
         const parsed = parseRecord(projectRecordSchema, row)
         if (!parsed) {
           setStatus("missing")
           return
         }
-        const history = parseRecordList(
-          progressUpdateRecordSchema,
-          updateRows
-        ).sort(compareByRecencyDesc)
+
         setProject(parsed)
-        setUpdates(history)
+        try {
+          const updateRows = await pb
+            .collection("progress_updates")
+            .getFullList({
+              filter: `project = "${projectId}"`,
+              sort: "-created",
+            })
+          if (cancelled) return
+          setUpdates(
+            parseRecordList(progressUpdateRecordSchema, updateRows).sort(
+              compareByRecencyDesc
+            )
+          )
+          setProgressError(null)
+        } catch {
+          if (cancelled) return
+          setUpdates([])
+          setProgressError("Unable to load progress update history.")
+        }
         setStatus("ready")
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setStatus("missing")
-      })
+      }
+    })()
 
     return () => {
       cancelled = true
@@ -152,7 +160,14 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
           })}
         </div>
       ) : null}
-      {updates.length > 0 ? (
+      {progressError ? (
+        <section className="space-y-2" data-testid="progress-history-error">
+          <h2 className="text-base font-semibold">Progress Update History</h2>
+          <p className="text-destructive text-sm" role="alert">
+            {progressError}
+          </p>
+        </section>
+      ) : updates.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Progress Update History</h2>
           <ul className="space-y-3">
