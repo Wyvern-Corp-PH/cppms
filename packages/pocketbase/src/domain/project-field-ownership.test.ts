@@ -399,6 +399,55 @@ describe("project field ownership", () => {
     ).toBe(false)
   })
 
+  it("should keep moa_file editable for owning roles when status is For Revision", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "For Revision",
+      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      moa_file: ["old-moa.pdf"],
+    }
+    for (const role of ["PPDO", "Province", "Super Admin"] as const) {
+      expect(isProjectFieldEditable(role, "moa_file", original, false)).toBe(true)
+    }
+    expect(
+      isProjectFieldEditable("Municipality", "moa_file", original, false)
+    ).toBe(false)
+  })
+
+  it("should allow owning roles to upload or replace moa_file when status is For Revision", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "For Revision",
+      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      moa_file: ["old-moa.pdf"],
+    }
+    const submitted = { moa_file: ["revised-moa.pdf"] }
+
+    for (const role of ["PPDO", "Province", "Super Admin"] as const) {
+      const options = { role, isCreate: false, original, submitted }
+      expect(evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+    }
+
+    expect(
+      evaluateProjectFieldWrite({
+        role: "Municipality",
+        isCreate: false,
+        original,
+        submitted,
+      })
+    ).toEqual({
+      ok: false,
+      error: "You cannot update field 'moa_file'.",
+    })
+  })
+
   it("patches only fields the actor owns", () => {
     const submitted = {
       name: "Charter Bridge",

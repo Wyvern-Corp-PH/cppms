@@ -1306,4 +1306,73 @@ describe("ProjectsModule (J4)", () => {
     })
     expect(payload).not.toHaveProperty("contractor")
   })
+
+  it.each(["PPDO", "Province", "Super Admin"] as const)(
+    "should keep MOA upload enabled for %s when project is For Revision",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          status: "For Revision",
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+          moa_file: ["old-moa.pdf"],
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(screen.getByText(/on record: old-moa\.pdf/i)).toBeInTheDocument()
+      expect(
+        screen.getByTestId("document-upload-input-moa-file")
+      ).not.toBeDisabled()
+    }
+  )
+
+  it("should submit moa_file FormData when PPDO replaces MOA on For Revision", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        status: "For Revision",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        moa_file: ["old-moa.pdf"],
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.upload(screen.getByTestId("document-upload-input-moa-file"), [
+      new File(["revised"], "revised-moa.pdf", { type: "application/pdf" }),
+    ])
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalled()
+    })
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).toBeInstanceOf(FormData)
+    expect((payload as FormData).getAll("moa_file")).toHaveLength(1)
+    expect(((payload as FormData).get("moa_file") as File).name).toBe(
+      "revised-moa.pdf"
+    )
+  })
 })
