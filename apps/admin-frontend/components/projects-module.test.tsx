@@ -1553,7 +1553,138 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it("should submit moa_file FormData when PPDO replaces MOA on For Revision", async () => {
+  it("should list existing MOA files when Edit Project opens", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        moa_file: ["old-moa.pdf", "addendum.pdf"],
+      }),
+    ]
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByText(/on record: old-moa\.pdf/i)).toBeInTheDocument()
+    expect(screen.getByText(/on record: addendum\.pdf/i)).toBeInTheDocument()
+  })
+
+  it("should keep existing MOA filenames on save when none are removed", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        moa_file: ["old-moa.pdf"],
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalled()
+    })
+    const payload = updateMock.mock.calls[0]?.[1]
+    if (payload instanceof FormData) {
+      expect(payload.getAll("moa_file")).toContain("old-moa.pdf")
+      return
+    }
+    expect(payload).not.toHaveProperty("moa_file")
+  })
+
+  it("should drop only the MOA file the user removes on save", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "pp1",
+      role: "PPDO",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        moa_file: ["old-moa.pdf", "keep-moa.pdf"],
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalled()
+    })
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).toBeInstanceOf(FormData)
+    const moaValues = (payload as FormData).getAll("moa_file")
+    expect(moaValues).toContain("keep-moa.pdf")
+    expect(moaValues).not.toContain("old-moa.pdf")
+  })
+
+  it("should keep existing MOA files when another document is uploaded", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "sa1",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        moa_file: ["old-moa.pdf"],
+        resolution_file: ["old-res.pdf"],
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.upload(screen.getByTestId("document-upload-input-resolution-file"), [
+      new File(["res"], "new-res.pdf", { type: "application/pdf" }),
+    ])
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalled()
+    })
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).toBeInstanceOf(FormData)
+    expect((payload as FormData).getAll("moa_file")).toContain("old-moa.pdf")
+    const resolution = (payload as FormData).getAll("resolution_file")
+    expect(resolution).toContain("old-res.pdf")
+    expect(
+      resolution.some(
+        (value) => value instanceof File && value.name === "new-res.pdf"
+      )
+    ).toBe(true)
+  })
+
+  it("should submit retained MOA names plus new files when PPDO uploads on For Revision", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
@@ -1585,9 +1716,12 @@ describe("ProjectsModule (J4)", () => {
     })
     const payload = updateMock.mock.calls[0]?.[1]
     expect(payload).toBeInstanceOf(FormData)
-    expect((payload as FormData).getAll("moa_file")).toHaveLength(1)
-    expect(((payload as FormData).get("moa_file") as File).name).toBe(
-      "revised-moa.pdf"
-    )
+    const moaValues = (payload as FormData).getAll("moa_file")
+    expect(moaValues).toContain("old-moa.pdf")
+    expect(
+      moaValues.some(
+        (value) => value instanceof File && value.name === "revised-moa.pdf"
+      )
+    ).toBe(true)
   })
 })

@@ -42,6 +42,42 @@ describe("DocumentUploadField", () => {
     expect(screen.getByText(/on record: signed-moa\.pdf/i)).toBeInTheDocument()
   })
 
+  it("should drop an on-record filename when the user clicks remove", async () => {
+    const user = userEvent.setup()
+    const onExistingNamesChange = vi.fn()
+
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        files={[]}
+        existingNames={["signed-moa.pdf", "addendum.pdf"]}
+        onExistingNamesChange={onExistingNamesChange}
+        onChange={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /remove signed-moa\.pdf/i }))
+
+    expect(onExistingNamesChange).toHaveBeenCalledWith(["addendum.pdf"])
+  })
+
+  it("should keep on-record names display-only when remove is not wired", () => {
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        files={[]}
+        existingNames={["signed-moa.pdf"]}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole("button", { name: /remove signed-moa\.pdf/i })
+    ).not.toBeInTheDocument()
+  })
+
   it("adds multiple files by default", async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

@@ -167,6 +167,61 @@ function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
   })
 }
 
+function sameNameList(left: string[], right: string[]) {
+  return left.length === right.length && left.every((name, index) => name === right[index])
+}
+
+function appendRetainedAndNewFiles(
+  formData: FormData,
+  field: string,
+  retainedNames: string[],
+  files: File[],
+  originalNames: string[]
+) {
+  for (const name of retainedNames) {
+    formData.append(field, name)
+  }
+  for (const file of files) {
+    formData.append(field, file)
+  }
+  if (retainedNames.length > 0 || files.length > 0) return
+  for (const name of originalNames) {
+    formData.append(field, `-${name}`)
+  }
+}
+
+type ProjectFileFieldInput = {
+  allowed: boolean
+  key: string
+  files: File[]
+  retainedNames: string[]
+  originalNames: string[]
+}
+
+function projectFileFieldsDirty(fields: ProjectFileFieldInput[]) {
+  return fields.some(
+    (field) =>
+      field.files.length > 0 ||
+      (field.allowed && !sameNameList(field.retainedNames, field.originalNames))
+  )
+}
+
+function appendProjectFileFields(
+  formData: FormData,
+  fields: ProjectFileFieldInput[]
+) {
+  for (const field of fields) {
+    if (!field.allowed) continue
+    appendRetainedAndNewFiles(
+      formData,
+      field.key,
+      field.retainedNames,
+      field.files,
+      field.originalNames
+    )
+  }
+}
+
 function splitProjectLocation(location: string | undefined) {
   const [municipality = "", ...barangayParts] = (location ?? "").split(" / ")
   return {
@@ -409,6 +464,14 @@ export function ProjectsModule() {
   const [projectPhotoFiles, setProjectPhotoFiles] = useState<File[]>([])
   const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
   const [supportingFiles, setSupportingFiles] = useState<File[]>([])
+  const [retainedMoaNames, setRetainedMoaNames] = useState<string[]>([])
+  const [retainedPhotoNames, setRetainedPhotoNames] = useState<string[]>([])
+  const [retainedResolutionNames, setRetainedResolutionNames] = useState<
+    string[]
+  >([])
+  const [retainedSupportingNames, setRetainedSupportingNames] = useState<
+    string[]
+  >([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [statusTarget, setStatusTarget] = useState<ProjectRecord | null>(null)
@@ -436,6 +499,10 @@ export function ProjectsModule() {
     setProjectPhotoFiles([])
     setResolutionFiles([])
     setSupportingFiles([])
+    setRetainedMoaNames([])
+    setRetainedPhotoNames([])
+    setRetainedResolutionNames([])
+    setRetainedSupportingNames([])
   }
 
   const loadProjects = useCallback(async () => {
@@ -565,6 +632,10 @@ export function ProjectsModule() {
     setMoaFiles([])
     setResolutionFiles([])
     setSupportingFiles([])
+    setRetainedMoaNames([])
+    setRetainedPhotoNames([])
+    setRetainedResolutionNames([])
+    setRetainedSupportingNames([])
     setFieldErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -617,6 +688,10 @@ export function ProjectsModule() {
     setProjectPhotoFiles([])
     setResolutionFiles([])
     setSupportingFiles([])
+    setRetainedMoaNames(namesOnRecord(project.moa_file))
+    setRetainedPhotoNames(namesOnRecord(project.project_photos))
+    setRetainedResolutionNames(namesOnRecord(project.resolution_file))
+    setRetainedSupportingNames(namesOnRecord(project.supporting_docs))
     setFieldErrors({})
     setFormError(null)
     setDialogOpen(true)
@@ -671,36 +746,46 @@ export function ProjectsModule() {
     )
     const owned = ownedProjectFieldsForActor(actorRole, editing, !editing)
     const allowsField = (field: string) => owned.has("*") || owned.has(field)
-    const moaToSend = allowsField("moa_file") ? moaFiles : []
-    const photosToSend = allowsField("project_photos") ? projectPhotoFiles : []
-    const resolutionToSend = allowsField("resolution_file") ? resolutionFiles : []
-    const supportingToSend = allowsField("supporting_docs") ? supportingFiles : []
-    const hasFiles =
-      moaToSend.length > 0 ||
-      photosToSend.length > 0 ||
-      resolutionToSend.length > 0 ||
-      supportingToSend.length > 0
+    const fileFields: ProjectFileFieldInput[] = [
+      {
+        allowed: allowsField("moa_file"),
+        key: "moa_file",
+        files: allowsField("moa_file") ? moaFiles : [],
+        retainedNames: retainedMoaNames,
+        originalNames: namesOnRecord(editing?.moa_file),
+      },
+      {
+        allowed: allowsField("project_photos"),
+        key: "project_photos",
+        files: allowsField("project_photos") ? projectPhotoFiles : [],
+        retainedNames: retainedPhotoNames,
+        originalNames: namesOnRecord(editing?.project_photos),
+      },
+      {
+        allowed: allowsField("resolution_file"),
+        key: "resolution_file",
+        files: allowsField("resolution_file") ? resolutionFiles : [],
+        retainedNames: retainedResolutionNames,
+        originalNames: namesOnRecord(editing?.resolution_file),
+      },
+      {
+        allowed: allowsField("supporting_docs"),
+        key: "supporting_docs",
+        files: allowsField("supporting_docs") ? supportingFiles : [],
+        retainedNames: retainedSupportingNames,
+        originalNames: namesOnRecord(editing?.supporting_docs),
+      },
+    ]
 
     try {
-      if (hasFiles) {
+      if (projectFileFieldsDirty(fileFields)) {
         const formData = new FormData()
         for (const [key, value] of Object.entries(payload)) {
           if (value !== undefined && value !== null) {
             formData.append(key, String(value))
           }
         }
-        for (const file of moaToSend) {
-          formData.append("moa_file", file)
-        }
-        for (const file of photosToSend) {
-          formData.append("project_photos", file)
-        }
-        for (const file of resolutionToSend) {
-          formData.append("resolution_file", file)
-        }
-        for (const file of supportingToSend) {
-          formData.append("supporting_docs", file)
-        }
+        appendProjectFileFields(formData, fileFields)
 
         if (editing) {
           await pb.collection("projects").update(editing.id, formData)
@@ -1464,7 +1549,8 @@ export function ProjectsModule() {
                     id="moa-file"
                     label="Memorandum of Agreement"
                     files={moaFiles}
-                    existingNames={namesOnRecord(editing?.moa_file)}
+                    existingNames={retainedMoaNames}
+                    onExistingNamesChange={setRetainedMoaNames}
                     onChange={setMoaFiles}
                     disabled={fieldLocked("moa_file")}
                   />
@@ -1477,7 +1563,8 @@ export function ProjectsModule() {
                     accept={IMAGE_UPLOAD_ACCEPT}
                     helperText="JPG, PNG, WEBP"
                     files={projectPhotoFiles}
-                    existingNames={namesOnRecord(editing?.project_photos)}
+                    existingNames={retainedPhotoNames}
+                    onExistingNamesChange={setRetainedPhotoNames}
                     onChange={setProjectPhotoFiles}
                     disabled={fieldLocked("project_photos")}
                   />
@@ -1488,7 +1575,8 @@ export function ProjectsModule() {
                     id="resolution-file"
                     label="Resolution"
                     files={resolutionFiles}
-                    existingNames={namesOnRecord(editing?.resolution_file)}
+                    existingNames={retainedResolutionNames}
+                    onExistingNamesChange={setRetainedResolutionNames}
                     onChange={setResolutionFiles}
                     disabled={fieldLocked("resolution_file")}
                   />
@@ -1500,7 +1588,8 @@ export function ProjectsModule() {
                     label="Supporting project documents"
                     multiple
                     files={supportingFiles}
-                    existingNames={editing?.supporting_docs ?? []}
+                    existingNames={retainedSupportingNames}
+                    onExistingNamesChange={setRetainedSupportingNames}
                     onChange={setSupportingFiles}
                     disabled={fieldLocked("supporting_docs")}
                   />

@@ -30,6 +30,7 @@ type DocumentUploadFieldProps = {
   files: File[]
   onChange: (files: File[]) => void
   existingNames?: string[]
+  onExistingNamesChange?: (names: string[]) => void
   disabled?: boolean
   helperText?: string
   dropZoneText?: string
@@ -45,6 +46,7 @@ export function DocumentUploadField({
   files,
   onChange,
   existingNames = [],
+  onExistingNamesChange,
   helperText = "PDF, DOC, XLS, JPG, PNG",
   dropZoneText = "Click to upload or drag files here",
   error,
@@ -85,6 +87,10 @@ export function DocumentUploadField({
     onChange(files.filter((file) => fileIdentity(file) !== identity))
   }
 
+  function removeExistingName(name: string) {
+    onExistingNamesChange?.(existingNames.filter((item) => item !== name))
+  }
+
   const describedBy = [limitMessage ? limitMessageId : null, error ? `${id}-error` : null]
     .filter(Boolean)
     .join(" ")
@@ -97,7 +103,21 @@ export function DocumentUploadField({
       {existingNames.length > 0 ? (
         <ul className="text-muted-foreground space-y-0.5 text-xs">
           {existingNames.map((name) => (
-            <li key={name}>On record: {name}</li>
+            <li key={name} className="flex items-center justify-between gap-2">
+              <span className="truncate">On record: {name}</span>
+              {onExistingNamesChange ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Remove ${name}`}
+                  disabled={disabled}
+                  onClick={() => removeExistingName(name)}
+                >
+                  <X className="size-4" />
+                </Button>
+              ) : null}
+            </li>
           ))}
         </ul>
       ) : null}
