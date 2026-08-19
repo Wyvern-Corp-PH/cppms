@@ -64,7 +64,7 @@ describe("J12 dashboard filter journey", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-06-30",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
       {
@@ -79,7 +79,7 @@ describe("J12 dashboard filter journey", () => {
         start_date: "2026-07-01",
         target_end_date: "2026-07-30",
         budget_year: 2026,
-        total_budget: 300_000,
+        bid_price: 300_000,
         progress_pct: 100,
         approval_status: "pending",
       },

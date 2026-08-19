@@ -145,7 +145,7 @@ describe("DashboardModule (V9, V24)", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-06-30",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
       {
@@ -160,7 +160,7 @@ describe("DashboardModule (V9, V24)", () => {
         start_date: "2026-07-01",
         target_end_date: "2026-07-30",
         budget_year: 2026,
-        total_budget: 300_000,
+        bid_price: 300_000,
         progress_pct: 100,
         approval_status: "pending",
       },
@@ -245,7 +245,7 @@ describe("DashboardModule (V9, V24)", () => {
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2024,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
       {
@@ -258,7 +258,7 @@ describe("DashboardModule (V9, V24)", () => {
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2022,
-        total_budget: 300_000,
+        bid_price: 300_000,
         progress_pct: 10,
       },
     ]
@@ -290,7 +290,7 @@ describe("DashboardModule (V9, V24)", () => {
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2024,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
     ]
@@ -330,7 +330,7 @@ describe("DashboardModule (V9, V24)", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-06-30",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
     ]
@@ -374,7 +374,7 @@ describe("DashboardModule (V9, V24)", () => {
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 75,
       },
     ]
@@ -408,7 +408,7 @@ describe("DashboardModule (V9, V24)", () => {
         status: "Planning",
         municipality: "Lasam",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 0,
       },
     ]

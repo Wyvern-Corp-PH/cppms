@@ -24,12 +24,12 @@ export type ProjectBudgetBreakdownRow = {
 }
 
 export function computeBudgetSummary(
-  projects: readonly Pick<ProjectRecord, "total_budget">[],
+  projects: readonly Pick<ProjectRecord, "bid_price">[],
   allocations: readonly Pick<BudgetAllocationRecord, "amount">[],
   expenses: readonly Pick<BudgetExpenseRecord, "amount">[]
 ): BudgetSummary {
   const totalBudget = projects.reduce(
-    (sum, project) => sum + (project.total_budget ?? 0),
+    (sum, project) => sum + (project.bid_price ?? 0),
     0
   )
   const totalAllocated = allocations.reduce(
@@ -49,13 +49,13 @@ export function computeBudgetSummary(
 export function computeProjectBudgetBreakdown(
   projects: readonly Pick<
     ProjectRecord,
-    "id" | "name" | "municipality" | "barangay" | "location" | "total_budget"
+    "id" | "name" | "municipality" | "barangay" | "location" | "bid_price"
   >[],
   allocations: readonly Pick<BudgetAllocationRecord, "project" | "amount">[],
   expenses: readonly Pick<BudgetExpenseRecord, "project" | "amount">[]
 ): ProjectBudgetBreakdownRow[] {
   return projects.map((project) => {
-    const totalBudget = project.total_budget ?? 0
+    const totalBudget = project.bid_price ?? 0
     const allocated = allocations
       .filter((row) => row.project === project.id)
       .reduce((sum, row) => sum + row.amount, 0)

@@ -225,7 +225,7 @@ export function ReportsModule() {
           deadline: resolveDeadlineStatus(project.target_end_date, project.progress_pct ?? 0),
           lgu: project.lgu_level,
           location: projectLocationDisplayParts(project).join(" · "),
-          budget: project.total_budget,
+          budget: project.bid_price,
           progress: project.progress_pct,
         }))
       } else if (tab === "budget") {
@@ -264,7 +264,7 @@ export function ReportsModule() {
         rows = filteredProjects.map((project) => ({
           name: project.name,
           status: project.status,
-          budget: project.total_budget,
+          budget: project.bid_price,
           approved_at: project.approved_at
             ? formatDisplayDate(project.approved_at)
             : "Pending",
@@ -318,9 +318,9 @@ export function ReportsModule() {
         projectLocationDisplayParts(row.original).join(" · ") || "—",
     },
     {
-      accessorKey: "total_budget",
+      accessorKey: "bid_price",
       header: "Budget",
-      cell: ({ row }) => formatPhp(row.original.total_budget ?? 0),
+      cell: ({ row }) => formatPhp(row.original.bid_price ?? 0),
     },
     {
       accessorKey: "progress_pct",
@@ -480,9 +480,9 @@ export function ReportsModule() {
     },
     { accessorKey: "status", header: "Status" },
     {
-      accessorKey: "total_budget",
+      accessorKey: "bid_price",
       header: "Budget",
-      cell: ({ row }) => formatPhp(row.original.total_budget ?? 0),
+      cell: ({ row }) => formatPhp(row.original.bid_price ?? 0),
     },
     {
       id: "spent",
@@ -501,7 +501,7 @@ export function ReportsModule() {
         const spent = expenses
           .filter((expense) => expense.project === row.original.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
-        const savings = Math.max(0, (row.original.total_budget ?? 0) - spent)
+        const savings = Math.max(0, (row.original.bid_price ?? 0) - spent)
         return <span className="text-success">{formatPhp(savings)}</span>
       },
     },

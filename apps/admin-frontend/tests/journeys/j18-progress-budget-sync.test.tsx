@@ -154,7 +154,7 @@ describe("J18 progress update syncs released amount to budget module", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 25,
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",

@@ -7,7 +7,6 @@ import {
   accountStatusSchema,
   fundTypeSchema,
   lguLevelSchema,
-  lguPhaseStatusSchema,
   projectCategorySchema,
   projectStatusSchema,
   roleSchema,
@@ -73,9 +72,6 @@ export const projectRecordSchema = baseRecordSchema.extend({
   total_budget: pbNumber.optional(),
   fund_source: pbEmptyAsUndefined(fundTypeSchema.optional()),
   period_of_implementation: z.string().optional(),
-  moa_details: z.string().optional(),
-  planning_status: pbEmptyAsUndefined(lguPhaseStatusSchema.optional()),
-  procurement_status: pbEmptyAsUndefined(lguPhaseStatusSchema.optional()),
   bid_price: pbZeroAsUndefined(pbNumber.pipe(z.number().min(0)).optional()),
   number_of_students: pbZeroAsUndefined(
     pbNumber.pipe(z.number().int().positive()).optional()

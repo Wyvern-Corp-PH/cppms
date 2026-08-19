@@ -125,7 +125,7 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
           value={project.period_of_implementation || "—"}
         />
         <DetailField label="Funding Year" value={String(project.budget_year)} />
-        <DetailField label="Total Budget" value={formatPhp(project.total_budget ?? 0)} />
+        <DetailField label="Bid Price" value={formatPhp(project.bid_price ?? 0)} />
       </dl>
       <div className="space-y-2">
         <p className="text-muted-foreground text-xs">Progress</p>

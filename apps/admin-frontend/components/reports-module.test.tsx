@@ -273,7 +273,7 @@ describe("ReportsModule (V12)", () => {
         barangay: "Centro 01 (Bagumbayan)",
         lgu_level: "Barangay",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 75,
       },
     ]
@@ -374,7 +374,7 @@ describe("ReportsModule (V12)", () => {
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 75,
       },
       {
@@ -387,7 +387,7 @@ describe("ReportsModule (V12)", () => {
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
-        total_budget: 300_000,
+        bid_price: 300_000,
         progress_pct: 40,
       },
     ]
@@ -497,7 +497,7 @@ describe("ReportsModule (V12)", () => {
         barangay: "Centro 01 (Bagumbayan)",
         lgu_level: "Barangay",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 75,
       },
     ]

@@ -61,7 +61,7 @@ function ProjectCarouselCard({ project }: { project: ProjectRecord }) {
         <SegmentedProgress value={project.progress_pct ?? 0} />
       </div>
       <p className="text-muted-foreground mt-2 text-xs tabular-nums">
-        {formatPhp(project.total_budget ?? 0)}
+        {formatPhp(project.bid_price ?? 0)}
       </p>
     </article>
   )

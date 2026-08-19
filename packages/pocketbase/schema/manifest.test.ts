@@ -163,6 +163,11 @@ const ppdoLguOwnershipMigrationPath = resolve(
   "pb_migrations",
   "1740000031_ppdo_lgu_project_ownership.js"
 )
+const dropProjectPhaseMoaDetailsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000032_drop_project_phase_and_moa_details.js"
+)
 const projectFieldOwnershipHookPath = resolve(
   packageRoot,
   "pb_hooks",
@@ -240,10 +245,13 @@ describe("schema manifest (SPEC §I)", () => {
     expect(projects?.fields).toContain("resolution_file")
     expect(projects?.fields).toContain("fund_source")
     expect(projects?.fields).toContain("period_of_implementation")
-    expect(projects?.fields).toContain("moa_details")
-    expect(projects?.fields).toContain("planning_status")
-    expect(projects?.fields).toContain("procurement_status")
+    expect(projects?.fields).not.toContain("moa_details")
+    expect(projects?.fields).not.toContain("planning_status")
+    expect(projects?.fields).not.toContain("procurement_status")
     expect(projects?.fields).toContain("bid_price")
+    expect(projects?.fields).toContain("total_budget")
+    expect(projects?.fields).toContain("start_date")
+    expect(projects?.fields).toContain("target_end_date")
     expect(projects?.fields).toContain("project_photos")
     expect(projects?.fields).toContain("lgu_encoded_at")
     expect(progressUpdates?.fields).toEqual(
@@ -927,6 +935,30 @@ describe("PPDO and LGU project ownership", () => {
       .replace(/\/\/[^\n]*/g, "")
     expect(start).toBeGreaterThan(-1)
     expect(withoutComments).toMatch(/event\.next\s*\(/)
+  })
+})
+
+describe("drop planning/procurement status and moa_details", () => {
+  const dropMigrationSource = readFileSync(
+    dropProjectPhaseMoaDetailsMigrationPath,
+    "utf8"
+  )
+
+  it("removes only planning_status, procurement_status, and moa_details", () => {
+    expect(dropMigrationSource).toContain("planning_status")
+    expect(dropMigrationSource).toContain("procurement_status")
+    expect(dropMigrationSource).toContain("moa_details")
+    expect(dropMigrationSource).toContain("removeByName")
+    expect(dropMigrationSource).toContain("DROPPED_PROJECT_FIELDS")
+    expect(dropMigrationSource).not.toMatch(
+      /DROPPED_PROJECT_FIELDS\s*=\s*\[[^\]]*total_budget/
+    )
+    expect(dropMigrationSource).not.toMatch(
+      /DROPPED_PROJECT_FIELDS\s*=\s*\[[^\]]*start_date/
+    )
+    expect(dropMigrationSource).not.toMatch(
+      /DROPPED_PROJECT_FIELDS\s*=\s*\[[^\]]*bid_price/
+    )
   })
 })
 

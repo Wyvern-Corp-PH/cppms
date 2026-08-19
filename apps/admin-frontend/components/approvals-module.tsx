@@ -328,8 +328,8 @@ export function ApprovalsModule() {
     return (
       breakdown ?? {
         spent: 0,
-        totalBudget: project.total_budget ?? 0,
-        remaining: project.total_budget ?? 0,
+        totalBudget: project.bid_price ?? 0,
+        remaining: project.bid_price ?? 0,
       }
     )
   }
@@ -437,7 +437,7 @@ export function ApprovalsModule() {
     const budget = projectBudget(project)
     const projectUpdateList = projectUpdates(project.id)
     const spent = "spent" in budget ? budget.spent : 0
-    const total = project.total_budget ?? 0
+    const total = project.bid_price ?? 0
     const saved = Math.max(0, total - spent)
     const utilPct = total > 0 ? Math.round((spent / total) * 100) : 0
     const photos = projectUpdateList.filter(
@@ -702,11 +702,11 @@ export function ApprovalsModule() {
               {(() => {
                 const b = projectBudget(selected)
                 const spent = "spent" in b ? b.spent : 0
-                const total = selected.total_budget ?? 0
+                const total = selected.bid_price ?? 0
                 const savings = Math.max(0, total - spent)
                 return (
                   <div className="rounded-md border p-3">
-                    <p>Total budget: {formatPhp(total)}</p>
+                    <p>Bid price: {formatPhp(total)}</p>
                     <p className="text-destructive">
                       Total spent: {formatPhp(spent)}
                     </p>

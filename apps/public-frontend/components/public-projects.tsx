@@ -340,7 +340,7 @@ export function PublicProjects() {
               ) : null}
               <p className="text-muted-foreground mt-1 text-xs">
                 {formatProjectDateRange(project.start_date, project.target_end_date)} · FY {project.budget_year} ·{" "}
-                {formatPhp(project.total_budget ?? 0)}
+                {formatPhp(project.bid_price ?? 0)}
               </p>
               <Progress className="mt-2" value={project.progress_pct ?? 0} />
               <Link

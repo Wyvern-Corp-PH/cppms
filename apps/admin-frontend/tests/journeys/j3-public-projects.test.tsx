@@ -17,7 +17,7 @@ const publicProject = {
   contractor: "Acme Builders",
   start_date: "2026-01-15",
   target_end_date: "2026-12-31",
-  total_budget: 2500000,
+  bid_price: 2500000,
   progress_pct: 40,
 }
 

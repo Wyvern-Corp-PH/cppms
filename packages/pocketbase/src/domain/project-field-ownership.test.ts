@@ -11,6 +11,7 @@ import {
   LGU_OWNED_FIELDS,
   LGU_PHASE_STATUS,
   PPDO_OWNED_FIELDS,
+  projectFieldFilledByLabel,
   projectPayloadForActor,
   statusOptionsForActor,
 } from "./project-field-ownership"
@@ -23,7 +24,6 @@ const ppdoCreate = {
   municipality: "Tuguegarao City",
   location: "Tuguegarao City",
   description: "Charter encoding",
-  total_budget: 1_000_000,
 }
 
 const ppdoCreateZeroFilled = {
@@ -33,8 +33,6 @@ const ppdoCreateZeroFilled = {
   bid_price: 0,
   number_of_students: 0,
   contractor: "",
-  planning_status: "",
-  procurement_status: "",
   start_date: "",
   target_end_date: "",
   project_photos: [],
@@ -373,11 +371,27 @@ describe("project field ownership", () => {
     ).toEqual([])
   })
 
-  it("keeps Period of Implementation and LGU dates as distinct owned fields", () => {
+  it("should assign Period of Implementation to PPDO and drop schedule/phase/moa text ownership", () => {
     expect(PPDO_OWNED_FIELDS).toContain("period_of_implementation")
-    expect(LGU_OWNED_FIELDS).toContain("start_date")
-    expect(LGU_OWNED_FIELDS).toContain("target_end_date")
+    expect(PPDO_OWNED_FIELDS).toContain("moa_file")
+    expect(PPDO_OWNED_FIELDS).not.toContain("total_budget")
+    expect(PPDO_OWNED_FIELDS).not.toContain("moa_details")
+    expect(LGU_OWNED_FIELDS).toEqual([
+      "contractor",
+      "bid_price",
+      "project_photos",
+    ])
+    expect(LGU_OWNED_FIELDS).not.toContain("start_date")
+    expect(LGU_OWNED_FIELDS).not.toContain("target_end_date")
+    expect(LGU_OWNED_FIELDS).not.toContain("planning_status")
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
+  })
+
+  it("should label non-owned fields as filled by PPDO or LGU/Barangay", () => {
+    expect(projectFieldFilledByLabel("name")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("bid_price")).toBe("filled by LGU/Barangay")
+    expect(projectFieldFilledByLabel("status")).toBe("filled by LGU/Barangay")
+    expect(projectFieldFilledByLabel("resolution_file")).toBeNull()
   })
 
   it("lets PPDO edit number_of_students when the current category is Scholarship", () => {
@@ -453,7 +467,7 @@ describe("project field ownership", () => {
       name: "Charter Bridge",
       contractor: "Build Co",
       progress_pct: 50,
-      start_date: "2026-06-01",
+      bid_price: 12_000,
     }
 
     expect(
@@ -463,7 +477,7 @@ describe("project field ownership", () => {
       projectPayloadForActor("Municipality", ppdoCreate, false, submitted)
     ).toEqual({
       contractor: "Build Co",
-      start_date: "2026-06-01",
+      bid_price: 12_000,
     })
     expect(
       projectPayloadForActor("Province", ppdoCreate, false, submitted)

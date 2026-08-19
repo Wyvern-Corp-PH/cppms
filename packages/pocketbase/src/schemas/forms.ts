@@ -6,7 +6,6 @@ import {
   approvalActionSchema,
   fundTypeSchema,
   lguLevelSchema,
-  lguPhaseStatusSchema,
   projectCategorySchema,
   projectStatusSchema,
   roleSchema,
@@ -126,12 +125,8 @@ export const projectMutateSchema = z
     start_date: z.string().optional(),
     target_end_date: z.string().optional(),
     budget_year: z.coerce.number().int().min(2000).max(2100),
-    total_budget: z.coerce.number().min(0).optional(),
     fund_source: fundTypeSchema.optional(),
     period_of_implementation: z.string().optional(),
-    moa_details: z.string().optional(),
-    planning_status: lguPhaseStatusSchema.optional(),
-    procurement_status: lguPhaseStatusSchema.optional(),
     bid_price: z.coerce.number().min(0).optional(),
     number_of_students: z.coerce.number().int().positive().optional(),
     progress_pct: z.number().min(0).max(100).optional(),
@@ -164,13 +159,6 @@ export function projectMutateSchemaForActor(
         code: "custom",
         path: ["location"],
         message: "Location is required.",
-      })
-    }
-    if (value.total_budget === undefined) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["total_budget"],
-        message: "Total budget is required.",
       })
     }
     if (value.barangay?.trim() && !value.municipality?.trim()) {

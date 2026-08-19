@@ -291,7 +291,7 @@ describe("ProjectsModule (J4)", () => {
         "Description",
         "Location",
         "Contractor",
-        "Total Budget",
+        "Bid Price",
       ],
     ])
     expect(XLSX.writeFile).toHaveBeenCalledWith(
@@ -308,21 +308,21 @@ describe("ProjectsModule (J4)", () => {
         Description: "Phase 1",
         Location: "Tuguegarao City",
         Contractor: "BuildCo",
-        "Total Budget": "1500000",
+        "Bid Price": "1500000",
       },
       {
         "Project Name": "",
         Description: "No name",
         Location: "Lasam",
         Contractor: "Contractor",
-        "Total Budget": "250000",
+        "Bid Price": "250000",
       },
       {
         "Project Name": "School Repair",
         Description: "Roofing",
         Location: "Lasam",
         Contractor: "FixCo",
-        "Total Budget": "500000",
+        "Bid Price": "500000",
       },
     ]
     render(<ProjectsModule />)
@@ -346,7 +346,7 @@ describe("ProjectsModule (J4)", () => {
         description: "Phase 1",
         location: "Tuguegarao City",
         contractor: "BuildCo",
-        total_budget: 1500000,
+        bid_price: 1500000,
         category: "Infrastructure",
         status: "Planning",
         progress_pct: 0,
@@ -367,7 +367,7 @@ describe("ProjectsModule (J4)", () => {
           Description: "Phase 1",
           Location: "Tuguegarao City",
           Contractor: "BuildCo",
-          "Total Budget": "1500000",
+          "Bid Price": "1500000",
         },
       ],
       [
@@ -376,14 +376,14 @@ describe("ProjectsModule (J4)", () => {
           Description: "No name",
           Location: "Lasam",
           Contractor: "Contractor",
-          "Total Budget": "250000",
+          "Bid Price": "250000",
         },
         {
           "Project Name": "School Repair",
           Description: "Roofing",
           Location: "Lasam",
           Contractor: "FixCo",
-          "Total Budget": "500000",
+          "Bid Price": "500000",
         },
       ],
     ]
@@ -425,7 +425,7 @@ describe("ProjectsModule (J4)", () => {
       category: "Infrastructure",
       status: "Planning",
       budget_year: 2026,
-      total_budget: 1500000,
+      bid_price: 1500000,
       location: "Tuguegarao City / Centro 01 (Bagumbayan)",
       progress_pct: 0,
     })
@@ -798,7 +798,7 @@ describe("ProjectsModule (J4)", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-12-01",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 25,
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
@@ -826,8 +826,9 @@ describe("ProjectsModule (J4)", () => {
     await user.click(screen.getByRole("menuitem", { name: /^edit$/i }))
     expect(screen.getByLabelText(/project name/i)).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/^end date$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
+    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
   })
 
@@ -856,7 +857,7 @@ describe("ProjectsModule (J4)", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-12-01",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 25,
       },
     ]
@@ -907,7 +908,7 @@ describe("ProjectsModule (J4)", () => {
         start_date: "2026-06-01",
         target_end_date: "2026-12-01",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
         progress_pct: 25,
       },
     ]
@@ -947,7 +948,7 @@ describe("ProjectsModule (J4)", () => {
         start_date: "2026-07-12",
         target_end_date: "2026-07-16",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
         progress_pct: 0,
         number_of_students: 5,
       },
@@ -989,7 +990,7 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
-  it("locks LGU-owned fields for PPDO and keeps Period of Implementation distinct from dates", async () => {
+  it("locks LGU-owned fields for PPDO and keeps Period of Implementation without start/end dates", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
@@ -1004,14 +1005,16 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByLabelText(/project name/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/period of implementation/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
-    expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
-    expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
-    expect(screen.queryByLabelText(/target end date/i)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/filled by lgu\/barangay/i).length).toBeGreaterThan(0)
+    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/total budget/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/moa details/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
 
     await user.type(screen.getByLabelText(/project name/i), "Charter Road")
     await user.type(screen.getByLabelText(/^description$/i), "Charter encoding")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
-    await user.type(screen.getByLabelText(/total budget/i), "1000")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -1021,11 +1024,11 @@ describe("ProjectsModule (J4)", () => {
           status: "Planning",
           description: "Charter encoding",
           location: "Provincial hall",
-          total_budget: 1000,
         })
       )
     })
     expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("contractor")
+    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("total_budget")
   })
 
   it("locks status for PPDO after LGU encoding and keeps name editable", async () => {
@@ -1050,7 +1053,7 @@ describe("ProjectsModule (J4)", () => {
         barangay: "Centro",
         location: "Poblacion",
         budget_year: 2026,
-        total_budget: 1000,
+        bid_price: 1000,
         progress_pct: 10,
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
@@ -1086,7 +1089,7 @@ describe("ProjectsModule (J4)", () => {
       start_date: "2026-06-01",
       target_end_date: "2026-12-01",
       budget_year: 2026,
-      total_budget: 200_000,
+      bid_price: 200_000,
       progress_pct: 25,
       ...overrides,
     }
@@ -1279,7 +1282,7 @@ describe("ProjectsModule (J4)", () => {
         Description: "Phase 1",
         Location: "Tuguegarao City",
         Contractor: "BuildCo",
-        "Total Budget": "1500000",
+        "Bid Price": "1500000",
       },
     ]
 
@@ -1302,9 +1305,10 @@ describe("ProjectsModule (J4)", () => {
       name: "Road Widening",
       description: "Phase 1",
       location: "Tuguegarao City",
-      total_budget: 1500000,
     })
     expect(payload).not.toHaveProperty("contractor")
+    expect(payload).not.toHaveProperty("bid_price")
+    expect(payload).not.toHaveProperty("total_budget")
   })
 
   it.each(["PPDO", "Province", "Super Admin"] as const)(

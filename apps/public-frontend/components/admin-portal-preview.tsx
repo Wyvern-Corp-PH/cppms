@@ -74,7 +74,7 @@ export function AdminPortalPreview({ projects = [] }: AdminPortalPreviewProps) {
                   </p>
                   <p className="text-muted-foreground mt-0.5">
                     {formatProjectDateRange(project.start_date, project.target_end_date)} ·{" "}
-                    {formatPhp(project.total_budget ?? 0)}
+                    {formatPhp(project.bid_price ?? 0)}
                   </p>
                   <Progress className="mt-1 h-1" value={project.progress_pct ?? 0} />
                 </li>

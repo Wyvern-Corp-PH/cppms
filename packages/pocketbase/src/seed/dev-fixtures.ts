@@ -64,7 +64,7 @@ export type DevSeedProject = {
     start_date: string
     target_end_date: string
     budget_year: number
-    total_budget: number
+    bid_price: number
     number_of_students?: number
     progress_pct: number
     approval_status?: ProjectRecord["approval_status"]
@@ -100,7 +100,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2026-01-15",
       target_end_date: "2026-12-31",
       budget_year: 2026,
-      total_budget: 15_000_000,
+      bid_price: 15_000_000,
       progress_pct: 62,
     },
     allocation: { amount: 12_000_000, description: "FY2026 capital outlay" },
@@ -136,7 +136,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2026-03-01",
       target_end_date: "2027-06-30",
       budget_year: 2026,
-      total_budget: 28_500_000,
+      bid_price: 28_500_000,
       progress_pct: 12,
     },
     allocation: {
@@ -167,7 +167,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2026-02-01",
       target_end_date: "2026-08-31",
       budget_year: 2026,
-      total_budget: 6_750_000,
+      bid_price: 6_750_000,
       progress_pct: 58,
     },
     allocation: { amount: 6_750_000, description: "Agriculture support fund" },
@@ -206,7 +206,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2026-06-01",
       target_end_date: "2027-03-31",
       budget_year: 2026,
-      total_budget: 3_200_000,
+      bid_price: 3_200_000,
       progress_pct: 5,
     },
     allocation: { amount: 1_500_000, description: "Planning-phase release" },
@@ -234,7 +234,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2026-01-10",
       target_end_date: "2026-12-15",
       budget_year: 2026,
-      total_budget: 9_000_000,
+      bid_price: 9_000_000,
       number_of_students: 180,
       progress_pct: 78,
     },
@@ -263,7 +263,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2025-11-01",
       target_end_date: "2026-04-30",
       budget_year: 2026,
-      total_budget: 11_250_000,
+      bid_price: 11_250_000,
       progress_pct: 18,
     },
     allocation: { amount: 10_000_000, description: "Drainage continuity fund" },
@@ -296,7 +296,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2025-08-01",
       target_end_date: "2026-02-28",
       budget_year: 2026,
-      total_budget: 4_500_000,
+      bid_price: 4_500_000,
       progress_pct: 100,
     },
     allocation: { amount: 4_500_000, description: "RHU upgrade allotment" },
@@ -331,7 +331,7 @@ export const DEV_SEED_FIXTURES: DevSeedProject[] = [
       start_date: "2025-05-01",
       target_end_date: "2025-12-31",
       budget_year: 2026,
-      total_budget: 18_000_000,
+      bid_price: 18_000_000,
       progress_pct: 100,
       approval_status: "approved",
     },

@@ -173,7 +173,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
 
@@ -204,7 +204,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
 
@@ -239,7 +239,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [
@@ -293,7 +293,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.expenses = [
@@ -340,7 +340,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.expenses = [
@@ -381,7 +381,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.expenses = [
@@ -422,7 +422,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [
@@ -481,7 +481,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
       {
         id: "p2",
@@ -493,7 +493,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
-        total_budget: 300_000,
+        bid_price: 300_000,
       },
     ]
     store.allocations = [
@@ -576,7 +576,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 500_000,
+        bid_price: 500_000,
       },
     ]
     store.allocations = [
@@ -659,7 +659,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.expenses = [
@@ -734,7 +734,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [
@@ -827,7 +827,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
 
@@ -861,7 +861,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
 
@@ -904,7 +904,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.fundingYears = [
@@ -1007,7 +1007,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [
@@ -1052,7 +1052,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [
@@ -1174,7 +1174,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
       {
         id: "p2",
@@ -1184,7 +1184,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Completed",
         budget_year: 2026,
-        total_budget: 100_000,
+        bid_price: 100_000,
       },
     ]
 
@@ -1212,7 +1212,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
-        total_budget: 200_000,
+        bid_price: 200_000,
       },
     ]
     store.allocations = [

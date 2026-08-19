@@ -11,15 +11,15 @@ import {
 import {
   isProjectFieldEditable,
   ownedProjectFieldsForActor,
+  projectFieldFilledByLabel,
   projectPayloadForActor,
   statusOptionsForActor,
 } from "@workspace/pocketbase/domain/project-field-ownership"
-import { FUND_TYPE, LGU_PHASE_STATUS, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import { FUND_TYPE, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import {
   filterProjects,
   projectLocationDisplayParts,
-  formatProjectDateRange,
 } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
@@ -98,16 +98,10 @@ type ProjectFormState = {
   barangay: string
   location: string
   contractor: string
-  start_date: string
-  target_end_date: string
   budget_year: string
-  total_budget: string
   number_of_students: string
   fund_source: string
   period_of_implementation: string
-  moa_details: string
-  planning_status: string
-  procurement_status: string
   bid_price: string
 }
 
@@ -122,7 +116,7 @@ const PROJECT_IMPORT_HEADERS = [
   "Description",
   "Location",
   "Contractor",
-  "Total Budget",
+  "Bid Price",
 ] as const
 
 function importCellText(row: Record<string, unknown>, header: string) {
@@ -154,16 +148,10 @@ const emptyForm = (): ProjectFormState => ({
   barangay: "",
   location: "",
   contractor: "",
-  start_date: "",
-  target_end_date: "",
   budget_year: String(new Date().getFullYear()),
-  total_budget: "",
   number_of_students: "",
   fund_source: "",
   period_of_implementation: "",
-  moa_details: "",
-  planning_status: "",
-  procurement_status: "",
   bid_price: "",
 })
 
@@ -338,11 +326,8 @@ function ProjectCard({
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            {formatProjectDateRange(
-              project.start_date,
-              project.target_end_date
-            )}{" "}
-            · FY {project.budget_year} · {formatPhp(project.total_budget ?? 0)}
+            {project.period_of_implementation || "—"} · FY {project.budget_year}{" "}
+            · {formatPhp(project.bid_price ?? 0)}
           </p>
           {project.category === "Scholarship" && project.number_of_students ? (
             <p className="text-xs text-muted-foreground">
@@ -614,18 +599,12 @@ export function ProjectsModule() {
       barangay: project.barangay ?? "",
       location: project.location ?? "",
       contractor: project.contractor ?? "",
-      start_date: project.start_date ?? "",
-      target_end_date: project.target_end_date ?? "",
       budget_year: String(project.budget_year),
-      total_budget: project.total_budget ? String(project.total_budget) : "",
       number_of_students: project.number_of_students
         ? String(project.number_of_students)
         : "",
       fund_source: project.fund_source ?? "",
       period_of_implementation: project.period_of_implementation ?? "",
-      moa_details: project.moa_details ?? "",
-      planning_status: project.planning_status ?? "",
-      procurement_status: project.procurement_status ?? "",
       bid_price:
         project.bid_price === undefined || project.bid_price === null
           ? ""
@@ -651,19 +630,13 @@ export function ProjectsModule() {
       barangay: form.barangay || undefined,
       location: form.location,
       contractor: form.contractor,
-      start_date: form.start_date || undefined,
-      target_end_date: form.target_end_date || undefined,
       budget_year: form.budget_year,
-      total_budget: form.total_budget || undefined,
       number_of_students:
         form.category === "Scholarship"
           ? form.number_of_students || undefined
           : undefined,
       fund_source: form.fund_source || undefined,
       period_of_implementation: form.period_of_implementation || undefined,
-      moa_details: form.moa_details || undefined,
-      planning_status: form.planning_status || undefined,
-      procurement_status: form.procurement_status || undefined,
       bid_price: form.bid_price || undefined,
       progress_pct: editing?.progress_pct ?? 0,
     })
@@ -794,16 +767,16 @@ export function ProjectsModule() {
         for (const [index, row] of rows.entries()) {
           const rowNumber = index + 2
           const name = importCellText(row, "Project Name")
-          const budgetValue = importCellText(row, "Total Budget")
-          const totalBudget = parseImportBudget(budgetValue)
+          const bidPriceValue = importCellText(row, "Bid Price")
+          const bidPrice = bidPriceValue ? parseImportBudget(bidPriceValue) : null
 
           if (!name) {
             errors.push(importRowError(file, rowNumber, "Project Name is required."))
             continue
           }
-          if (!budgetValue || totalBudget === null) {
+          if (bidPriceValue && bidPrice === null) {
             errors.push(
-              importRowError(file, rowNumber, "Total Budget must be a valid amount.")
+              importRowError(file, rowNumber, "Bid Price must be a valid amount.")
             )
             continue
           }
@@ -813,7 +786,7 @@ export function ProjectsModule() {
             description: importCellText(row, "Description") || undefined,
             location: importCellText(row, "Location") || undefined,
             contractor: importCellText(row, "Contractor") || undefined,
-            total_budget: totalBudget,
+            bid_price: bidPrice ?? undefined,
             category: "Infrastructure",
             status: "Planning",
             budget_year: new Date().getFullYear(),
@@ -934,6 +907,11 @@ export function ProjectsModule() {
   }
   const fieldLocked = (field: string) =>
     !isProjectFieldEditable(actorRole, field, ownershipRecord, !editing)
+  const FieldOwnerHint = ({ field }: { field: string }) => {
+    if (!fieldLocked(field)) return null
+    const label = projectFieldFilledByLabel(field)
+    return label ? <FieldDescription>{label}</FieldDescription> : null
+  }
   const formStatusOptions = statusOptionsForActor(
     actorRole,
     form.status,
@@ -1212,6 +1190,7 @@ export function ProjectsModule() {
             <FieldSet>
               <Field data-invalid={Boolean(fieldErrors.name)}>
                 <FieldLabel htmlFor="project-name">Project name</FieldLabel>
+                <FieldOwnerHint field="name" />
                 <Input
                   id="project-name"
                   value={form.name}
@@ -1225,6 +1204,7 @@ export function ProjectsModule() {
               </Field>
               <Field>
                 <FieldLabel htmlFor="project-description">Description</FieldLabel>
+                <FieldOwnerHint field="description" />
                 <Textarea
                   id="project-description"
                   value={form.description}
@@ -1237,6 +1217,7 @@ export function ProjectsModule() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.category)}>
                   <FieldLabel>Category</FieldLabel>
+                  <FieldOwnerHint field="category" />
                   <Select
                     value={form.category}
                     disabled={fieldLocked("category")}
@@ -1270,6 +1251,7 @@ export function ProjectsModule() {
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.status)}>
                   <FieldLabel>Status</FieldLabel>
+                  <FieldOwnerHint field="status" />
                   <Select
                     value={form.status}
                     disabled={fieldLocked("status")}
@@ -1303,6 +1285,7 @@ export function ProjectsModule() {
                   <FieldLabel htmlFor="project-number-of-students">
                     Number of Students
                   </FieldLabel>
+                  <FieldOwnerHint field="number_of_students" />
                   <Input
                     id="project-number-of-students"
                     type="number"
@@ -1323,6 +1306,7 @@ export function ProjectsModule() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel>Municipality</FieldLabel>
+                  <FieldOwnerHint field="municipality" />
                   <LocationCombobox
                     label="Municipality"
                     placeholder="Select municipality"
@@ -1345,6 +1329,7 @@ export function ProjectsModule() {
                 </Field>
                 <Field>
                   <FieldLabel>Barangay</FieldLabel>
+                  <FieldOwnerHint field="barangay" />
                   <LocationCombobox
                     label="Barangay"
                     placeholder="Select barangay"
@@ -1370,6 +1355,7 @@ export function ProjectsModule() {
               </div>
               <Field>
                 <FieldLabel htmlFor="project-location">Location</FieldLabel>
+                <FieldOwnerHint field="location" />
                 <Input
                   id="project-location"
                   value={form.location}
@@ -1382,6 +1368,7 @@ export function ProjectsModule() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel>Fund source</FieldLabel>
+                  <FieldOwnerHint field="fund_source" />
                   <Select
                     value={form.fund_source || undefined}
                     disabled={fieldLocked("fund_source")}
@@ -1405,6 +1392,7 @@ export function ProjectsModule() {
                   <FieldLabel htmlFor="project-period">
                     Period of Implementation
                   </FieldLabel>
+                  <FieldOwnerHint field="period_of_implementation" />
                   <Input
                     id="project-period"
                     value={form.period_of_implementation}
@@ -1419,18 +1407,8 @@ export function ProjectsModule() {
                 </Field>
               </div>
               <Field>
-                <FieldLabel htmlFor="project-moa-details">MOA details</FieldLabel>
-                <Textarea
-                  id="project-moa-details"
-                  value={form.moa_details}
-                  disabled={fieldLocked("moa_details")}
-                  onChange={(event) =>
-                    setForm({ ...form, moa_details: event.target.value })
-                  }
-                />
-              </Field>
-              <Field>
                 <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
+                <FieldOwnerHint field="contractor" />
                 <Input
                   id="project-contractor"
                   value={form.contractor}
@@ -1441,78 +1419,9 @@ export function ProjectsModule() {
                 />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="project-start">Start date</FieldLabel>
-                  <Input
-                    id="project-start"
-                    type="date"
-                    value={form.start_date}
-                    disabled={fieldLocked("start_date")}
-                    onChange={(event) =>
-                      setForm({ ...form, start_date: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="project-end">End date</FieldLabel>
-                  <Input
-                    id="project-end"
-                    type="date"
-                    value={form.target_end_date}
-                    disabled={fieldLocked("target_end_date")}
-                    onChange={(event) =>
-                      setForm({ ...form, target_end_date: event.target.value })
-                    }
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Planning status</FieldLabel>
-                  <Select
-                    value={form.planning_status || undefined}
-                    disabled={fieldLocked("planning_status")}
-                    onValueChange={(value) =>
-                      setForm({ ...form, planning_status: value })
-                    }
-                  >
-                    <SelectTrigger aria-label="Planning status">
-                      <SelectValue placeholder="Select planning status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LGU_PHASE_STATUS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel>Procurement status</FieldLabel>
-                  <Select
-                    value={form.procurement_status || undefined}
-                    disabled={fieldLocked("procurement_status")}
-                    onValueChange={(value) =>
-                      setForm({ ...form, procurement_status: value })
-                    }
-                  >
-                    <SelectTrigger aria-label="Procurement status">
-                      <SelectValue placeholder="Select procurement status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LGU_PHASE_STATUS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.budget_year)}>
                   <FieldLabel htmlFor="project-year">Budget year</FieldLabel>
+                  <FieldOwnerHint field="budget_year" />
                   <Input
                     id="project-year"
                     type="number"
@@ -1525,75 +1434,72 @@ export function ProjectsModule() {
                   />
                   <FieldError>{fieldErrors.budget_year}</FieldError>
                 </Field>
-                <Field data-invalid={Boolean(fieldErrors.total_budget)}>
-                  <FieldLabel htmlFor="project-budget">
-                    Total budget (PHP)
-                  </FieldLabel>
+                <Field>
+                  <FieldLabel htmlFor="project-bid-price">Bid price (PHP)</FieldLabel>
+                  <FieldOwnerHint field="bid_price" />
                   <Input
-                    id="project-budget"
+                    id="project-bid-price"
                     type="number"
-                    value={form.total_budget}
-                    disabled={fieldLocked("total_budget")}
-                    aria-invalid={Boolean(fieldErrors.total_budget)}
+                    min={0}
+                    value={form.bid_price}
+                    disabled={fieldLocked("bid_price")}
                     onChange={(event) =>
-                      setForm({ ...form, total_budget: event.target.value })
+                      setForm({ ...form, bid_price: event.target.value })
                     }
                   />
-                  <FieldError>{fieldErrors.total_budget}</FieldError>
                 </Field>
               </div>
-              <Field>
-                <FieldLabel htmlFor="project-bid-price">Bid price (PHP)</FieldLabel>
-                <Input
-                  id="project-bid-price"
-                  type="number"
-                  min={0}
-                  value={form.bid_price}
-                  disabled={fieldLocked("bid_price")}
-                  onChange={(event) =>
-                    setForm({ ...form, bid_price: event.target.value })
-                  }
-                />
-              </Field>
               <FieldSet className="space-y-2 border-t pt-3">
                 <FieldDescription className="text-sm font-medium text-foreground">
                   Required documents
                 </FieldDescription>
-                <DocumentUploadField
-                  id="moa-file"
-                  label="Memorandum of Agreement"
-                  files={moaFiles}
-                  existingNames={namesOnRecord(editing?.moa_file)}
-                  onChange={setMoaFiles}
-                  disabled={fieldLocked("moa_file")}
-                />
-                <DocumentUploadField
-                  id="project-photos"
-                  label="Project photos"
-                  accept={IMAGE_UPLOAD_ACCEPT}
-                  helperText="JPG, PNG, WEBP"
-                  files={projectPhotoFiles}
-                  existingNames={namesOnRecord(editing?.project_photos)}
-                  onChange={setProjectPhotoFiles}
-                  disabled={fieldLocked("project_photos")}
-                />
-                <DocumentUploadField
-                  id="resolution-file"
-                  label="Resolution"
-                  files={resolutionFiles}
-                  existingNames={namesOnRecord(editing?.resolution_file)}
-                  onChange={setResolutionFiles}
-                  disabled={fieldLocked("resolution_file")}
-                />
-                <DocumentUploadField
-                  id="supporting-file"
-                  label="Supporting project documents"
-                  multiple
-                  files={supportingFiles}
-                  existingNames={editing?.supporting_docs ?? []}
-                  onChange={setSupportingFiles}
-                  disabled={fieldLocked("supporting_docs")}
-                />
+                <div className="space-y-1">
+                  <FieldOwnerHint field="moa_file" />
+                  <DocumentUploadField
+                    id="moa-file"
+                    label="Memorandum of Agreement"
+                    files={moaFiles}
+                    existingNames={namesOnRecord(editing?.moa_file)}
+                    onChange={setMoaFiles}
+                    disabled={fieldLocked("moa_file")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <FieldOwnerHint field="project_photos" />
+                  <DocumentUploadField
+                    id="project-photos"
+                    label="Project photos"
+                    accept={IMAGE_UPLOAD_ACCEPT}
+                    helperText="JPG, PNG, WEBP"
+                    files={projectPhotoFiles}
+                    existingNames={namesOnRecord(editing?.project_photos)}
+                    onChange={setProjectPhotoFiles}
+                    disabled={fieldLocked("project_photos")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <FieldOwnerHint field="resolution_file" />
+                  <DocumentUploadField
+                    id="resolution-file"
+                    label="Resolution"
+                    files={resolutionFiles}
+                    existingNames={namesOnRecord(editing?.resolution_file)}
+                    onChange={setResolutionFiles}
+                    disabled={fieldLocked("resolution_file")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <FieldOwnerHint field="supporting_docs" />
+                  <DocumentUploadField
+                    id="supporting-file"
+                    label="Supporting project documents"
+                    multiple
+                    files={supportingFiles}
+                    existingNames={editing?.supporting_docs ?? []}
+                    onChange={setSupportingFiles}
+                    disabled={fieldLocked("supporting_docs")}
+                  />
+                </div>
               </FieldSet>
             </FieldSet>
           </FieldGroup>

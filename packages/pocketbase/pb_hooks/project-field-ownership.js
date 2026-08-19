@@ -13,21 +13,15 @@ const PPDO_OWNED_FIELDS = [
   "barangay",
   "location",
   "budget_year",
-  "total_budget",
   "fund_source",
   "period_of_implementation",
-  "moa_details",
   "moa_file",
   "number_of_students",
 ]
 const LGU_OWNED_FIELDS = [
-  "planning_status",
-  "procurement_status",
   "contractor",
   "bid_price",
   "project_photos",
-  "start_date",
-  "target_end_date",
 ]
 const PROJECT_FIELDS = [
   ...PPDO_OWNED_FIELDS,

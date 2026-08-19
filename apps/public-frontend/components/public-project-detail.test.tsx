@@ -61,7 +61,7 @@ const publishedProject = {
   target_end_date: "2026-12-31",
   period_of_implementation: "FY 2026 Q1–Q4",
   budget_year: 2026,
-  total_budget: 2500000,
+  bid_price: 2500000,
   progress_pct: 42,
 }
 

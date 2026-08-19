@@ -35,7 +35,7 @@ vi.mock("@/lib/pocketbase", () => ({
           budget_year: 2026,
           location: "Tuguegarao",
           progress_pct: 40,
-          total_budget: 1000000,
+          bid_price: 1000000,
         },
       ]),
     }),

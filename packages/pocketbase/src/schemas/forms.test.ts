@@ -112,7 +112,6 @@ describe("projectMutateSchema (V34)", () => {
       status: "Planning",
       budget_year: 2026,
       location: "Provincial hall",
-      total_budget: 1000,
     })
 
     expect(result.success).toBe(true)
@@ -123,7 +122,7 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires PPDO create identity fields", () => {
+  it("requires PPDO create identity fields without total budget", () => {
     const schema = projectMutateSchemaForActor("PPDO", true)
     const missing = schema.safeParse({
       name: "Charter Road",
@@ -136,7 +135,7 @@ describe("projectMutateSchema (V34)", () => {
       const errors = fieldErrorsFromZod(missing.error)
       expect(errors.description).toMatch(/required/i)
       expect(errors.location).toMatch(/required/i)
-      expect(errors.total_budget).toMatch(/required/i)
+      expect(errors.total_budget).toBeUndefined()
     }
 
     const barangayWithoutMunicipality = schema.safeParse({
@@ -146,7 +145,6 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Poblacion",
-      total_budget: 1000,
       barangay: "Centro",
     })
     expect(barangayWithoutMunicipality.success).toBe(false)
@@ -163,7 +161,6 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
-      total_budget: 1000,
     })
     expect(complete.success).toBe(true)
   })
