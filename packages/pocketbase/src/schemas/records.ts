@@ -71,6 +71,10 @@ export const projectRecordSchema = baseRecordSchema.extend({
   budget_year: pbNumber,
   total_budget: pbNumber.optional(),
   fund_source: pbEmptyAsUndefined(fundTypeSchema.optional()),
+  funding_year: pbZeroAsUndefined(
+    pbNumber.pipe(z.number().int().min(2000).max(2100)).optional()
+  ),
+  sub_account: pbEmptyAsUndefined(z.string().optional()),
   period_of_implementation: z.string().optional(),
   bid_price: pbZeroAsUndefined(pbNumber.pipe(z.number().min(0)).optional()),
   number_of_students: pbZeroAsUndefined(

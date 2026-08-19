@@ -185,6 +185,38 @@ describe("projectMutateSchema (V34)", () => {
       expect(result.data.fund_source).toBe("General Fund")
     }
   })
+
+  it("accepts project funding year and sub account without requiring them", () => {
+    const withoutFundSource = projectMutateSchema.safeParse({
+      name: "Imported road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+    })
+    expect(withoutFundSource.success).toBe(true)
+    if (withoutFundSource.success) {
+      expect(withoutFundSource.data.funding_year).toBeUndefined()
+      expect(withoutFundSource.data.sub_account).toBeUndefined()
+    }
+
+    const withFundSource = projectMutateSchema.safeParse({
+      name: "Funded road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      funding_year: "2025",
+      fund_source: "General Fund",
+      sub_account: "GF - Proper",
+    })
+    expect(withFundSource.success).toBe(true)
+    if (withFundSource.success) {
+      expect(withFundSource.data.funding_year).toBe(2025)
+      expect(withFundSource.data.fund_source).toBe("General Fund")
+      expect(withFundSource.data.sub_account).toBe("GF - Proper")
+      expect(withFundSource.data.budget_year).toBe(2026)
+      expect("main_account" in withFundSource.data).toBe(false)
+    }
+  })
 })
 
 describe("approvalFormSchema (V5, V35)", () => {

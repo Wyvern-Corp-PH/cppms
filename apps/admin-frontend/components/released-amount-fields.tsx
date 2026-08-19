@@ -27,8 +27,8 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() - index)
-const FUNDING_YEAR_OPTIONS = YEAR_OPTIONS.map(String)
-const MAIN_ACCOUNT_OPTIONS = [
+export const FUNDING_YEAR_OPTIONS = YEAR_OPTIONS.map(String)
+export const MAIN_ACCOUNT_OPTIONS = [
   "General Fund",
   "Special Education Fund",
   "Special Health Fund",
@@ -36,7 +36,7 @@ const MAIN_ACCOUNT_OPTIONS = [
   "Others",
 ] as const
 
-const SUB_ACCOUNT_OPTIONS: Record<string, readonly string[]> = {
+export const SUB_ACCOUNT_OPTIONS: Record<string, readonly string[]> = {
   "General Fund": [
     "GF - Proper",
     "20% DF",
@@ -68,53 +68,31 @@ export function normalizeMainAccountName(value: string) {
   return value === "Other" ? "Others" : value
 }
 
-export type ReleasedAmountFormValue = {
-  amount: string
-  releaseYear: string
+export type FundSourceValue = {
+  year: string
   mainAccount: string
   subAccount: string
-  receiptNumber: string
-  expenseDate: string
-  expenseDescription: string
 }
 
-export function emptyReleasedAmountFormValue(): ReleasedAmountFormValue {
-  return {
-    amount: "",
-    releaseYear: String(new Date().getFullYear()),
-    mainAccount: "",
-    subAccount: "",
-    receiptNumber: "",
-    expenseDate: new Date().toISOString().slice(0, 10),
-    expenseDescription: "",
-  }
-}
-
-export type ReleasedAmountFieldsProps = {
-  value: ReleasedAmountFormValue
-  onChange: (value: ReleasedAmountFormValue) => void
-  fieldErrors?: Record<string, string>
+export type FundSourceFieldsProps = {
+  value: FundSourceValue
+  onChange: (value: FundSourceValue) => void
+  fieldErrors?: Record<string, string | undefined>
   idPrefix?: string
-  projects?: readonly ProjectRecord[]
-  projectId?: string
-  lockProject?: boolean
-  onProjectChange?: (projectId: string) => void
+  disabled?: boolean
   loadOptions?: boolean
-  sectionTestId?: string
+  yearLabel?: string
 }
 
-export function ReleasedAmountFields({
+export function FundSourceFields({
   value,
   onChange,
   fieldErrors = {},
   idPrefix = "released",
-  projects = [],
-  projectId = "",
-  lockProject = false,
-  onProjectChange,
+  disabled = false,
   loadOptions = true,
-  sectionTestId = "released-amount-fields",
-}: ReleasedAmountFieldsProps) {
+  yearLabel = "Year",
+}: FundSourceFieldsProps) {
   const [fundingYearOptions, setFundingYearOptions] = useState<BudgetFundOptionRecord[]>([])
   const [fundMainAccountOptions, setFundMainAccountOptions] = useState<BudgetFundOptionRecord[]>([])
   const [fundSubAccountOptions, setFundSubAccountOptions] = useState<BudgetFundOptionRecord[]>([])
@@ -147,8 +125,8 @@ export function ReleasedAmountFields({
         ...optionNames(fundMainAccountOptions, MAIN_ACCOUNT_OPTIONS).map(
           normalizeMainAccountName
         ),
-      ]).filter((value) =>
-        MAIN_ACCOUNT_OPTIONS.includes(value as (typeof MAIN_ACCOUNT_OPTIONS)[number])
+      ]).filter((name) =>
+        MAIN_ACCOUNT_OPTIONS.includes(name as (typeof MAIN_ACCOUNT_OPTIONS)[number])
       ),
     [fundMainAccountOptions]
   )
@@ -167,6 +145,158 @@ export function ReleasedAmountFields({
   const showsSubAccountDropdown = value.mainAccount in SUB_ACCOUNT_OPTIONS
   const showsOtherAccountText = value.mainAccount === "Others"
 
+  function patchValue(patch: Partial<FundSourceValue>) {
+    onChange({ ...value, ...patch })
+  }
+
+  return (
+    <FieldSet className="space-y-3 rounded-md border p-3">
+      <p className="text-sm font-medium">Fund Source</p>
+      <Field data-invalid={!!fieldErrors.year}>
+        <FieldLabel htmlFor={`${idPrefix}-year-trigger`}>{yearLabel}</FieldLabel>
+        <Select
+          value={value.year}
+          onValueChange={(year) => patchValue({ year })}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            id={`${idPrefix}-year-trigger`}
+            aria-label={yearLabel}
+            aria-invalid={!!fieldErrors.year}
+          >
+            <SelectValue placeholder="Select year" />
+          </SelectTrigger>
+          <SelectContent>
+            {fundingYearNames.map((year) => (
+              <SelectItem key={year} value={year}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FieldError>{fieldErrors.year}</FieldError>
+      </Field>
+      <Field data-invalid={!!fieldErrors.main_account}>
+        <FieldLabel htmlFor={`${idPrefix}-main-account-trigger`}>
+          Main account
+        </FieldLabel>
+        <Select
+          value={value.mainAccount}
+          onValueChange={(mainAccount) =>
+            patchValue({ mainAccount, subAccount: "" })
+          }
+          disabled={disabled}
+        >
+          <SelectTrigger
+            id={`${idPrefix}-main-account-trigger`}
+            aria-label="Main account"
+            aria-invalid={!!fieldErrors.main_account}
+          >
+            <SelectValue placeholder="Select main account" />
+          </SelectTrigger>
+          <SelectContent>
+            {mainAccountNames.map((account) => (
+              <SelectItem key={account} value={account}>
+                {account}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FieldError>{fieldErrors.main_account}</FieldError>
+      </Field>
+      {showsOtherAccountText ? (
+        <Field data-invalid={!!fieldErrors.sub_account}>
+          <FieldLabel htmlFor={`${idPrefix}-other-account-purpose`}>
+            Other purpose
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-other-account-purpose`}
+            value={value.subAccount}
+            disabled={disabled}
+            aria-invalid={!!fieldErrors.sub_account}
+            onChange={(event) => patchValue({ subAccount: event.target.value })}
+          />
+          <FieldError>{fieldErrors.sub_account}</FieldError>
+        </Field>
+      ) : showsSubAccountDropdown ? (
+        <Field data-invalid={!!fieldErrors.sub_account}>
+          <FieldLabel htmlFor={`${idPrefix}-sub-account-trigger`}>
+            Sub account
+          </FieldLabel>
+          <Select
+            value={value.subAccount}
+            onValueChange={(subAccount) => patchValue({ subAccount })}
+            disabled={disabled}
+          >
+            <SelectTrigger
+              id={`${idPrefix}-sub-account-trigger`}
+              aria-label="Sub account"
+              aria-invalid={!!fieldErrors.sub_account}
+            >
+              <SelectValue placeholder="Select sub account" />
+            </SelectTrigger>
+            <SelectContent>
+              {subAccountNames.map((account) => (
+                <SelectItem key={account} value={account}>
+                  {account}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError>{fieldErrors.sub_account}</FieldError>
+        </Field>
+      ) : null}
+    </FieldSet>
+  )
+}
+
+export type ReleasedAmountFormValue = {
+  amount: string
+  releaseYear: string
+  mainAccount: string
+  subAccount: string
+  receiptNumber: string
+  expenseDate: string
+  expenseDescription: string
+}
+
+export function emptyReleasedAmountFormValue(): ReleasedAmountFormValue {
+  return {
+    amount: "",
+    releaseYear: String(new Date().getFullYear()),
+    mainAccount: "",
+    subAccount: "",
+    receiptNumber: "",
+    expenseDate: new Date().toISOString().slice(0, 10),
+    expenseDescription: "",
+  }
+}
+
+export type ReleasedAmountFieldsProps = {
+  value: ReleasedAmountFormValue
+  onChange: (value: ReleasedAmountFormValue) => void
+  fieldErrors?: Record<string, string | undefined>
+  idPrefix?: string
+  projects?: readonly ProjectRecord[]
+  projectId?: string
+  lockProject?: boolean
+  onProjectChange?: (projectId: string) => void
+  loadOptions?: boolean
+  sectionTestId?: string
+}
+
+export function ReleasedAmountFields({
+  value,
+  onChange,
+  fieldErrors = {},
+  idPrefix = "released",
+  projects = [],
+  projectId = "",
+  lockProject = false,
+  onProjectChange,
+  loadOptions = true,
+  sectionTestId = "released-amount-fields",
+}: ReleasedAmountFieldsProps) {
   function patchValue(patch: Partial<ReleasedAmountFormValue>) {
     onChange({ ...value, ...patch })
   }
@@ -219,97 +349,23 @@ export function ReleasedAmountFields({
         />
         <FieldError>{fieldErrors.receipt_number}</FieldError>
       </Field>
-      <FieldSet className="space-y-3 rounded-md border p-3">
-        <p className="text-sm font-medium">Fund Source</p>
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-release-year-trigger`}>Year</FieldLabel>
-          <Select
-            value={value.releaseYear}
-            onValueChange={(releaseYear) => patchValue({ releaseYear })}
-          >
-            <SelectTrigger
-              id={`${idPrefix}-release-year-trigger`}
-              aria-label="Year"
-            >
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              {fundingYearNames.map((year) => (
-                <SelectItem key={year} value={year}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field data-invalid={!!fieldErrors.main_account}>
-          <FieldLabel htmlFor={`${idPrefix}-main-account-trigger`}>
-            Main account
-          </FieldLabel>
-          <Select
-            value={value.mainAccount}
-            onValueChange={(mainAccount) =>
-              patchValue({ mainAccount, subAccount: "" })
-            }
-          >
-            <SelectTrigger
-              id={`${idPrefix}-main-account-trigger`}
-              aria-label="Main account"
-              aria-invalid={!!fieldErrors.main_account}
-            >
-              <SelectValue placeholder="Select main account" />
-            </SelectTrigger>
-            <SelectContent>
-              {mainAccountNames.map((account) => (
-                <SelectItem key={account} value={account}>
-                  {account}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError>{fieldErrors.main_account}</FieldError>
-        </Field>
-        {showsOtherAccountText ? (
-          <Field data-invalid={!!fieldErrors.sub_account}>
-            <FieldLabel htmlFor={`${idPrefix}-other-account-purpose`}>
-              Other purpose
-            </FieldLabel>
-            <Input
-              id={`${idPrefix}-other-account-purpose`}
-              value={value.subAccount}
-              aria-invalid={!!fieldErrors.sub_account}
-              onChange={(event) => patchValue({ subAccount: event.target.value })}
-            />
-            <FieldError>{fieldErrors.sub_account}</FieldError>
-          </Field>
-        ) : showsSubAccountDropdown ? (
-          <Field data-invalid={!!fieldErrors.sub_account}>
-            <FieldLabel htmlFor={`${idPrefix}-sub-account-trigger`}>
-              Sub account
-            </FieldLabel>
-            <Select
-              value={value.subAccount}
-              onValueChange={(subAccount) => patchValue({ subAccount })}
-            >
-              <SelectTrigger
-                id={`${idPrefix}-sub-account-trigger`}
-                aria-label="Sub account"
-                aria-invalid={!!fieldErrors.sub_account}
-              >
-                <SelectValue placeholder="Select sub account" />
-              </SelectTrigger>
-              <SelectContent>
-                {subAccountNames.map((account) => (
-                  <SelectItem key={account} value={account}>
-                    {account}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError>{fieldErrors.sub_account}</FieldError>
-          </Field>
-        ) : null}
-      </FieldSet>
+      <FundSourceFields
+        value={{
+          year: value.releaseYear,
+          mainAccount: value.mainAccount,
+          subAccount: value.subAccount,
+        }}
+        onChange={(fundSource) =>
+          patchValue({
+            releaseYear: fundSource.year,
+            mainAccount: fundSource.mainAccount,
+            subAccount: fundSource.subAccount,
+          })
+        }
+        fieldErrors={fieldErrors}
+        idPrefix={idPrefix}
+        loadOptions={loadOptions}
+      />
       <Field>
         <FieldLabel htmlFor={`${idPrefix}-expense-date`}>Expense date</FieldLabel>
         <Input

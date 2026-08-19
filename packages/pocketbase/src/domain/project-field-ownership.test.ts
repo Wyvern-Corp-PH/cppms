@@ -253,6 +253,20 @@ describe("project field ownership", () => {
     })
     expect(budgetYear.ok).toBe(false)
 
+    const fundingYear = evaluateProjectFieldWrite({
+      role: "Municipality",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { funding_year: 2025, sub_account: "GF - Proper" },
+    })
+    expect(fundingYear).toEqual({
+      ok: false,
+      error: "You cannot update field 'funding_year'.",
+    })
+
     const move = evaluateProjectFieldWrite({
       role: "Barangay",
       isCreate: false,
@@ -393,6 +407,15 @@ describe("project field ownership", () => {
         { contractor: "Build Co", budget_year: 2026 }
       )
     ).toEqual([])
+  })
+
+  it("should assign funding year and sub account to PPDO without a second main-account field", () => {
+    expect(PPDO_OWNED_FIELDS).toContain("fund_source")
+    expect(PPDO_OWNED_FIELDS).toContain("funding_year")
+    expect(PPDO_OWNED_FIELDS).toContain("sub_account")
+    expect(PPDO_OWNED_FIELDS).not.toContain("main_account")
+    expect(projectFieldFilledByLabel("funding_year")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("sub_account")).toBe("filled by PPDO")
   })
 
   it("should assign Period of Implementation to PPDO and drop schedule/phase/moa text ownership", () => {

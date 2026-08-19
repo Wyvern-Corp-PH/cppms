@@ -168,6 +168,11 @@ const dropProjectPhaseMoaDetailsMigrationPath = resolve(
   "pb_migrations",
   "1740000032_drop_project_phase_and_moa_details.js"
 )
+const projectFundSourceFieldsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000033_project_fund_source_fields.js"
+)
 const projectFieldOwnershipHookPath = resolve(
   packageRoot,
   "pb_hooks",
@@ -244,6 +249,9 @@ describe("schema manifest (SPEC §I)", () => {
     expect(projects?.fields).toContain("number_of_students")
     expect(projects?.fields).toContain("resolution_file")
     expect(projects?.fields).toContain("fund_source")
+    expect(projects?.fields).toContain("funding_year")
+    expect(projects?.fields).toContain("sub_account")
+    expect(projects?.fields).not.toContain("main_account")
     expect(projects?.fields).toContain("period_of_implementation")
     expect(projects?.fields).not.toContain("moa_details")
     expect(projects?.fields).not.toContain("planning_status")
@@ -321,6 +329,7 @@ describe("pb migration file", () => {
     budgetFundOptionValueRepairMigrationPath,
     usersPasswordResetMigrationPath,
     ppdoLguOwnershipMigrationPath,
+    projectFundSourceFieldsMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -959,6 +968,23 @@ describe("drop planning/procurement status and moa_details", () => {
     expect(dropMigrationSource).not.toMatch(
       /DROPPED_PROJECT_FIELDS\s*=\s*\[[^\]]*bid_price/
     )
+  })
+})
+
+describe("project funding year and sub account fields", () => {
+  const migrationSource = readFileSync(
+    projectFundSourceFieldsMigrationPath,
+    "utf8"
+  )
+  const hookSource = readFileSync(projectFieldOwnershipHookPath, "utf8")
+
+  it("adds funding_year and sub_account on projects without a second main-account field", () => {
+    expect(migrationSource).toContain('name: "funding_year"')
+    expect(migrationSource).toContain('name: "sub_account"')
+    expect(migrationSource).not.toContain('name: "main_account"')
+    expect(migrationSource).toContain("onlyInt")
+    expect(hookSource).toContain('"funding_year"')
+    expect(hookSource).toContain('"sub_account"')
   })
 })
 

@@ -15,7 +15,7 @@ import {
   projectPayloadForActor,
   statusOptionsForActor,
 } from "@workspace/pocketbase/domain/project-field-ownership"
-import { FUND_TYPE, PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
 import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import {
   filterProjects,
@@ -86,6 +86,7 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { PageHeaderBand } from "@/components/page-header-band"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { DocumentUploadField, IMAGE_UPLOAD_ACCEPT } from "@/components/document-upload-field"
+import { FundSourceFields } from "@/components/released-amount-fields"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
@@ -100,7 +101,9 @@ type ProjectFormState = {
   contractor: string
   budget_year: string
   number_of_students: string
+  funding_year: string
   fund_source: string
+  sub_account: string
   period_of_implementation: string
   bid_price: string
 }
@@ -150,7 +153,9 @@ const emptyForm = (): ProjectFormState => ({
   contractor: "",
   budget_year: String(new Date().getFullYear()),
   number_of_students: "",
+  funding_year: "",
   fund_source: "",
+  sub_account: "",
   period_of_implementation: "",
   bid_price: "",
 })
@@ -603,7 +608,9 @@ export function ProjectsModule() {
       number_of_students: project.number_of_students
         ? String(project.number_of_students)
         : "",
+      funding_year: project.funding_year ? String(project.funding_year) : "",
       fund_source: project.fund_source ?? "",
+      sub_account: project.sub_account ?? "",
       period_of_implementation: project.period_of_implementation ?? "",
       bid_price:
         project.bid_price === undefined || project.bid_price === null
@@ -635,7 +642,9 @@ export function ProjectsModule() {
         form.category === "Scholarship"
           ? form.number_of_students || undefined
           : undefined,
+      funding_year: form.funding_year || undefined,
       fund_source: form.fund_source || undefined,
+      sub_account: form.sub_account || undefined,
       period_of_implementation: form.period_of_implementation || undefined,
       bid_price: form.bid_price || undefined,
       progress_pct: editing?.progress_pct ?? 0,
@@ -1369,47 +1378,47 @@ export function ProjectsModule() {
                   }
                 />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Fund source</FieldLabel>
-                  <FieldOwnerHint field="fund_source" />
-                  <Select
-                    value={form.fund_source || undefined}
-                    disabled={fieldLocked("fund_source")}
-                    onValueChange={(value) =>
-                      setForm({ ...form, fund_source: value })
-                    }
-                  >
-                    <SelectTrigger aria-label="Fund source">
-                      <SelectValue placeholder="Select fund source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FUND_TYPE.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="project-period">
-                    Period of Implementation
-                  </FieldLabel>
-                  <FieldOwnerHint field="period_of_implementation" />
-                  <Input
-                    id="project-period"
-                    value={form.period_of_implementation}
-                    disabled={fieldLocked("period_of_implementation")}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        period_of_implementation: event.target.value,
-                      })
-                    }
-                  />
-                </Field>
-              </div>
+              <FundSourceFields
+                value={{
+                  year: form.funding_year,
+                  mainAccount: form.fund_source,
+                  subAccount: form.sub_account,
+                }}
+                onChange={(fundSource) =>
+                  setForm({
+                    ...form,
+                    funding_year: fundSource.year,
+                    fund_source: fundSource.mainAccount,
+                    sub_account: fundSource.subAccount,
+                  })
+                }
+                fieldErrors={{
+                  year: fieldErrors.funding_year,
+                  main_account: fieldErrors.fund_source,
+                  sub_account: fieldErrors.sub_account,
+                }}
+                idPrefix="project"
+                yearLabel="Funding Year"
+                disabled={fieldLocked("fund_source")}
+              />
+              <FieldOwnerHint field="fund_source" />
+              <Field>
+                <FieldLabel htmlFor="project-period">
+                  Period of Implementation
+                </FieldLabel>
+                <FieldOwnerHint field="period_of_implementation" />
+                <Input
+                  id="project-period"
+                  value={form.period_of_implementation}
+                  disabled={fieldLocked("period_of_implementation")}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      period_of_implementation: event.target.value,
+                    })
+                  }
+                />
+              </Field>
               <Field>
                 <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
                 <FieldOwnerHint field="contractor" />

@@ -1059,6 +1059,117 @@ describe("ProjectsModule (J4)", () => {
     expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("total_budget")
   })
 
+  it("matches Released Amount fund source year, main, and sub on New Project", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    expect(screen.getByLabelText(/^funding year$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^budget year$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^main account$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^fund source$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^other purpose$/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    expect(
+      await screen.findByRole("option", { name: "General Fund" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Special Education Fund" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Special Health Fund" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Trust Fund" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Others" })).toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "General Fund" }))
+
+    expect(screen.getByLabelText(/^sub account$/i)).toBeInTheDocument()
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    expect(
+      await screen.findByRole("option", { name: "GF - Proper" })
+    ).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "20% DF" })).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Hospital Serv." })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Econ. Enterp." })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "Bayanihan Fund" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "SA - Excise Tax" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "GT - Proper" })
+    ).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "GF - Proper" }))
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "Trust Fund" }))
+    expect(screen.getByLabelText(/^sub account$/i)).not.toHaveTextContent(
+      "GF - Proper"
+    )
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    expect(
+      await screen.findByRole("option", { name: "Trust Fund - Proper" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", { name: "LDRRMF - SA" })
+    ).toBeInTheDocument()
+    await user.keyboard("{Escape}")
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(
+      await screen.findByRole("option", { name: "Special Education Fund" })
+    )
+    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^other purpose$/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(
+      await screen.findByRole("option", { name: "Special Health Fund" })
+    )
+    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "Others" }))
+    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^other purpose$/i)).toBeInTheDocument()
+  })
+
+  it("persists funding year, main account, and sub account separately from budget year", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.type(screen.getByLabelText(/project name/i), "Funded Road")
+    await user.click(screen.getByLabelText(/^funding year$/i))
+    await user.click(await screen.findByRole("option", { name: "2024" }))
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(await screen.findByRole("option", { name: "GF - Proper" }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Funded Road",
+          funding_year: 2024,
+          fund_source: "General Fund",
+          sub_account: "GF - Proper",
+          budget_year: new Date().getFullYear(),
+        })
+      )
+    })
+    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("main_account")
+  })
+
   it("locks status for PPDO after LGU encoding and keeps name editable", async () => {
     const user = userEvent.setup()
     store.authRecord = {

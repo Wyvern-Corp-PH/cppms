@@ -74,6 +74,8 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "total_budget",
       "number_of_students",
       "fund_source",
+      "funding_year",
+      "sub_account",
       "period_of_implementation",
       "moa_file",
       "bid_price",

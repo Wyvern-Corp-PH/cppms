@@ -10,6 +10,7 @@ import {
   projectStatusSchema,
   roleSchema,
 } from "@workspace/pocketbase/schemas/enums"
+import { pbEmptyAsUndefined } from "@workspace/pocketbase/schemas/coerce"
 
 const uploadedFileSchema = z
   .custom<File>((value) => value instanceof File, "File is required.")
@@ -126,6 +127,10 @@ export const projectMutateSchema = z
     target_end_date: z.string().optional(),
     budget_year: z.coerce.number().int().min(2000).max(2100),
     fund_source: fundTypeSchema.optional(),
+    funding_year: pbEmptyAsUndefined(
+      z.coerce.number().int().min(2000).max(2100).optional()
+    ),
+    sub_account: z.string().optional(),
     period_of_implementation: z.string().optional(),
     bid_price: z.coerce.number().min(0).optional(),
     number_of_students: z.coerce.number().int().positive().optional(),

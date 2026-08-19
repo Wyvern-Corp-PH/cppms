@@ -71,6 +71,8 @@ describe("collection record schemas (V33, V36)", () => {
       status: "Planning",
       budget_year: 2026,
       fund_source: "General Fund",
+      funding_year: 2025,
+      sub_account: "GF - Proper",
       period_of_implementation: "2026 calendar year",
       bid_price: 1500,
       project_photos: ["site.jpg"],
@@ -80,7 +82,10 @@ describe("collection record schemas (V33, V36)", () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.fund_source).toBe("General Fund")
+      expect(result.data.funding_year).toBe(2025)
+      expect(result.data.sub_account).toBe("GF - Proper")
       expect(result.data.period_of_implementation).toBe("2026 calendar year")
+      expect("main_account" in result.data).toBe(false)
       expect(result.data.bid_price).toBe(1500)
       expect(result.data.project_photos).toEqual(["site.jpg"])
       expect(result.data.lgu_encoded_at).toBe("2026-08-01 00:00:00.000Z")

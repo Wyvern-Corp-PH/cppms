@@ -14,6 +14,8 @@ const PPDO_OWNED_FIELDS = [
   "location",
   "budget_year",
   "fund_source",
+  "funding_year",
+  "sub_account",
   "period_of_implementation",
   "moa_file",
   "number_of_students",
