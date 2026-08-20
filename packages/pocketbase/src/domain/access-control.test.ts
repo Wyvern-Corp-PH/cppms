@@ -9,6 +9,9 @@ import {
   isProjectInUserScope,
   isSuperAdmin,
   mustChangePassword,
+  ROLE_POLICIES,
+  type PolicyKey,
+  type PolicyUser,
 } from "./access-control"
 
 describe("access control (V115-V121)", () => {
@@ -98,6 +101,26 @@ describe("access control (V115-V121)", () => {
         "progress_updates.create"
       )
     ).toBe(true)
+  })
+
+  it("grants Super Admin every action Province, Municipality, or Barangay can take", () => {
+    const superAdmin: PolicyUser = {
+      id: "s1",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    const lowerKeys = new Set<PolicyKey>([
+      ...ROLE_POLICIES.Province,
+      ...ROLE_POLICIES.Municipality,
+      ...ROLE_POLICIES.Barangay,
+    ])
+
+    for (const key of lowerKeys) {
+      expect(canAccess(superAdmin, key), key).toBe(true)
+    }
+    expect(ROLE_POLICIES["Super Admin"]).toEqual(
+      expect.arrayContaining([...ROLE_POLICIES.Province])
+    )
   })
 
   it("grants Super Admin approval and progress updates per action matrix", () => {
