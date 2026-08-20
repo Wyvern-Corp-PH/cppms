@@ -1647,40 +1647,159 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it("should list existing MOA files when Edit Project opens", async () => {
-    const user = userEvent.setup()
-    store.authRecord = {
-      id: "pp1",
-      role: "PPDO",
-      account_status: "Active",
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should list existing MOA files when Edit Project opens for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-list`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf", "addendum.pdf"],
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(screen.getByText(/on record: old-moa\.pdf/i)).toBeInTheDocument()
+      expect(screen.getByText(/on record: addendum\.pdf/i)).toBeInTheDocument()
     }
-    store.projects = [
-      catalogProject({
-        moa_file: ["old-moa.pdf", "addendum.pdf"],
-      }),
-    ]
+  )
 
-    render(<ProjectsModule />)
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should keep existing MOA filenames on save for %s when none are removed",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-keep`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf"],
+        }),
+      ]
+      updateMock.mockResolvedValue({})
 
-    await user.click(
-      await screen.findByRole("button", { name: /actions for bridge/i })
-    )
-    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      render(<ProjectsModule />)
 
-    expect(screen.getByText(/on record: old-moa\.pdf/i)).toBeInTheDocument()
-    expect(screen.getByText(/on record: addendum\.pdf/i)).toBeInTheDocument()
-  })
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
 
-  it("should keep existing MOA filenames on save when none are removed", async () => {
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled()
+      })
+      const payload = updateMock.mock.calls[0]?.[1]
+      if (payload instanceof FormData) {
+        expect(payload.getAll("moa_file")).toContain("old-moa.pdf")
+        expect(payload.getAll("moa_file")).not.toContain("-old-moa.pdf")
+        return
+      }
+      expect(payload).not.toHaveProperty("moa_file")
+    }
+  )
+
+  it.each(["Super Admin", "Province"] as const)(
+    "should keep existing MOA files when %s saves project text without removing attachments",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-text`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf"],
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.clear(screen.getByLabelText(/project name/i))
+      await user.type(screen.getByLabelText(/project name/i), "Bridge Corrected")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled()
+      })
+      const payload = updateMock.mock.calls[0]?.[1]
+      if (payload instanceof FormData) {
+        expect(payload.getAll("moa_file")).toContain("old-moa.pdf")
+        expect(payload.getAll("moa_file")).not.toContain("-old-moa.pdf")
+        return
+      }
+      expect(payload).toEqual(expect.objectContaining({ name: "Bridge Corrected" }))
+      expect(payload).not.toHaveProperty("moa_file")
+    }
+  )
+
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should drop only the MOA file %s removes on save",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-drop`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf", "keep-moa.pdf"],
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled()
+      })
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).toBeInstanceOf(FormData)
+      const moaValues = (payload as FormData).getAll("moa_file")
+      expect(moaValues).toContain("keep-moa.pdf")
+      expect(moaValues).toContain("-old-moa.pdf")
+      expect(moaValues).not.toContain("old-moa.pdf")
+    }
+  )
+
+  it("should omit MOA files when Municipality saves so existing attachments stay on the record", async () => {
     const user = userEvent.setup()
     store.authRecord = {
-      id: "pp1",
-      role: "PPDO",
+      id: "m1-moa-skip",
+      role: "Municipality",
       account_status: "Active",
+      municipality: "Tuguegarao City",
     }
     store.projects = [
       catalogProject({
         moa_file: ["old-moa.pdf"],
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       }),
     ]
     updateMock.mockResolvedValue({})
@@ -1691,40 +1810,9 @@ describe("ProjectsModule (J4)", () => {
       await screen.findByRole("button", { name: /actions for bridge/i })
     )
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
-    await user.click(screen.getByRole("button", { name: /^save$/i }))
-
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalled()
-    })
-    const payload = updateMock.mock.calls[0]?.[1]
-    if (payload instanceof FormData) {
-      expect(payload.getAll("moa_file")).toContain("old-moa.pdf")
-      return
-    }
-    expect(payload).not.toHaveProperty("moa_file")
-  })
-
-  it("should drop only the MOA file the user removes on save", async () => {
-    const user = userEvent.setup()
-    store.authRecord = {
-      id: "pp1",
-      role: "PPDO",
-      account_status: "Active",
-    }
-    store.projects = [
-      catalogProject({
-        moa_file: ["old-moa.pdf", "keep-moa.pdf"],
-      }),
-    ]
-    updateMock.mockResolvedValue({})
-
-    render(<ProjectsModule />)
-
-    await user.click(
-      await screen.findByRole("button", { name: /actions for bridge/i })
-    )
-    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
-    await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+    await user.upload(screen.getByTestId("document-upload-input-project-photos"), [
+      new File(["photo"], "site.jpg", { type: "image/jpeg" }),
+    ])
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
@@ -1732,9 +1820,7 @@ describe("ProjectsModule (J4)", () => {
     })
     const payload = updateMock.mock.calls[0]?.[1]
     expect(payload).toBeInstanceOf(FormData)
-    const moaValues = (payload as FormData).getAll("moa_file")
-    expect(moaValues).toContain("keep-moa.pdf")
-    expect(moaValues).not.toContain("old-moa.pdf")
+    expect((payload as FormData).getAll("moa_file")).toEqual([])
   })
 
   it("should keep existing MOA files when another document is uploaded", async () => {

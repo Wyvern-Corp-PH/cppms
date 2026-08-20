@@ -184,8 +184,8 @@ function appendRetainedAndNewFiles(
   for (const file of files) {
     formData.append(field, file)
   }
-  if (retainedNames.length > 0 || files.length > 0) return
   for (const name of originalNames) {
+    if (retainedNames.includes(name)) continue
     formData.append(field, `-${name}`)
   }
 }
