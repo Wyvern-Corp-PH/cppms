@@ -325,13 +325,15 @@ export function BudgetModule() {
   )
   const showsSubAccountDropdown = mainAccount in SUB_ACCOUNT_OPTIONS
   const showsOtherAccountText = mainAccount === "Others"
+  const overBudget = summary.totalSpent > summary.totalBudget
   const allocatedPct =
     summary.totalBudget > 0
       ? Math.round((summary.totalAllocated / summary.totalBudget) * 100)
       : 0
-  const spentPct =
-    summary.totalBudget > 0
-      ? Math.round((summary.totalSpent / summary.totalBudget) * 100)
+  const spentPct = overBudget
+    ? 100
+    : summary.totalBudget > 0
+      ? Math.min(100, Math.round((summary.totalSpent / summary.totalBudget) * 100))
       : 0
 
   const filteredAllocations = useMemo(
@@ -581,6 +583,7 @@ export function BudgetModule() {
           {
             label: "Amount released",
             value: formatPhp(summary.totalSpent),
+            footer: overBudget ? "Over Budget" : undefined,
             progressPct: spentPct,
             testId: "budget-spent",
           },
@@ -607,7 +610,14 @@ export function BudgetModule() {
                   {formatPhp(row.spent)} · Rem {formatPhp(row.remaining)}
                 </span>
               </div>
-              <Progress className="mt-2 h-1.5" value={row.spendPct} aria-label={`${row.name} spend`} />
+              {row.spent > row.totalBudget ? (
+                <p className="text-destructive mt-1 text-sm font-medium">Over Budget</p>
+              ) : null}
+              <Progress
+                className="mt-2 h-1.5"
+                value={Math.min(100, row.spendPct)}
+                aria-label={`${row.name} spend`}
+              />
             </li>
           ))}
         </ul>

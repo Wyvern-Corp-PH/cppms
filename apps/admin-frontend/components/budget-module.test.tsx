@@ -1270,4 +1270,94 @@ describe("BudgetModule (V9, V10, V24)", () => {
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
   })
+
+  it("should cap spend progress at 100 percent and show Over Budget when released exceeds total budget", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 100_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 150_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-total")).toHaveTextContent("₱100,000")
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱150,000")
+    })
+
+    expect(screen.getAllByText("Over Budget").length).toBeGreaterThan(0)
+    expect(screen.getByTestId("budget-remaining")).toHaveTextContent("50,000")
+
+    const spentCard = screen.getByTestId("budget-spent").closest("div")
+    expect(
+      spentCard?.querySelector("[data-slot=progress-indicator]")
+    ).toHaveStyle({ transform: "translateX(-0%)" })
+
+    const breakdown = screen.getByTestId("budget-breakdown")
+    expect(breakdown).toHaveTextContent("₱150,000")
+    expect(breakdown).toHaveTextContent("Over Budget")
+    expect(breakdown.querySelector("[data-slot=progress-indicator]")).toHaveStyle({
+      transform: "translateX(-0%)",
+    })
+  })
+
+  it("should hide Over Budget when released is within total budget", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 100_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱25,000")
+    })
+
+    expect(screen.queryByText("Over Budget")).not.toBeInTheDocument()
+    expect(screen.getByTestId("budget-total")).toHaveTextContent("₱100,000")
+
+    const spentCard = screen.getByTestId("budget-spent").closest("div")
+    expect(
+      spentCard?.querySelector("[data-slot=progress-indicator]")
+    ).toHaveStyle({ transform: "translateX(-75%)" })
+  })
 })
