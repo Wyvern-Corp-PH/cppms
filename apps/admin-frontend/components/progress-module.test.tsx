@@ -1096,6 +1096,46 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
+  it("keeps Update Progress enabled at 100% on list, detail, and mobile for Ongoing", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "ongoing-100",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Ongoing Full",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-ongoing-100")
+    expect(
+      within(row).getByRole("button", { name: /update progress/i })
+    ).toBeEnabled()
+
+    await user.click(within(row).getByRole("button", { name: /view details/i }))
+
+    const mobileDetail = await screen.findByRole("dialog")
+    expect(
+      within(mobileDetail).getByRole("button", { name: /update progress/i })
+    ).toBeEnabled()
+    expect(
+      within(screen.getByTestId("progress-detail-panel")).getByRole("button", {
+        name: /update progress/i,
+        hidden: true,
+      })
+    ).toBeEnabled()
+  })
+
   it("heals stuck 100% projects on load for Province (V6)", async () => {
     store.projects = [
       {
@@ -1264,6 +1304,7 @@ describe("ProgressModule (V81, V84)", () => {
   }, 20_000)
 
   it("keeps final Completed projects read-only for Barangay progress users", async () => {
+    const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
       {
@@ -1290,6 +1331,18 @@ describe("ProgressModule (V81, V84)", () => {
     expect(
       within(row).getByRole("button", { name: /view details/i })
     ).toBeInTheDocument()
+
+    await user.click(within(row).getByRole("button", { name: /view details/i }))
+    const mobileDetail = await screen.findByRole("dialog")
+    expect(
+      within(mobileDetail).queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId("progress-detail-panel")).queryByRole("button", {
+        name: /update progress/i,
+        hidden: true,
+      })
+    ).not.toBeInTheDocument()
   })
 
   it("hides Update Progress for Rejected projects", async () => {
