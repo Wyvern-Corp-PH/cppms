@@ -120,6 +120,7 @@ describe("ProjectsModule (J4)", () => {
   })
 
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://localhost:8090"
     store.projects = []
     store.progressUpdates = []
     store.denied.clear()
@@ -1798,6 +1799,58 @@ describe("ProjectsModule (J4)", () => {
 
       expect(screen.getByText(/on record: old-moa\.pdf/i)).toBeInTheDocument()
       expect(screen.getByText(/on record: addendum\.pdf/i)).toBeInTheDocument()
+      expect(
+        screen.getByRole("link", { name: /on record: old-moa\.pdf/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/old-moa.pdf")
+      expect(
+        screen.getByRole("link", { name: /on record: addendum\.pdf/i })
+      ).toHaveAttribute(
+        "href",
+        "http://localhost:8090/api/files/p/p1/addendum.pdf"
+      )
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should list existing MOA files as download links when Edit Project opens for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-list`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        ...(role === "Barangay"
+          ? { barangay: "Centro 01 (Bagumbayan)" }
+          : {}),
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf", "addendum.pdf"],
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(
+        screen.getByRole("link", { name: /on record: old-moa\.pdf/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/old-moa.pdf")
+      expect(
+        screen.getByRole("link", { name: /on record: addendum\.pdf/i })
+      ).toHaveAttribute(
+        "href",
+        "http://localhost:8090/api/files/p/p1/addendum.pdf"
+      )
+      expect(screen.getByTestId("document-upload-input-moa-file")).toBeDisabled()
+      expect(
+        screen.getByRole("button", { name: /remove old-moa\.pdf/i })
+      ).toBeDisabled()
     }
   )
 

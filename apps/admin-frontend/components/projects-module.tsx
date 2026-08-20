@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import * as XLSX from "xlsx"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
+import { recordFileUrl } from "@workspace/pocketbase/files"
 import {
   canAccess,
   filterProjectsForUser,
@@ -1544,6 +1545,11 @@ export function ProjectsModule() {
                     label="Memorandum of Agreement"
                     files={moaFiles}
                     existingNames={retainedMoaNames}
+                    existingFileHref={
+                      editing
+                        ? (name) => recordFileUrl(editing, name)
+                        : undefined
+                    }
                     onExistingNamesChange={setRetainedMoaNames}
                     onChange={setMoaFiles}
                     disabled={fieldLocked("moa_file")}

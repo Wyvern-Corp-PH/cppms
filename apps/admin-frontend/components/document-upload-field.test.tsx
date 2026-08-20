@@ -40,6 +40,44 @@ describe("DocumentUploadField", () => {
     )
 
     expect(screen.getByText(/on record: signed-moa\.pdf/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /on record: signed-moa\.pdf/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("should link on-record names when a file URL can be built", () => {
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        files={[]}
+        existingNames={["signed-moa.pdf"]}
+        existingFileHref={(name) => `http://files.test/api/files/p/p1/${name}`}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByRole("link", { name: /on record: signed-moa\.pdf/i })
+    ).toHaveAttribute("href", "http://files.test/api/files/p/p1/signed-moa.pdf")
+  })
+
+  it("should keep on-record names as text when the file URL cannot be built", () => {
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        files={[]}
+        existingNames={["signed-moa.pdf"]}
+        existingFileHref={() => null}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(/on record: signed-moa\.pdf/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /on record: signed-moa\.pdf/i })
+    ).not.toBeInTheDocument()
   })
 
   it("should drop an on-record filename when the user clicks remove", async () => {

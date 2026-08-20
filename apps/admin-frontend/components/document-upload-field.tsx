@@ -30,6 +30,7 @@ type DocumentUploadFieldProps = {
   files: File[]
   onChange: (files: File[]) => void
   existingNames?: string[]
+  existingFileHref?: (name: string) => string | null
   onExistingNamesChange?: (names: string[]) => void
   disabled?: boolean
   helperText?: string
@@ -46,6 +47,7 @@ export function DocumentUploadField({
   files,
   onChange,
   existingNames = [],
+  existingFileHref,
   onExistingNamesChange,
   helperText = "PDF, DOC, XLS, JPG, PNG",
   dropZoneText = "Click to upload or drag files here",
@@ -59,6 +61,7 @@ export function DocumentUploadField({
   const limitMessageId = useId()
 
   function addFiles(incoming: FileList | File[]) {
+    if (disabled) return
     const list = Array.from(incoming)
     if (list.length === 0) return
 
@@ -102,23 +105,36 @@ export function DocumentUploadField({
       </FieldLabel>
       {existingNames.length > 0 ? (
         <ul className="text-muted-foreground space-y-0.5 text-xs">
-          {existingNames.map((name) => (
-            <li key={name} className="flex items-center justify-between gap-2">
-              <span className="truncate">On record: {name}</span>
-              {onExistingNamesChange ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`Remove ${name}`}
-                  disabled={disabled}
-                  onClick={() => removeExistingName(name)}
-                >
-                  <X className="size-4" />
-                </Button>
-              ) : null}
-            </li>
-          ))}
+          {existingNames.map((name) => {
+            const href = existingFileHref?.(name)
+            return (
+              <li key={name} className="flex items-center justify-between gap-2">
+                {href ? (
+                  <a
+                    href={href}
+                    className="text-primary truncate underline-offset-2 hover:underline"
+                    download={name}
+                  >
+                    On record: {name}
+                  </a>
+                ) : (
+                  <span className="truncate">On record: {name}</span>
+                )}
+                {onExistingNamesChange ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove ${name}`}
+                    disabled={disabled}
+                    onClick={() => removeExistingName(name)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       ) : null}
       <div
