@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -871,6 +871,8 @@ describe("ProjectsModule (J4)", () => {
         barangay: "Centro 01 (Bagumbayan)",
         location: "",
         contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
         budget_year: 2026,
         bid_price: 200_000,
         progress_pct: 25,
@@ -1080,8 +1082,8 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByLabelText(/project name/i)).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
-    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
   })
 
@@ -1130,8 +1132,8 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByRole("combobox", { name: /^status$/i })).not.toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
-    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).not.toBeDisabled()
   })
 
   it("shows Edit in ⋮ and saves project updates for Province (V1/V2)", async () => {
@@ -1179,8 +1181,8 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
-    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
     await user.clear(screen.getByLabelText(/project name/i))
     await user.type(screen.getByLabelText(/project name/i), "Bridge Renamed")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
@@ -1235,8 +1237,8 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
-    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     expect(
@@ -1307,7 +1309,7 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
-  it("locks LGU-owned fields for PPDO and keeps Period of Implementation without start/end dates", async () => {
+  it("locks LGU-owned fields for PPDO and keeps Period of Implementation with start/end dates read-only", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
@@ -1323,8 +1325,8 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByLabelText(/period of implementation/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
     expect(screen.getAllByText(/filled by lgu\/barangay/i).length).toBeGreaterThan(0)
-    expect(screen.queryByLabelText(/^start date$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^end date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
+    expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
     expect(screen.queryByLabelText(/total budget/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/moa details/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
@@ -1645,6 +1647,48 @@ describe("ProjectsModule (J4)", () => {
       expect(payload).not.toHaveProperty("budget_year")
     }
   )
+
+  it("lets Municipality save start and end dates so awaiting-details can clear", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    store.projects = [
+      catalogProject({
+        start_date: "",
+        target_end_date: "",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    fireEvent.change(screen.getByLabelText(/^start date$/i), {
+      target: { value: "2026-07-01" },
+    })
+    fireEvent.change(screen.getByLabelText(/^end date$/i), {
+      target: { value: "2026-12-15" },
+    })
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({
+          start_date: "2026-07-01",
+          target_end_date: "2026-12-15",
+        })
+      )
+    })
+  })
 
   it("lets PPDO edit student count after switching the form category to Scholarship", async () => {
     const user = userEvent.setup()

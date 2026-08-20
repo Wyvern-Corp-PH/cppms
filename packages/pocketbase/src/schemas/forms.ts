@@ -147,6 +147,7 @@ export const projectMutateSchema = z
   })
 
 const PROJECT_FORM_OWNERS = new Set(["PPDO", "Province", "Super Admin"])
+const LGU_DATE_OWNERS = new Set(["Municipality", "Barangay"])
 const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
   "General Fund",
   "Trust Fund",
@@ -183,10 +184,29 @@ export function projectMutateSchemaForActor(
   const ownsFormFields = PROJECT_FORM_OWNERS.has(role ?? "")
   const requireIdentity = options?.form ? ownsFormFields : role === "PPDO" && isCreate
   const requireFundSource = Boolean(options?.form) && ownsFormFields
+  const requireLguDates = LGU_DATE_OWNERS.has(role ?? "")
 
-  if (!requireIdentity && !requireFundSource) return projectMutateSchema
+  if (!requireIdentity && !requireFundSource && !requireLguDates) {
+    return projectMutateSchema
+  }
 
   return projectMutateSchema.superRefine((value, ctx) => {
+    if (requireLguDates) {
+      if (!value.start_date?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["start_date"],
+          message: "Start date is required.",
+        })
+      }
+      if (!value.target_end_date?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["target_end_date"],
+          message: "End date is required.",
+        })
+      }
+    }
     if (requireIdentity) {
       if (!value.description?.trim()) {
         ctx.addIssue({

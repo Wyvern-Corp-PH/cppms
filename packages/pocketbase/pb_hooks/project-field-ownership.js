@@ -26,6 +26,8 @@ const LGU_OWNED_FIELDS = [
   "project_photos",
   "resolution_file",
   "supporting_docs",
+  "start_date",
+  "target_end_date",
 ]
 const LGU_OVERRIDE_LOCKED_FIELDS = [
   "status",
@@ -38,8 +40,6 @@ const PROJECT_FIELDS = [
   ...PPDO_OWNED_FIELDS,
   ...LGU_OWNED_FIELDS,
   "status",
-  "start_date",
-  "target_end_date",
   "lgu_level",
   "progress_pct",
   "lgu_encoded_at",

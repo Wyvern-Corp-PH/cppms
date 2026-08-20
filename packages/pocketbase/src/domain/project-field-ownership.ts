@@ -38,6 +38,8 @@ export const LGU_OWNED_FIELDS = [
   "project_photos",
   "resolution_file",
   "supporting_docs",
+  "start_date",
+  "target_end_date",
 ] as const
 
 export const LGU_OVERRIDE_LOCKED_FIELDS = [

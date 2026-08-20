@@ -277,6 +277,8 @@ describe("projectMutateSchema (V34)", () => {
       status: "Ongoing",
       budget_year: 2026,
       contractor: "Local Builders",
+      start_date: "2026-06-01",
+      target_end_date: "2026-12-01",
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -284,6 +286,42 @@ describe("projectMutateSchema (V34)", () => {
       expect(result.data.location).toBeUndefined()
       expect(result.data.fund_source).toBeUndefined()
     }
+  })
+
+  it("requires start and end dates on municipality and barangay save", () => {
+    for (const role of ["Municipality", "Barangay"] as const) {
+      const schema = projectMutateSchemaForActor(role, false, { form: true })
+      const missing = schema.safeParse({
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        contractor: "Local Builders",
+      })
+      expect(missing.success).toBe(false)
+      if (!missing.success) {
+        const errors = fieldErrorsFromZod(missing.error)
+        expect(errors.start_date).toBe("Start date is required.")
+        expect(errors.target_end_date).toBe("End date is required.")
+      }
+    }
+  })
+
+  it("does not require start and end dates on Super Admin form create", () => {
+    const schema = projectMutateSchemaForActor("Super Admin", true, {
+      form: true,
+    })
+    const result = schema.safeParse({
+      name: "City Bridge",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Span",
+      location: "East bank",
+      funding_year: 2025,
+      fund_source: "Special Education Fund",
+    })
+    expect(result.success).toBe(true)
   })
 
   it("requires fund source on Super Admin form create", () => {

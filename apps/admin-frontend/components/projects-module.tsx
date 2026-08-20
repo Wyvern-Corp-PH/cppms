@@ -108,6 +108,8 @@ type ProjectFormState = {
   sub_account: string
   period_of_implementation: string
   bid_price: string
+  start_date: string
+  target_end_date: string
 }
 
 type ProjectImportResult = {
@@ -142,6 +144,12 @@ function importRowError(file: File, rowNumber: number, message: string) {
   return `${file.name} Row ${rowNumber}: ${message}`
 }
 
+/** Leading YYYY-MM-DD for type=date — skip Date TZ round-trip. */
+function dateInputValue(value: string | undefined | null): string {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value?.trim() ?? "")
+  return match?.[1] ?? ""
+}
+
 const emptyForm = (): ProjectFormState => ({
   name: "",
   description: "",
@@ -158,6 +166,8 @@ const emptyForm = (): ProjectFormState => ({
   sub_account: "",
   period_of_implementation: "",
   bid_price: "",
+  start_date: "",
+  target_end_date: "",
 })
 
 function namesOnRecord(...values: (string | string[] | undefined)[]): string[] {
@@ -681,6 +691,8 @@ export function ProjectsModule() {
         project.bid_price === undefined || project.bid_price === null
           ? ""
           : String(project.bid_price),
+      start_date: dateInputValue(project.start_date),
+      target_end_date: dateInputValue(project.target_end_date),
     })
     setMoaFiles([])
     setProjectPhotoFiles([])
@@ -718,6 +730,8 @@ export function ProjectsModule() {
       sub_account: form.sub_account || undefined,
       period_of_implementation: form.period_of_implementation || undefined,
       bid_price: form.bid_price || undefined,
+      start_date: form.start_date || undefined,
+      target_end_date: form.target_end_date || undefined,
       progress_pct: editing?.progress_pct ?? 0,
     })
 
@@ -1491,6 +1505,41 @@ export function ProjectsModule() {
                   Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
                 </FieldDescription>
               </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field data-invalid={Boolean(fieldErrors.start_date)}>
+                  <FieldLabel htmlFor="project-start-date">Start Date</FieldLabel>
+                  <FieldOwnerHint field="start_date" />
+                  <Input
+                    id="project-start-date"
+                    type="date"
+                    value={form.start_date}
+                    disabled={fieldLocked("start_date")}
+                    aria-invalid={Boolean(fieldErrors.start_date)}
+                    onChange={(event) =>
+                      setForm({ ...form, start_date: event.target.value })
+                    }
+                  />
+                  <FieldError>{fieldErrors.start_date}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(fieldErrors.target_end_date)}>
+                  <FieldLabel htmlFor="project-end-date">End Date</FieldLabel>
+                  <FieldOwnerHint field="target_end_date" />
+                  <Input
+                    id="project-end-date"
+                    type="date"
+                    value={form.target_end_date}
+                    disabled={fieldLocked("target_end_date")}
+                    aria-invalid={Boolean(fieldErrors.target_end_date)}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        target_end_date: event.target.value,
+                      })
+                    }
+                  />
+                  <FieldError>{fieldErrors.target_end_date}</FieldError>
+                </Field>
+              </div>
               <Field>
                 <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
                 <FieldOwnerHint field="contractor" />

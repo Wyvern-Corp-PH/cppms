@@ -364,6 +364,33 @@ describe("project field ownership", () => {
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
+  it("lets LGU write start and end dates", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "Ongoing",
+      start_date: "2026-06-01",
+      target_end_date: "2026-12-01",
+    }
+    expect(
+      evaluateProjectFieldWrite({
+        role: "Municipality",
+        isCreate: false,
+        original,
+        submitted: { start_date: "2026-07-01", target_end_date: "2026-11-01" },
+      })
+    ).toEqual({ ok: true, setLguEncodedAt: true })
+    expect(
+      projectPayloadForActor("Municipality", original, false, {
+        start_date: "2026-07-01",
+        target_end_date: "2026-11-01",
+        name: "Provincial road",
+      })
+    ).toEqual({
+      start_date: "2026-07-01",
+      target_end_date: "2026-11-01",
+    })
+  })
+
   it("lets LGU write bid_price from 100 to 0", () => {
     const result = evaluateProjectFieldWrite({
       role: "Municipality",
@@ -404,7 +431,7 @@ describe("project field ownership", () => {
   })
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s changing LGU-owned status, contractor, bid price, or leftover dates",
+    "rejects %s changing LGU-owned status, contractor, bid price, or dates",
     (role) => {
       const original = {
         ...ppdoCreate,
@@ -581,7 +608,7 @@ describe("project field ownership", () => {
     }
   )
 
-  it("keeps leftover start and end dates off LGU_OWNED_FIELDS and on the override lock list", () => {
+  it("keeps start and end dates on LGU_OWNED_FIELDS and on the override lock list", () => {
     expect(LGU_OVERRIDE_LOCKED_FIELDS).toEqual([
       "status",
       "contractor",
@@ -589,8 +616,8 @@ describe("project field ownership", () => {
       "start_date",
       "target_end_date",
     ])
-    expect(LGU_OWNED_FIELDS).not.toContain("start_date")
-    expect(LGU_OWNED_FIELDS).not.toContain("target_end_date")
+    expect(LGU_OWNED_FIELDS).toContain("start_date")
+    expect(LGU_OWNED_FIELDS).toContain("target_end_date")
     expect(LGU_OWNED_FIELDS).not.toContain("status")
   })
 
@@ -623,9 +650,9 @@ describe("project field ownership", () => {
       "project_photos",
       "resolution_file",
       "supporting_docs",
+      "start_date",
+      "target_end_date",
     ])
-    expect(LGU_OWNED_FIELDS).not.toContain("start_date")
-    expect(LGU_OWNED_FIELDS).not.toContain("target_end_date")
     expect(LGU_OWNED_FIELDS).not.toContain("planning_status")
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
   })
@@ -634,6 +661,10 @@ describe("project field ownership", () => {
     expect(projectFieldFilledByLabel("name")).toBe("filled by PPDO")
     expect(projectFieldFilledByLabel("bid_price")).toBe("filled by LGU/Barangay")
     expect(projectFieldFilledByLabel("status")).toBe("filled by LGU/Barangay")
+    expect(projectFieldFilledByLabel("start_date")).toBe("filled by LGU/Barangay")
+    expect(projectFieldFilledByLabel("target_end_date")).toBe(
+      "filled by LGU/Barangay"
+    )
     expect(projectFieldFilledByLabel("resolution_file")).toBe(
       "filled by LGU/Barangay"
     )
@@ -768,6 +799,12 @@ describe("project field ownership", () => {
     expect(isProjectFieldEditable("Barangay", "bid_price", original, false)).toBe(
       true
     )
+    expect(isProjectFieldEditable("Municipality", "start_date", original, false)).toBe(
+      true
+    )
+    expect(
+      isProjectFieldEditable("Barangay", "target_end_date", original, false)
+    ).toBe(true)
     expect(
       isProjectFieldEditable(
         "Municipality",
