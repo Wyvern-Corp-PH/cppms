@@ -234,10 +234,16 @@ function canUpdateProjectProgress(
 function requiresReleasedAmountForActor(
   actor: ReturnType<typeof getPocketBase>["authStore"]["record"]
 ) {
+  return actor?.role === "Barangay" || actor?.role === "Municipality"
+}
+
+function releasedAmountHasInput(value: ReleasedAmountFormValue) {
   return (
-    actor?.role === "Barangay" ||
-    actor?.role === "Municipality" ||
-    actor?.role === "Province"
+    value.amount.trim() !== "" ||
+    value.mainAccount.trim() !== "" ||
+    value.subAccount.trim() !== "" ||
+    value.receiptNumber.trim() !== "" ||
+    value.expenseDescription.trim() !== ""
   )
 }
 
@@ -501,6 +507,8 @@ export function ProgressModule() {
     ? canRepairProjectProgress(actor)
     : false
   const requiresReleasedAmount = requiresReleasedAmountForActor(actor)
+  const includeReleasedAmount =
+    requiresReleasedAmount || releasedAmountHasInput(releasedAmount)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -767,7 +775,7 @@ export function ProgressModule() {
             existingCompletionDocNames: existingCompletionDocNamesFromRecord,
           }
         : {}),
-      ...(requiresReleasedAmount
+      ...(includeReleasedAmount
         ? {
             releasedAmount: toReleasedAmountInput(releasedAmount),
             ...(options.revision && options.latestExpense
@@ -794,7 +802,7 @@ export function ProgressModule() {
 
     return progressUpdateFormSchemaFor({
       revision: options.revision,
-      withReleasedAmount: requiresReleasedAmount,
+      withReleasedAmount: includeReleasedAmount,
     }).safeParse(parseInput)
   }
 
@@ -982,7 +990,7 @@ export function ProgressModule() {
       progressRecordId = progressRecord.id
     }
 
-    if (requiresReleasedAmount) {
+    if (includeReleasedAmount) {
       await syncReleasedAmountExpense({
         pb,
         projectId: options.parsed.projectId,
@@ -1069,7 +1077,7 @@ export function ProgressModule() {
       return
     }
 
-    if (requiresReleasedAmount) {
+    if (includeReleasedAmount) {
       const nextReleasedAmount = toReleasedAmountInput(releasedAmount)
       const wouldCreateExpense = !releasedAmountEqualsLatest(
         nextReleasedAmount,
@@ -1507,24 +1515,22 @@ export function ProgressModule() {
                     })}
                   </FieldSet>
                 ) : null}
-                {requiresReleasedAmount ? (
-                  <FieldSet className="space-y-2 border-t pt-3">
-                    <FieldDescription className="text-sm font-medium text-foreground">
-                      Released amount (required)
-                    </FieldDescription>
-                    <FieldDescription>
-                      Record the funds released for this progress update.
-                    </FieldDescription>
-                    <ReleasedAmountFields
-                      value={releasedAmount}
-                      onChange={setReleasedAmount}
-                      fieldErrors={releasedAmountErrors}
-                      idPrefix="progress-released"
-                      sectionTestId="progress-released-amount-fields"
-                      loadOptions={dialogOpen}
-                    />
-                  </FieldSet>
-                ) : null}
+                <FieldSet className="space-y-2 border-t pt-3">
+                  <FieldDescription className="text-sm font-medium text-foreground">
+                    Released amount
+                  </FieldDescription>
+                  <FieldDescription>
+                    Record the funds released for this progress update.
+                  </FieldDescription>
+                  <ReleasedAmountFields
+                    value={releasedAmount}
+                    onChange={setReleasedAmount}
+                    fieldErrors={releasedAmountErrors}
+                    idPrefix="progress-released"
+                    sectionTestId="progress-released-amount-fields"
+                    loadOptions={dialogOpen}
+                  />
+                </FieldSet>
               </FieldSet>
             </FieldGroup>
             <DialogFooter>
