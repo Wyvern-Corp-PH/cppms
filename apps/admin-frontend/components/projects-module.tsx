@@ -9,6 +9,7 @@ import {
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
 import {
+  awaitingDetailsBadgeCopy,
   isProjectFieldEditable,
   ownedProjectFieldsForActor,
   projectFieldFilledByLabel,
@@ -348,6 +349,7 @@ function ProjectCard({
   onDelete,
   canUpdate,
   canDelete,
+  actorRole,
 }: {
   project: ProjectRecord
   progressPct: number
@@ -355,8 +357,10 @@ function ProjectCard({
   onDelete: () => void
   canUpdate: boolean
   canDelete: boolean
+  actorRole?: string
 }) {
   const hasActions = canUpdate || canDelete
+  const awaitingDetails = awaitingDetailsBadgeCopy(actorRole, project)
 
   return (
     <article
@@ -368,6 +372,9 @@ function ProjectCard({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{project.name}</h2>
             <Badge variant="secondary">{project.status}</Badge>
+            {awaitingDetails ? (
+              <Badge variant="outline">{awaitingDetails}</Badge>
+            ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
             {[...projectLocationDisplayParts(project), project.category]
@@ -1160,6 +1167,7 @@ export function ProjectsModule() {
               onDelete={() => void handleDelete(project)}
               canUpdate={canUpdateProjects}
               canDelete={canDeleteProjects}
+              actorRole={actorRole}
             />
           ))}
         </div>

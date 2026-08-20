@@ -88,6 +88,27 @@ function isEmptyValue(value: unknown): boolean {
   return false
 }
 
+const AWAITING_DETAILS_FIELDS = [
+  "status",
+  "contractor",
+  "bid_price",
+  "start_date",
+  "target_end_date",
+] as const
+
+export function awaitingDetailsBadgeCopy(
+  role: string | undefined,
+  record: ProjectFieldMap | null | undefined
+): string | null {
+  if (!isLguRole(role)) return null
+  const incomplete = AWAITING_DETAILS_FIELDS.some((field) => {
+    const value = record?.[field]
+    return isEmptyValue(value) || value === 0
+  })
+  if (!incomplete) return null
+  return "Awaiting your details — please complete the required fields for this project"
+}
+
 function normalizeValue(value: unknown): string {
   if (isEmptyValue(value)) return ""
   if (Array.isArray(value)) {

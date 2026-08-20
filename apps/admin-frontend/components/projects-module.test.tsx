@@ -919,6 +919,116 @@ describe("ProjectsModule (J4)", () => {
     expect(createMock).not.toHaveBeenCalled()
   })
 
+  const awaitingDetailsCopy =
+    "Awaiting your details — please complete the required fields for this project"
+
+  it("should show awaiting-details copy on the project card for Municipality when a required field is empty", async () => {
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        created_by: "sa1",
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    const card = await screen.findByTestId("project-card-p1")
+    expect(card).toHaveTextContent(awaitingDetailsCopy)
+  })
+
+  it("should hide awaiting-details copy on the project card when Municipality has all five fields filled", async () => {
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    const card = await screen.findByTestId("project-card-p1")
+    expect(card).not.toHaveTextContent(awaitingDetailsCopy)
+  })
+
+  it("should not show awaiting-details copy on Super Admin project cards", async () => {
+    store.authRecord = {
+      id: "sa1",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    const card = await screen.findByTestId("project-card-p1")
+    expect(card).not.toHaveTextContent(awaitingDetailsCopy)
+  })
+
   it("lets scoped Barangay edit LGU-owned fields but not delete or change status from the menu", async () => {
     const user = userEvent.setup()
     store.projects = [

@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm"
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  awaitingDetailsBadgeCopy,
   changedProjectFields,
   evaluateProjectFieldWrite,
   isProjectFieldEditable,
@@ -791,6 +792,77 @@ describe("project field ownership", () => {
         lgu_encoded_at: "2026-08-01",
       }, false)
     ).toBe(false)
+  })
+})
+
+const AWAITING_DETAILS_COPY =
+  "Awaiting your details — please complete the required fields for this project"
+
+const filledLguDetails = {
+  status: "Ongoing",
+  contractor: "Build Co",
+  bid_price: 200_000,
+  start_date: "2026-06-01",
+  target_end_date: "2026-12-01",
+}
+
+describe("awaiting details badge copy", () => {
+  it("should return the badge copy when Municipality has any required field empty", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Municipality", {
+        ...filledLguDetails,
+        contractor: "",
+      })
+    ).toBe(AWAITING_DETAILS_COPY)
+  })
+
+  it("should return the badge copy when Barangay start or end date is empty", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Barangay", {
+        ...filledLguDetails,
+        start_date: "",
+        target_end_date: "",
+      })
+    ).toBe(AWAITING_DETAILS_COPY)
+  })
+
+  it("should hide the copy when Municipality has all five fields filled", () => {
+    expect(awaitingDetailsBadgeCopy("Municipality", filledLguDetails)).toBe(null)
+  })
+
+  it("should hide the copy for Super Admin even when fields are empty", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Super Admin", { contractor: "" })
+    ).toBe(null)
+  })
+
+  it("should still show the copy when lgu_encoded_at is set and fields are empty", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Municipality", {
+        ...filledLguDetails,
+        contractor: "",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      })
+    ).toBe(AWAITING_DETAILS_COPY)
+  })
+
+  it("should still show the copy when created_by role is not Municipality", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Barangay", {
+        ...filledLguDetails,
+        bid_price: "",
+        created_by: "sa1",
+      })
+    ).toBe(AWAITING_DETAILS_COPY)
+  })
+
+  it("should treat empty bid_price zero as empty", () => {
+    expect(
+      awaitingDetailsBadgeCopy("Municipality", {
+        ...filledLguDetails,
+        bid_price: 0,
+      })
+    ).toBe(AWAITING_DETAILS_COPY)
   })
 })
 
