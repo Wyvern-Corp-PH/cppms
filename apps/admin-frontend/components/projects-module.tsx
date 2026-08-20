@@ -1478,6 +1478,9 @@ export function ProjectsModule() {
                     })
                   }
                 />
+                <FieldDescription>
+                  Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>

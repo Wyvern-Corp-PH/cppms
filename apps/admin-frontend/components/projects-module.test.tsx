@@ -249,6 +249,23 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
+  it("shows the LGU/DPWH start-within-15-days note under Period of Implementation", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    const period = await screen.findByLabelText(/period of implementation/i)
+    expect(period).toHaveAttribute("id", "project-period")
+    expect(period.tagName).toBe("INPUT")
+    expect(period).not.toHaveAttribute("type", "date")
+    expect(
+      screen.getByText(
+        "Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA."
+      )
+    ).toBeInTheDocument()
+  })
+
   it("loads project status and category dropdown options from PocketBase fields", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
