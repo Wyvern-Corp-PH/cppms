@@ -10,6 +10,7 @@ import {
   filterProgressUpdatesByToPctRange,
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
+  projectStatusAfterAllocation,
 } from "./progress-summary"
 
 describe("effectiveProgressPct", () => {
@@ -41,17 +42,65 @@ describe("projectProgressPatchFromUpdate", () => {
     })
   })
 
-  it("should set status Ready for Review when to_pct reaches 100", () => {
-    expect(projectProgressPatchFromUpdate(100, "Ongoing")).toEqual({
-      progress_pct: 100,
-      status: "Ready for Review",
+  it("should set Ongoing on first update below 100 from Planning or Procurement", () => {
+    expect(projectProgressPatchFromUpdate(40, "Planning")).toEqual({
+      progress_pct: 40,
+      status: "Ongoing",
+    })
+    expect(projectProgressPatchFromUpdate(40, "Procurement")).toEqual({
+      progress_pct: 40,
+      status: "Ongoing",
     })
   })
 
-  it("should set Ready for Review when For Revision resubmits at 100", () => {
-    expect(projectProgressPatchFromUpdate(100, "For Revision")).toEqual({
+  it("should skip Ongoing and set For Completion when first update is already 100", () => {
+    expect(projectProgressPatchFromUpdate(100, "Planning")).toEqual({
       progress_pct: 100,
-      status: "Ready for Review",
+      status: "For Completion",
+    })
+    expect(projectProgressPatchFromUpdate(100, "Procurement")).toEqual({
+      progress_pct: 100,
+      status: "For Completion",
+    })
+  })
+
+  it("should set For Completion when to_pct reaches 100 from gated statuses", () => {
+    for (const status of [
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "For Revision",
+      "Ready for Review",
+    ] as const) {
+      expect(projectProgressPatchFromUpdate(100, status)).toEqual({
+        progress_pct: 100,
+        status: "For Completion",
+      })
+    }
+  })
+
+  it("should keep For Approval, Completed, Rejected, and Cancelled at 100%", () => {
+    for (const status of [
+      "For Approval",
+      "Completed",
+      "Rejected",
+      "Cancelled",
+    ] as const) {
+      expect(projectProgressPatchFromUpdate(100, status)).toEqual({
+        progress_pct: 100,
+        status,
+      })
+    }
+  })
+
+  it("should keep current status below 100 when not Planning or Procurement", () => {
+    expect(projectProgressPatchFromUpdate(80, "For Revision")).toEqual({
+      progress_pct: 80,
+      status: "For Revision",
+    })
+    expect(projectProgressPatchFromUpdate(80, "Cancelled")).toEqual({
+      progress_pct: 80,
+      status: "Cancelled",
     })
   })
 })
@@ -63,7 +112,7 @@ describe("canShowUpdateProgress", () => {
       "Procurement",
       "Ongoing",
       "For Revision",
-      "Ready for Review",
+      "For Completion",
     ] as const) {
       expect(
         canShowUpdateProgress({
@@ -74,8 +123,13 @@ describe("canShowUpdateProgress", () => {
     }
   })
 
-  it("should hide Update Progress for Completed and Rejected", () => {
-    for (const status of ["Completed", "Rejected"] as const) {
+  it("should hide Update Progress for For Approval, Completed, Rejected, and Cancelled", () => {
+    for (const status of [
+      "For Approval",
+      "Completed",
+      "Rejected",
+      "Cancelled",
+    ] as const) {
       expect(
         canShowUpdateProgress({
           status,
@@ -92,6 +146,27 @@ describe("canShowUpdateProgress", () => {
         canCreateProgressUpdates: false,
       })
     ).toBe(false)
+  })
+})
+
+describe("projectStatusAfterAllocation", () => {
+  it("should set Procurement only from Planning", () => {
+    expect(projectStatusAfterAllocation("Planning")).toBe("Procurement")
+  })
+
+  it("should keep every other status including Cancelled", () => {
+    for (const status of [
+      "Procurement",
+      "Ongoing",
+      "For Completion",
+      "For Approval",
+      "Completed",
+      "For Revision",
+      "Rejected",
+      "Cancelled",
+    ] as const) {
+      expect(projectStatusAfterAllocation(status)).toBe(status)
+    }
   })
 })
 

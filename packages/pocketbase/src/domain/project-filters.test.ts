@@ -114,14 +114,26 @@ describe("formatProjectDateRange", () => {
 })
 
 describe("isApprovalEligible (V4)", () => {
-  it("only allows Ready for Review projects", () => {
+  it("allows For Completion and For Approval, not planning or terminal statuses", () => {
     expect(
       isApprovalEligible({
         ...sampleProjects[1]!,
-        status: "Ready for Review",
+        status: "For Completion",
+      })
+    ).toBe(true)
+    expect(
+      isApprovalEligible({
+        ...sampleProjects[1]!,
+        status: "For Approval",
       })
     ).toBe(true)
     expect(isApprovalEligible(sampleProjects[1]!)).toBe(false)
     expect(isApprovalEligible(sampleProjects[0]!)).toBe(false)
+    expect(
+      isApprovalEligible({
+        ...sampleProjects[1]!,
+        status: "Cancelled",
+      })
+    ).toBe(false)
   })
 })

@@ -188,6 +188,21 @@ const projectFieldOwnershipHookEntrypointPath = resolve(
   "pb_hooks",
   "project-field-ownership.pb.js"
 )
+const syncProcurementHookPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "sync-project-procurement.js"
+)
+const syncProcurementHookEntrypointPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "sync-project-procurement.pb.js"
+)
+const projectStatusForCompletionMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000035_project_status_for_completion.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -221,11 +236,15 @@ describe("schema manifest (SPEC §I)", () => {
       "Planning",
       "Procurement",
       "Ongoing",
-      "Ready for Review",
-      "For Revision",
+      "For Completion",
+      "For Approval",
       "Completed",
+      "For Revision",
       "Rejected",
+      "Cancelled",
     ])
+    expect(PROJECT_STATUS).not.toContain("Ready for Review")
+    expect(PROJECT_STATUS).not.toContain("On")
     expect(PROJECT_CATEGORY).toContain("Infrastructure")
     expect(LGU_LEVEL).toContain("Municipality")
     expect(FUND_TYPE).toEqual([
@@ -821,13 +840,16 @@ describe("PocketBase sync-project-progress hook", () => {
     expect(hookSource).toContain("latestProgressUpdate")
     expect(hookSource).toContain("findRecordsByFilter")
     expect(hookSource).toContain('project.set("progress_pct"')
-    expect(hookSource).toContain("Ready for Review")
+    expect(hookSource).toContain("For Completion")
     expect(hookSource).toContain("app.save")
   })
 
-  it("sets Ready for Review when to_pct ≥ 100 including For Revision resubmit (V5)", () => {
+  it("sets For Completion when to_pct ≥ 100 from a gated from-status", () => {
     expect(hookSource).toContain("pct >= 100")
-    expect(hookSource).toContain('"Ready for Review"')
+    expect(hookSource).toContain('"For Completion"')
+    expect(hookSource).toContain("FOR_COMPLETION_FROM")
+    expect(hookSource).toContain("ONGOING_FROM")
+    expect(hookSource).toContain("Ready for Review")
     expect(hookSource).toContain("console.error")
     expect(hookSource).toContain(
       "Progress update saved, but project summary did not sync."
@@ -1006,6 +1028,44 @@ describe("raise remaining file maxSize to 10MB", () => {
     expect(migrationSource).not.toContain("Ready for Review")
     expect(migrationSource).toContain("progress_updates")
     expect(migrationSource).toContain("projects")
+  })
+})
+
+describe("PocketBase sync-project-procurement hook", () => {
+  const hookSource = readFileSync(syncProcurementHookPath, "utf8")
+  const hookEntrypointSource = readFileSync(
+    syncProcurementHookEntrypointPath,
+    "utf8"
+  )
+
+  it("sets Procurement on budget_allocations create only from Planning", () => {
+    expect(hookEntrypointSource).toContain("sync-project-procurement.js")
+    expect(hookEntrypointSource).toContain("onRecordAfterCreateSuccess")
+    expect(hookEntrypointSource).toContain("budget_allocations")
+    expect(hookEntrypointSource).not.toContain("onRecordAfterUpdateSuccess")
+    expect(hookSource).toContain("projectStatusAfterAllocation")
+    expect(hookSource).toContain('"Planning"')
+    expect(hookSource).toContain('"Procurement"')
+    expect(hookSource).toContain("app.save")
+  })
+})
+
+describe("PocketBase project status For Completion migration", () => {
+  const migrationSource = readFileSync(
+    projectStatusForCompletionMigrationPath,
+    "utf8"
+  )
+
+  it("rewrites Ready for Review rows and upserts new status options", () => {
+    expect(migrationSource).toContain("Ready for Review")
+    expect(migrationSource).toContain("For Completion")
+    expect(migrationSource).toContain("For Approval")
+    expect(migrationSource).toContain("Cancelled")
+    expect(migrationSource).toContain("project_status_options")
+    expect(migrationSource).toContain("expandThenRewriteStatus")
+    expect(migrationSource).toContain("upsertStatusOptions")
+    expect(migrationSource).toContain("app.delete")
+    expect(migrationSource).not.toContain("1740000029")
   })
 })
 

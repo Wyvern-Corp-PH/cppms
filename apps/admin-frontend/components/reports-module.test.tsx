@@ -271,7 +271,7 @@ describe("ReportsModule (V12)", () => {
         collectionName: "projects",
         name: "Pending School",
         category: "Education",
-        status: "Ready for Review",
+        status: "For Completion",
         budget_year: 2026,
         progress_pct: 100,
         approval_status: "pending",

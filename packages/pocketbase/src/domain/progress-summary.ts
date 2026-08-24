@@ -14,14 +14,40 @@ export function effectiveProgressPct(
   return updates[0]?.to_pct ?? project.progress_pct ?? 0
 }
 
+const FOR_COMPLETION_FROM_STATUSES = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+  "Ready for Review",
+] as const
+
+const ONGOING_FROM_STATUSES = ["Planning", "Procurement"] as const
+
 export function projectProgressPatchFromUpdate(
   toPct: number,
-  currentStatus: ProjectRecord["status"]
+  currentStatus: string
 ): Pick<ProjectRecord, "progress_pct" | "status"> {
+  if (toPct >= 100) {
+    return {
+      progress_pct: toPct,
+      status: (FOR_COMPLETION_FROM_STATUSES as readonly string[]).includes(
+        currentStatus
+      )
+        ? "For Completion"
+        : (currentStatus as ProjectRecord["status"]),
+    }
+  }
   return {
     progress_pct: toPct,
-    status: toPct >= 100 ? "Ready for Review" : currentStatus,
+    status: (ONGOING_FROM_STATUSES as readonly string[]).includes(currentStatus)
+      ? "Ongoing"
+      : (currentStatus as ProjectRecord["status"]),
   }
+}
+
+export function projectStatusAfterAllocation(currentStatus: string): string {
+  return currentStatus === "Planning" ? "Procurement" : currentStatus
 }
 
 /** Statuses where authorized actors may open Update Progress (status gate only). */
@@ -30,7 +56,7 @@ export const EDITABLE_PROGRESS_STATUSES = [
   "Procurement",
   "Ongoing",
   "For Revision",
-  "Ready for Review",
+  "For Completion",
 ] as const satisfies readonly ProjectRecord["status"][]
 
 /** Stuck rows eligible for SA/Province heal + repair migration (⊥ For Revision). */

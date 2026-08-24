@@ -12,7 +12,7 @@ const store = {
       updated: "",
       name: "Review Ready Bridge",
       category: "Infrastructure",
-      status: "Ready for Review",
+      status: "For Completion",
       municipality: "Tuguegarao City",
       barangay: "Centro 01 (Bagumbayan)",
       budget_year: 2026,
@@ -158,7 +158,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Review Ready Bridge",
         category: "Infrastructure",
-        status: "Ready for Review",
+        status: "For Completion",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -321,8 +321,45 @@ describe("ApprovalsModule (J5, V5)", () => {
     })
   })
 
+  it("keeps For Approval projects in the pending queue until reviewed", async () => {
+    store.projects[0] = {
+      ...store.projects[0]!,
+      status: "For Approval",
+      approval_status: "pending",
+    }
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    expect(within(card).getByText("For Approval")).toBeInTheDocument()
+    expect(screen.getByTestId("approvals-queue")).toHaveTextContent("1")
+    expect(within(card).getByRole("button", { name: /^approve$/i })).toBeInTheDocument()
+  })
+
+  it("sets For Approval when Province opens an approval dialog", async () => {
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /approve/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
+      expect(store.projects[0]?.status).toBe("For Approval")
+      expect(store.projects[0]?.approval_status).toBe("pending")
+    })
+    expect(
+      screen.getByRole("dialog", { name: /approve project completion/i })
+    ).toBeInTheDocument()
+  })
+
   it("surfaces an error when project status update fails", async () => {
-    updateMock.mockRejectedValueOnce(new Error("Failed to update project status."))
+    updateMock.mockImplementation(async (id, payload) => {
+      if (payload.approval_status) {
+        throw new Error("Failed to update project status.")
+      }
+      const index = store.projects.findIndex((row) => row.id === id)
+      store.projects[index] = { ...store.projects[index], ...payload }
+      return store.projects[index]
+    })
     const user = userEvent.setup()
     render(<ApprovalsModule />)
 
@@ -339,7 +376,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     expect(
       screen.getByRole("dialog", { name: /approve project completion/i })
     ).toBeInTheDocument()
-    expect(store.projects[0]?.status).toBe("Ready for Review")
+    expect(store.projects[0]?.status).toBe("For Approval")
     expect(store.projects[0]?.approval_status).toBe("pending")
     expect(store.actions).toHaveLength(0)
     expect(createMock).not.toHaveBeenCalled()
@@ -407,7 +444,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Ready for Review",
+        status: "For Completion",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -422,7 +459,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Ready for Review",
+        status: "For Completion",
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
@@ -450,7 +487,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     render(<ApprovalsModule />)
 
     const card = await screen.findByTestId("approval-card-1")
-    expect(within(card).getByText("Ready for Review")).toBeInTheDocument()
+    expect(within(card).getByText("For Completion")).toBeInTheDocument()
     expect(within(card).getByRole("button", { name: /view details/i })).toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument()
     expect(within(card).queryByRole("button", { name: /^reject$/i })).not.toBeInTheDocument()
@@ -583,7 +620,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Ready for Review",
+        status: "For Completion",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
         budget_year: 2026,
@@ -598,7 +635,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Ready for Review",
+        status: "For Completion",
         municipality: "Lasam",
         barangay: "Centro",
         budget_year: 2026,
@@ -635,7 +672,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "City Bridge",
         category: "Infrastructure",
-        status: "Ready for Review",
+        status: "For Completion",
         budget_year: 2026,
         bid_price: 100_000,
         progress_pct: 100,
@@ -649,7 +686,7 @@ describe("ApprovalsModule (J5, V5)", () => {
         updated: "",
         name: "Lasam School",
         category: "Education",
-        status: "Ready for Review",
+        status: "For Completion",
         budget_year: 2026,
         bid_price: 300_000,
         progress_pct: 100,
@@ -722,7 +759,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       updated: "",
       name: "Rejected Bridge",
       category: "Infrastructure",
-      status: "Ready for Review",
+      status: "For Completion",
       budget_year: 2026,
       progress_pct: 100,
       approval_status: "rejected",
@@ -818,7 +855,11 @@ describe("ApprovalsModule (J5, V5)", () => {
       await screen.findByText(/certification of completion is missing/i)
     ).toBeInTheDocument()
     expect(store.actions).toHaveLength(0)
-    expect(updateMock).not.toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
+    expect(updateMock).not.toHaveBeenCalledWith(
+      "1",
+      expect.objectContaining({ status: "Completed" })
+    )
   })
 
   it("shows uploaded completion documents while pending approval", async () => {

@@ -36,6 +36,8 @@ describe("schema enums (V36)", () => {
 
   it("rejects unknown enum values", () => {
     expect(projectStatusSchema.safeParse("Invalid").success).toBe(false)
+    expect(projectStatusSchema.safeParse("Ready for Review").success).toBe(false)
+    expect(projectStatusSchema.safeParse("On").success).toBe(false)
     expect(projectCategorySchema.safeParse("").success).toBe(false)
     expect(lguLevelSchema.safeParse("Province").success).toBe(false)
     expect(fundTypeSchema.safeParse("Travel").success).toBe(false)
@@ -50,11 +52,15 @@ describe("schema enums (V36)", () => {
       "Planning",
       "Procurement",
       "Ongoing",
-      "Ready for Review",
-      "For Revision",
+      "For Completion",
+      "For Approval",
       "Completed",
+      "For Revision",
       "Rejected",
+      "Cancelled",
     ])
+    expect(PROJECT_STATUS).not.toContain("Ready for Review")
+    expect(PROJECT_STATUS).not.toContain("On")
     expect(PROJECT_CATEGORY).toHaveLength(6)
     expect(LGU_LEVEL).toHaveLength(4)
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])

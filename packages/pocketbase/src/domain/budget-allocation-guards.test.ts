@@ -107,7 +107,7 @@ describe("filterProjectsForBudgetAllocation", () => {
       { id: "a", status: "Ongoing" as const },
       { id: "b", status: "Completed" as const },
       { id: "c", status: "Planning" as const },
-      { id: "d", status: "Ready for Review" as const },
+      { id: "d", status: "For Completion" as const },
     ]
 
     expect(filterProjectsForBudgetAllocation(projects).map((p) => p.id)).toEqual([

@@ -1081,7 +1081,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
-  it("saves a progress update without client projects.update for Barangay (hook owns Ready for Review)", async () => {
+  it("saves a progress update without client projects.update for Barangay (hook owns For Completion)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1334,7 +1334,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
-  it("shows Update Progress at 100% for Planning, Ready for Review, and For Revision", async () => {
+  it("shows Update Progress at 100% for Planning, For Completion, and For Revision", async () => {
     useBarangayActor()
     store.projects = [
       {
@@ -1358,7 +1358,7 @@ describe("ProgressModule (V81, V84)", () => {
         updated: "",
         name: "Ready Row",
         category: "Infrastructure",
-        status: "Ready for Review",
+        status: "For Completion",
         budget_year: 2026,
         progress_pct: 100,
         ...barangayScope,
@@ -1587,7 +1587,7 @@ describe("ProgressModule (V81, V84)", () => {
         "stuck",
         expect.objectContaining({
           progress_pct: 100,
-          status: "Ready for Review",
+          status: "For Completion",
         })
       )
     })
@@ -1617,7 +1617,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
-  it("lets Barangay update a For Revision project without client projects.update (hook owns Ready for Review)", async () => {
+  it("lets Barangay update a For Revision project without client projects.update (hook owns For Completion)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [

@@ -4,10 +4,12 @@ export const PROJECT_STATUS = [
   "Planning",
   "Procurement",
   "Ongoing",
-  "Ready for Review",
-  "For Revision",
+  "For Completion",
+  "For Approval",
   "Completed",
+  "For Revision",
   "Rejected",
+  "Cancelled",
 ] as const
 
 export const PROJECT_CATEGORY = [

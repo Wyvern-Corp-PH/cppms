@@ -9,12 +9,29 @@
  * paths (see migration 1740000029). Fetch unsorted and pick newest in JS.
  */
 
+const FOR_COMPLETION_FROM = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+  "Ready for Review",
+]
+const ONGOING_FROM = ["Planning", "Procurement"]
+
 function projectProgressPatch(toPct, currentStatus) {
   const progress_pct = Number(toPct)
   const pct = Number.isFinite(progress_pct) ? progress_pct : 0
+  if (pct >= 100) {
+    return {
+      progress_pct: pct,
+      status: FOR_COMPLETION_FROM.includes(currentStatus)
+        ? "For Completion"
+        : currentStatus,
+    }
+  }
   return {
     progress_pct: pct,
-    status: pct >= 100 ? "Ready for Review" : currentStatus,
+    status: ONGOING_FROM.includes(currentStatus) ? "Ongoing" : currentStatus,
   }
 }
 

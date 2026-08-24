@@ -355,6 +355,39 @@ export function ApprovalsModule() {
     )
   }
 
+  async function markForApprovalIfWaiting(project: ProjectRecord) {
+    if (project.status !== "For Completion") return
+    try {
+      await getPocketBase().collection("projects").update(project.id, {
+        status: "For Approval",
+      })
+      setProjects((rows) =>
+        rows.map((row) =>
+          row.id === project.id ? { ...row, status: "For Approval" } : row
+        )
+      )
+      setSelected((current) =>
+        current?.id === project.id
+          ? { ...current, status: "For Approval" }
+          : current
+      )
+    } catch (error) {
+      console.warn("Could not mark project For Approval.", error)
+    }
+  }
+
+  function openApprovalDialog(
+    kind: "approve" | "reject" | "request_revision",
+    project?: ProjectRecord
+  ) {
+    const target = project ?? selected
+    if (!target) return
+    setSelected(target)
+    setCompletionDocError(null)
+    setDialog(kind)
+    void markForApprovalIfWaiting(target)
+  }
+
   async function submitAction(action: "approve" | "reject" | "request_revision") {
     if (!selected) return
     if (!canCreateApprovalActions) return
@@ -536,11 +569,7 @@ export function ApprovalsModule() {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => {
-                  setSelected(project)
-                  setCompletionDocError(null)
-                  setDialog("approve")
-                }}
+                onClick={() => openApprovalDialog("approve", project)}
               >
                 Approve
               </Button>
@@ -548,11 +577,7 @@ export function ApprovalsModule() {
                 type="button"
                 size="sm"
                 variant="destructive"
-                onClick={() => {
-                  setSelected(project)
-                  setCompletionDocError(null)
-                  setDialog("reject")
-                }}
+                onClick={() => openApprovalDialog("reject", project)}
               >
                 Reject
               </Button>
@@ -560,11 +585,7 @@ export function ApprovalsModule() {
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  setSelected(project)
-                  setCompletionDocError(null)
-                  setDialog("request_revision")
-                }}
+                onClick={() => openApprovalDialog("request_revision", project)}
               >
                 Request Revision
               </Button>
@@ -766,20 +787,14 @@ export function ApprovalsModule() {
                     type="button"
                     variant="destructive"
                     size="sm"
-                    onClick={() => {
-                      setCompletionDocError(null)
-                      setDialog("reject")
-                    }}
+                    onClick={() => openApprovalDialog("reject")}
                   >
                     Reject
                   </Button>
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => {
-                      setCompletionDocError(null)
-                      setDialog("approve")
-                    }}
+                    onClick={() => openApprovalDialog("approve")}
                   >
                     Approve
                   </Button>
@@ -787,10 +802,7 @@ export function ApprovalsModule() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setCompletionDocError(null)
-                      setDialog("request_revision")
-                    }}
+                    onClick={() => openApprovalDialog("request_revision")}
                   >
                     Request Revision
                   </Button>

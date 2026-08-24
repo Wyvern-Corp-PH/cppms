@@ -7,13 +7,16 @@ export const LGU_WRITABLE_STATUSES = [
   "Planning",
   "Procurement",
   "Ongoing",
+  "Cancelled",
 ] as const
 
 export const TERMINAL_OR_REVIEW_STATUSES = [
-  "Ready for Review",
+  "For Completion",
+  "For Approval",
   "For Revision",
   "Completed",
   "Rejected",
+  "Cancelled",
 ] as const
 
 export const PPDO_OWNED_FIELDS = [
@@ -150,6 +153,9 @@ function isApprovalWorkflowStatusWrite(
   if (submitted.status === "Rejected") {
     return changed.includes("approval_status") && nextApproval === "rejected"
   }
+  if (submitted.status === "For Approval") {
+    return original?.status === "For Completion" && nextApproval === "pending"
+  }
   return submitted.status === "For Revision" && nextApproval === "pending"
 }
 
@@ -235,6 +241,7 @@ export function isProjectFieldEditable(
   const owned = ownedProjectFieldsForActor(role, original, isCreate)
   if (!owned.has(field)) return false
   if (field === "status" && isLguRole(role)) {
+    if (isTerminalOrReviewStatus(original?.status)) return false
     return isLguWritableStatus(original?.status)
   }
   if (field === "number_of_students" && role === "PPDO") {
@@ -325,10 +332,14 @@ export function evaluateProjectFieldWrite(options: {
         continue
       }
       if (valuesEqual(currentStatus, nextStatus)) continue
-      if (isTerminalOrReviewStatus(currentStatus) || isTerminalOrReviewStatus(nextStatus)) {
+      if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
+      if (nextStatus === "Cancelled") continue
+      if (
+        isTerminalOrReviewStatus(nextStatus) ||
+        !isLguWritableStatus(nextStatus)
+      ) {
         return reject("status")
       }
-      if (!isLguWritableStatus(nextStatus)) return reject("status")
       continue
     }
     if (field === "municipality" || field === "barangay") {

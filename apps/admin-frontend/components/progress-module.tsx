@@ -929,7 +929,7 @@ export function ProgressModule() {
     toPct: number
     currentStatus: ProjectRecord["status"]
   }) {
-    // Primary Ready-for-Review path is sync-project-progress hook.
+    // Primary For Completion path is sync-project-progress hook.
     // Optional belt: Super Admin and Province by role, not projects.update.
     if (!canPatchProjects) {
       return

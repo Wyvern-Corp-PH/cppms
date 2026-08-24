@@ -195,11 +195,11 @@ describe("project field ownership", () => {
       isCreate: false,
       original: {
         ...ppdoCreate,
-        status: "Ready for Review",
+        status: "For Completion",
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
         contractor: "",
       },
-      submitted: { status: "Ready for Review", contractor: "Build Co" },
+      submitted: { status: "For Completion", contractor: "Build Co" },
     })
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
   })
@@ -213,7 +213,7 @@ describe("project field ownership", () => {
         status: "Ongoing",
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
-      submitted: { status: "Ready for Review" },
+      submitted: { status: "For Completion" },
     })
     expect(toReview.ok).toBe(false)
 
@@ -242,6 +242,72 @@ describe("project field ownership", () => {
       submitted: { status: "Ongoing" },
     })
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+  })
+
+  it("lets LGU write Cancelled from a non-terminal status", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "Municipality",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        status: "Planning",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { status: "Cancelled" },
+    })
+    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+    expect(
+      jsOwnership.evaluateProjectFieldWrite({
+        role: "Municipality",
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "Planning",
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { status: "Cancelled" },
+      })
+    ).toEqual(result)
+  })
+
+  it("freezes Cancelled so LGU cannot leave it", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "Barangay",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        status: "Cancelled",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { status: "Planning" },
+    })
+    expect(result.ok).toBe(false)
+    expect(
+      jsOwnership.evaluateProjectFieldWrite({
+        role: "Barangay",
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "Cancelled",
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { status: "Planning" },
+      }).ok
+    ).toBe(false)
+  })
+
+  it("rejects LGU writing For Approval", () => {
+    const result = evaluateProjectFieldWrite({
+      role: "Municipality",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        status: "For Completion",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { status: "For Approval" },
+    })
+    expect(result.ok).toBe(false)
   })
 
   it("rejects LGU writes of PPDO-owned fields and municipality moves", () => {
@@ -473,7 +539,7 @@ describe("project field ownership", () => {
     (role) => {
       const original = {
         ...ppdoCreate,
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
       }
       const options = {
@@ -516,7 +582,7 @@ describe("project field ownership", () => {
     (role) => {
       const original = {
         ...ppdoCreate,
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
       }
       for (const submitted of [
@@ -545,7 +611,7 @@ describe("project field ownership", () => {
         isCreate: false,
         original: {
           ...ppdoCreate,
-          status: "Ready for Review",
+          status: "For Completion",
           approval_status: "pending",
         },
         submitted: {
@@ -561,11 +627,53 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
+    "lets %s write status-only For Approval from For Completion while pending",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "For Completion",
+        approval_status: "pending",
+      }
+      const options = {
+        role,
+        isCreate: false,
+        original,
+        submitted: { status: "For Approval" },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "rejects %s For Approval write from a status other than For Completion",
+    (role) => {
+      const options = {
+        role,
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "Ongoing",
+          approval_status: "pending",
+        },
+        submitted: { status: "For Approval" },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({
+        ok: false,
+        error: "You cannot update field 'status'.",
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
     "lets %s write For Revision when approval_status stays or is set pending",
     (role) => {
       const original = {
         ...ppdoCreate,
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
       }
       for (const submitted of [
@@ -815,17 +923,27 @@ describe("project field ownership", () => {
     ).toBe(true)
   })
 
+  it("offers Cancelled to LGU when status is still writable", () => {
+    const options = statusOptionsForActor(
+      "Municipality",
+      "Planning",
+      { status: "Planning", lgu_encoded_at: "2026-08-01" },
+      ["Planning", "Procurement", "Ongoing", "Cancelled", "For Completion"]
+    )
+    expect(options).toEqual(["Planning", "Procurement", "Ongoing", "Cancelled"])
+  })
+
   it("does not offer Planning, Procurement, or Ongoing when LGU status is terminal", () => {
     const options = statusOptionsForActor(
       "Municipality",
-      "Ready for Review",
-      { status: "Ready for Review", lgu_encoded_at: "2026-08-01" },
-      ["Planning", "Procurement", "Ongoing", "Ready for Review", "Completed"]
+      "For Completion",
+      { status: "For Completion", lgu_encoded_at: "2026-08-01" },
+      ["Planning", "Procurement", "Ongoing", "For Completion", "Completed"]
     )
-    expect(options).toEqual(["Ready for Review"])
+    expect(options).toEqual(["For Completion"])
     expect(
       isProjectFieldEditable("Municipality", "status", {
-        status: "Ready for Review",
+        status: "For Completion",
         lgu_encoded_at: "2026-08-01",
       }, false)
     ).toBe(false)
@@ -1030,7 +1148,7 @@ describe("JS applyProjectFieldOwnership request chain", () => {
         name: "Existing road",
       },
       original: {
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
         name: "Existing road",
       },
@@ -1048,7 +1166,7 @@ describe("JS applyProjectFieldOwnership request chain", () => {
         name: "Existing road",
       },
       original: {
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
         name: "Existing road",
       },
@@ -1068,7 +1186,7 @@ describe("JS applyProjectFieldOwnership request chain", () => {
         name: "Existing road",
       },
       original: {
-        status: "Ready for Review",
+        status: "For Completion",
         approval_status: "pending",
         name: "Existing road",
       },
