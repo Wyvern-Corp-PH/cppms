@@ -10,6 +10,7 @@ import {
 import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import {
+  filterProjects,
   formatProjectDateRange,
   projectLocationDisplayParts,
 } from "@workspace/pocketbase/domain/project-filters"
@@ -461,6 +462,7 @@ export function ProgressModule() {
   })
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [query, setQuery] = useState("")
   const [historyFromPct, setHistoryFromPct] = useState("")
   const [historyToPct, setHistoryToPct] = useState("")
   const [loading, setLoading] = useState(true)
@@ -632,12 +634,18 @@ export function ProgressModule() {
   )
   const filteredProjects = useMemo(
     () =>
-      scopedProjects.filter(
+      filterProjects(scopedProjects, { query }).filter(
         (project) =>
           projectMatchesLocationFilters(project, locationFilters) &&
           (!hasDateFilter || dateFilteredProjectIds.has(project.id))
       ),
-    [dateFilteredProjectIds, hasDateFilter, locationFilters, scopedProjects]
+    [
+      dateFilteredProjectIds,
+      hasDateFilter,
+      locationFilters,
+      query,
+      scopedProjects,
+    ]
   )
   const filteredProjectIds = useMemo(
     () => new Set(filteredProjects.map((project) => project.id)),
@@ -1193,7 +1201,14 @@ export function ProgressModule() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <ul className="space-y-3">
+        <div className="space-y-3">
+          <Input
+            aria-label="Search projects"
+            placeholder="Search by name"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <ul className="space-y-3">
           {filteredProjects.map((project) => {
             const projectUpdates = updates.filter(
               (u) => u.project === project.id
@@ -1283,7 +1298,8 @@ export function ProgressModule() {
               </li>
             )
           })}
-        </ul>
+          </ul>
+        </div>
 
         <aside
           className="hidden rounded-lg border border-border bg-card p-4 lg:block"

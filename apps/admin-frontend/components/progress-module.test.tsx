@@ -421,6 +421,339 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it("filters the progress list by search as the user types", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+    })
+
+    const search = screen.getByLabelText(/search projects/i)
+    expect(search).toHaveAttribute("placeholder", "Search by name")
+
+    await user.type(search, "Bridge")
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    })
+
+    await user.clear(search)
+    await waitFor(() => {
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+    })
+  })
+
+  it("matches progress search against the Projects Module haystack fields", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        description: "East bank rehab",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Bridge approach",
+        contractor: "Acme Builders",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        description: "Classroom repair",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        location: "Municipal hall grounds",
+        contractor: "North Builders",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+    })
+
+    const search = screen.getByLabelText(/search projects/i)
+
+    await user.type(search, "Acme")
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    })
+
+    await user.clear(search)
+    await user.type(search, "Classroom")
+    await waitFor(() => {
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+      expect(screen.queryByText("City Bridge")).not.toBeInTheDocument()
+    })
+
+    await user.clear(search)
+    await user.type(search, "hall grounds")
+    await waitFor(() => {
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+      expect(screen.queryByText("City Bridge")).not.toBeInTheDocument()
+    })
+  })
+
+  it("restores the scoped list when the search query is only whitespace", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("Lasam School")).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/search projects/i), "   ")
+
+    expect(screen.getByText("City Bridge")).toBeInTheDocument()
+    expect(screen.getByText("Lasam School")).toBeInTheDocument()
+  })
+
+  it("composes search with municipality and date filters without hiding history percent filters", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 30,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 60,
+      },
+      {
+        id: "3",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-06-12 00:00:00.000Z",
+        project: "1",
+        from_pct: 20,
+        to_pct: 30,
+        notes: "june band",
+      },
+      {
+        id: "u2",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-07-12 00:00:00.000Z",
+        project: "2",
+        from_pct: 40,
+        to_pct: 60,
+        notes: "july band",
+      },
+      {
+        id: "u3",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-06-15 00:00:00.000Z",
+        project: "3",
+        from_pct: 10,
+        to_pct: 40,
+        notes: "lasam band",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.getByText("City School")).toBeInTheDocument()
+      expect(screen.getByText("Lasam Bridge")).toBeInTheDocument()
+    })
+
+    await user.click(await screen.findByLabelText(/filter by municipality/i))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await chooseDateRange(user, "2026-06-01", "2026-06-30")
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("City School")).not.toBeInTheDocument()
+      expect(screen.queryByText("Lasam Bridge")).not.toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/search projects/i), "School")
+    await waitFor(() => {
+      expect(screen.queryByText("City Bridge")).not.toBeInTheDocument()
+      expect(screen.queryByText("City School")).not.toBeInTheDocument()
+    })
+
+    await user.clear(screen.getByLabelText(/search projects/i))
+    await user.type(screen.getByLabelText(/search projects/i), "Bridge")
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+      expect(screen.queryByText("Lasam Bridge")).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /view details/i }))
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByLabelText(/^from %$/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^to %$/i)).toBeInTheDocument()
+    expect(within(dialog).getByText("june band")).toBeInTheDocument()
+  })
+
+  it("does not reveal out-of-scope projects when searching", async () => {
+    const user = userEvent.setup()
+    useMunicipalityActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        contractor: "Acme Builders",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        contractor: "North Builders",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("City Bridge")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/search projects/i), "Lasam")
+    expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+    expect(screen.queryByText("City Bridge")).not.toBeInTheDocument()
+  })
+
   it("filters progress rows and summaries by progress update date range", async () => {
     const user = userEvent.setup()
     store.projects = [
