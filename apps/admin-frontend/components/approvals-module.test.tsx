@@ -351,6 +351,24 @@ describe("ApprovalsModule (J5, V5)", () => {
     ).toBeInTheDocument()
   })
 
+  it("surfaces an error when For Approval-on-open write fails", async () => {
+    updateMock.mockRejectedValueOnce(new Error("Failed to mark For Approval."))
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /approve/i }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /failed to mark for approval/i
+    )
+    expect(
+      screen.queryByRole("dialog", { name: /approve project completion/i })
+    ).not.toBeInTheDocument()
+    expect(store.projects[0]?.status).toBe("For Completion")
+    expect(store.projects[0]?.approval_status).toBe("pending")
+    expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
+  })
+
   it("surfaces an error when project status update fails", async () => {
     updateMock.mockImplementation(async (id, payload) => {
       if (payload.approval_status) {

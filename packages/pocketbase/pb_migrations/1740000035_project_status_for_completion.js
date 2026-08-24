@@ -15,6 +15,7 @@ const PROJECT_STATUS_VALUES = [
 
 const READY_FOR_REVIEW = "Ready for Review"
 const FOR_COMPLETION = "For Completion"
+const PAGE_SIZE = 500
 
 function findCollection(app, name) {
   try {
@@ -26,11 +27,23 @@ function findCollection(app, name) {
 
 function findRecords(app, collectionName, filter, params = {}) {
   if (!findCollection(app, collectionName)) return []
-  try {
-    return app.findRecordsByFilter(collectionName, filter, "", 1000, 0, params)
-  } catch {
-    return []
+
+  const records = []
+  let offset = 0
+  while (true) {
+    const batch = app.findRecordsByFilter(
+      collectionName,
+      filter,
+      "",
+      PAGE_SIZE,
+      offset,
+      params
+    )
+    records.push(...batch)
+    if (batch.length < PAGE_SIZE) break
+    offset += batch.length
   }
+  return records
 }
 
 function setSelectValues(collection, fieldName, values) {

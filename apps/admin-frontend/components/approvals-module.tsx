@@ -356,7 +356,7 @@ export function ApprovalsModule() {
   }
 
   async function markForApprovalIfWaiting(project: ProjectRecord) {
-    if (project.status !== "For Completion") return
+    if (project.status !== "For Completion") return true
     try {
       await getPocketBase().collection("projects").update(project.id, {
         status: "For Approval",
@@ -371,12 +371,18 @@ export function ApprovalsModule() {
           ? { ...current, status: "For Approval" }
           : current
       )
+      return true
     } catch (error) {
-      console.warn("Could not mark project For Approval.", error)
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Could not mark project For Approval."
+      )
+      return false
     }
   }
 
-  function openApprovalDialog(
+  async function openApprovalDialog(
     kind: "approve" | "reject" | "request_revision",
     project?: ProjectRecord
   ) {
@@ -384,8 +390,10 @@ export function ApprovalsModule() {
     if (!target) return
     setSelected(target)
     setCompletionDocError(null)
+    setActionError(null)
+    const started = await markForApprovalIfWaiting(target)
+    if (!started) return
     setDialog(kind)
-    void markForApprovalIfWaiting(target)
   }
 
   async function submitAction(action: "approve" | "reject" | "request_revision") {
@@ -779,6 +787,11 @@ export function ApprovalsModule() {
                   </li>
                 ))}
               </ul>
+              {actionError ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {actionError}
+                </p>
+              ) : null}
               {!isReviewedProject(selected) &&
               isApprovalEligible(selected) &&
               canCreateApprovalActions ? (

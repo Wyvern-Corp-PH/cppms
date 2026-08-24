@@ -1067,5 +1067,14 @@ describe("PocketBase project status For Completion migration", () => {
     expect(migrationSource).toContain("app.delete")
     expect(migrationSource).not.toContain("1740000029")
   })
+
+  it("pages Ready for Review rows before shrinking select values", () => {
+    expect(migrationSource).toContain("PAGE_SIZE")
+    expect(migrationSource).toContain("offset")
+    expect(migrationSource).toMatch(/while\s*\(/)
+    expect(migrationSource).not.toMatch(
+      /findRecordsByFilter\([^)]*,\s*1000,\s*0/
+    )
+  })
 })
 
