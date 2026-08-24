@@ -7,16 +7,16 @@ const store = {
   updatesError: null as Error | null,
 }
 
+const getFullList = vi.fn(async (_options?: Record<string, unknown>) => {
+  if (store.updatesError) throw store.updatesError
+  return store.updates
+})
+
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     collection: (name: string) => {
       if (name === "progress_updates") {
-        return {
-          getFullList: vi.fn(async () => {
-            if (store.updatesError) throw store.updatesError
-            return store.updates
-          }),
-        }
+        return { getFullList }
       }
       return {
         getOne: vi.fn(async (id: string) => {
@@ -69,12 +69,30 @@ const publishedProject = {
   progress_pct: 42,
 }
 
+function progressUpdate(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "upd-1",
+    collectionId: "pu",
+    collectionName: "progress_updates",
+    created: "2026-02-01T08:00:00.000Z",
+    updated: "2026-02-01T08:00:00.000Z",
+    project: "bridge-1",
+    from_pct: 0,
+    to_pct: 20,
+    notes: "Mobilization",
+    site_photo: [],
+    updated_at: "2026-02-01T08:00:00.000Z",
+    ...overrides,
+  }
+}
+
 describe("PublicProjectDetail", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://localhost:8090"
     store.project = { ...publishedProject }
     store.updates = []
     store.updatesError = null
+    getFullList.mockClear()
   })
 
   it("renders required public fields without login or mutate controls", async () => {
@@ -242,32 +260,17 @@ describe("PublicProjectDetail", () => {
 
   it("lists progress update history with percent range, notes, date, and site photo", async () => {
     store.updates = [
-      {
+      progressUpdate({
         id: "upd-2",
-        collectionId: "pu",
-        collectionName: "progress_updates",
         created: "2026-03-20T10:00:00.000Z",
         updated: "2026-03-20T10:00:00.000Z",
-        project: "bridge-1",
         from_pct: 20,
         to_pct: 42,
         notes: "Deck pour complete",
         site_photo: ["deck.jpg"],
         updated_at: "2026-03-20T10:00:00.000Z",
-      },
-      {
-        id: "upd-1",
-        collectionId: "pu",
-        collectionName: "progress_updates",
-        created: "2026-02-01T08:00:00.000Z",
-        updated: "2026-02-01T08:00:00.000Z",
-        project: "bridge-1",
-        from_pct: 0,
-        to_pct: 20,
-        notes: "Mobilization",
-        site_photo: [],
-        updated_at: "2026-02-01T08:00:00.000Z",
-      },
+      }),
+      progressUpdate(),
     ]
 
     render(<PublicProjectDetail projectId="bridge-1" />)
@@ -290,6 +293,100 @@ describe("PublicProjectDetail", () => {
       "src",
       "http://localhost:8090/api/files/pu/upd-2/deck.jpg"
     )
+  })
+
+  it("should show all parseable updates when two exist without the history error", async () => {
+    store.updates = [
+      progressUpdate({
+        id: "upd-2",
+        created: "2026-03-20T10:00:00.000Z",
+        from_pct: 20,
+        to_pct: 42,
+        notes: "Second pour",
+        updated_at: "2026-03-20T10:00:00.000Z",
+      }),
+      progressUpdate(),
+    ]
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText("20% → 42%")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("0% → 20%")).toBeInTheDocument()
+    expect(
+      screen.queryByText(/unable to load progress update history/i)
+    ).not.toBeInTheDocument()
+    expect(getFullList).toHaveBeenCalledWith({
+      filter: 'project = "bridge-1"',
+    })
+    expect(getFullList.mock.calls[0]?.[0]).not.toHaveProperty("sort")
+  })
+
+  it("should keep good history rows when one list row is unparseable", async () => {
+    store.updates = [
+      progressUpdate({
+        id: "upd-2",
+        created: "2026-03-20T10:00:00.000Z",
+        from_pct: 20,
+        to_pct: 42,
+        notes: "Valid later row",
+        updated_at: "2026-03-20T10:00:00.000Z",
+      }),
+      { id: "upd-bad", collectionId: "pu", to_pct: "not-a-number" },
+      progressUpdate(),
+    ]
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText("20% → 42%")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("0% → 20%")).toBeInTheDocument()
+    expect(screen.getByText("Valid later row")).toBeInTheDocument()
+    expect(
+      screen.queryByText(/unable to load progress update history/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it("should display latest update percent when stored project percent is stale", async () => {
+    store.project = { ...publishedProject, progress_pct: 50 }
+    store.updates = [
+      progressUpdate({
+        id: "upd-old",
+        created: "2026-02-01T08:00:00.000Z",
+        from_pct: 0,
+        to_pct: 50,
+        notes: "Halfway",
+        updated_at: "2026-02-01T08:00:00.000Z",
+      }),
+      progressUpdate({
+        id: "upd-new",
+        created: "2026-04-01T09:00:00.000Z",
+        from_pct: 50,
+        to_pct: 100,
+        notes: "Complete",
+        updated_at: "2026-04-01T09:00:00.000Z",
+      }),
+    ]
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("progressbar")).toHaveAttribute(
+        "aria-label",
+        "100% progress"
+      )
+    })
+
+    expect(
+      screen.getByText((content, element) => element?.tagName === "P" && content === "100%")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText((content, element) => element?.tagName === "P" && content === "50%")
+    ).not.toBeInTheDocument()
   })
 
   it("shows a safe not-found state for an unknown id", async () => {

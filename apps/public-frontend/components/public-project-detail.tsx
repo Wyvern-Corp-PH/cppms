@@ -5,6 +5,7 @@ import Link from "next/link"
 
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
+import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import { formatProjectLocationContext } from "@workspace/pocketbase/domain/project-filters"
 import { recordFileUrl } from "@workspace/pocketbase/files"
 import {
@@ -63,7 +64,6 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
             .collection("progress_updates")
             .getFullList({
               filter: `project = "${projectId}"`,
-              sort: "-created",
             })
           if (cancelled) return
           setUpdates(
@@ -109,7 +109,7 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
     )
   }
 
-  const progressPct = project.progress_pct ?? 0
+  const progressPct = effectiveProgressPct(project, updates)
   const photos = project.project_photos ?? []
   const municipalityBarangay = formatProjectLocationContext(project) ?? "—"
 
