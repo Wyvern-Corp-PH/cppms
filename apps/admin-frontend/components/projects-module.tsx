@@ -24,6 +24,7 @@ import {
   projectLocationDisplayParts,
 } from "@workspace/pocketbase/domain/project-filters"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
+import { persistErrorMessage } from "@workspace/pocketbase/domain/upload-size"
 import {
   fieldErrorsFromZod,
   locationRecordSchema,
@@ -815,9 +816,7 @@ export function ProjectsModule() {
       setDialogOpen(false)
       await loadProjects()
     } catch (error) {
-      setFormError(
-        error instanceof Error ? error.message : "Unable to save project."
-      )
+      setFormError(persistErrorMessage(error, "Unable to save project."))
     } finally {
       setSaving(false)
     }

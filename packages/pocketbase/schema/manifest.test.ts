@@ -173,6 +173,11 @@ const projectFundSourceFieldsMigrationPath = resolve(
   "pb_migrations",
   "1740000033_project_fund_source_fields.js"
 )
+const raiseFileMaxSizeMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000034_raise_file_max_size.js"
+)
 const projectFieldOwnershipHookPath = resolve(
   packageRoot,
   "pb_hooks",
@@ -985,6 +990,22 @@ describe("project funding year and sub account fields", () => {
     expect(migrationSource).toContain("onlyInt")
     expect(hookSource).toContain('"funding_year"')
     expect(hookSource).toContain('"sub_account"')
+  })
+})
+
+describe("raise remaining file maxSize to 10MB", () => {
+  const migrationSource = readFileSync(raiseFileMaxSizeMigrationPath, "utf8")
+  const initialCollectionsSource = readFileSync(migrationPath, "utf8")
+
+  it("raises progress_updates.site_photo without lowering fields already at 10MB", () => {
+    expect(initialCollectionsSource).toMatch(/name:\s*"site_photo"[\s\S]*?maxSize:\s*5242880/)
+    expect(migrationSource).toContain("site_photo")
+    expect(migrationSource).toContain("MIN_MAX_SIZE = 10485760")
+    expect(migrationSource).toMatch(/field\.maxSize\s*=\s*MIN_MAX_SIZE/)
+    expect(migrationSource).not.toContain("5242880")
+    expect(migrationSource).not.toContain("Ready for Review")
+    expect(migrationSource).toContain("progress_updates")
+    expect(migrationSource).toContain("projects")
   })
 })
 

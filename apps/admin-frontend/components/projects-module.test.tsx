@@ -1247,6 +1247,68 @@ describe("ProjectsModule (J4)", () => {
     expect(screen.getByRole("heading", { name: /edit project/i })).toBeInTheDocument()
   })
 
+  it("shows the file-size sentence when PocketBase rejects a project file as too large", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "sa1",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "Road bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "Tuguegarao City, Cagayan",
+        contractor: "Build Co",
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 25,
+        funding_year: 2025,
+        fund_source: "Special Education Fund",
+      },
+    ]
+    updateMock.mockRejectedValueOnce(
+      Object.assign(new Error("Failed to update record."), {
+        response: {
+          message: "Failed to update record.",
+          data: {
+            moa_file: {
+              code: "validation_file_size_limit",
+              message:
+                "Failed to upload moa.pdf - the maximum allowed file size is 10485760 bytes.",
+            },
+          },
+        },
+      })
+    )
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    expect(
+      await screen.findByText(
+        "File size exceeds the maximum allowed limit. Please upload a smaller file."
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /edit project/i })).toBeInTheDocument()
+  })
+
   it("should show latest progress update percent when project progress_pct is stale", async () => {
     store.projects = [
       {

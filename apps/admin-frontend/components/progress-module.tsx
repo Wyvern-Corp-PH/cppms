@@ -26,6 +26,7 @@ import {
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "@workspace/pocketbase/domain/progress-summary"
+import { persistErrorMessage } from "@workspace/pocketbase/domain/upload-size"
 import {
   REQUIRED_COMPLETION_DOCUMENTS,
   type CompletionDocumentField,
@@ -1111,11 +1112,7 @@ export function ProgressModule() {
         parsed: parsed.data,
       })
     } catch (error) {
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : "Unable to save progress update."
-      )
+      setFormError(persistErrorMessage(error, "Unable to save progress update."))
     } finally {
       setSaving(false)
     }

@@ -2,6 +2,11 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import {
+  MAX_UPLOAD_BYTES,
+  UPLOAD_SIZE_LIMIT_MESSAGE,
+} from "@workspace/pocketbase/domain/upload-size"
+
 import { DocumentUploadField, fileIdentity } from "./document-upload-field"
 
 function makeFile(name: string, content = "content") {
@@ -200,5 +205,49 @@ describe("DocumentUploadField", () => {
     await user.upload(input, [makeFile("two.pdf"), makeFile("three.pdf")])
 
     expect(screen.getByText(/only 2 files allowed/i)).toBeInTheDocument()
+  })
+
+  it("rejects a file over the inclusive 10MB max and shows the size sentence", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const oversized = makeFile("big.jpg")
+    Object.defineProperty(oversized, "size", { value: MAX_UPLOAD_BYTES + 1 })
+
+    render(
+      <DocumentUploadField
+        id="site-photo"
+        label="Site photo"
+        files={[]}
+        onChange={onChange}
+      />
+    )
+
+    await user.upload(screen.getByTestId("document-upload-input-site-photo"), oversized)
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByText(UPLOAD_SIZE_LIMIT_MESSAGE)).toBeInTheDocument()
+  })
+
+  it("accepts a file at the inclusive 10MB max", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const atLimit = makeFile("limit.jpg")
+    Object.defineProperty(atLimit, "size", { value: MAX_UPLOAD_BYTES })
+
+    render(
+      <DocumentUploadField
+        id="site-photo"
+        label="Site photo"
+        files={[]}
+        onChange={onChange}
+      />
+    )
+
+    await user.upload(screen.getByTestId("document-upload-input-site-photo"), atLimit)
+
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({ name: "limit.jpg" }),
+    ])
+    expect(screen.queryByText(UPLOAD_SIZE_LIMIT_MESSAGE)).not.toBeInTheDocument()
   })
 })

@@ -827,6 +827,99 @@ describe("ProgressModule (V81, V84)", () => {
     expect(createMock).not.toHaveBeenCalled()
   })
 
+  it("shows the file-size sentence when PocketBase rejects a site photo as too large", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    createMock.mockRejectedValueOnce(
+      Object.assign(new Error("Failed to create record."), {
+        response: {
+          message: "Failed to create record.",
+          data: {
+            site_photo: {
+              code: "validation_file_size_limit",
+              message:
+                "Failed to upload site.jpg - the maximum allowed file size is 10485760 bytes.",
+            },
+          },
+        },
+      })
+    )
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findByText(
+        "File size exceeds the maximum allowed limit. Please upload a smaller file."
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /update progress/i })).toBeInTheDocument()
+  })
+
+  it("keeps generic Failed to create record when persist fails for a non-size reason", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    createMock.mockRejectedValueOnce(new Error("Failed to create record."))
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(await screen.findByText("Failed to create record.")).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "File size exceeds the maximum allowed limit. Please upload a smaller file."
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it("saves below-100 progress with a site photo and empty completion document lists", async () => {
     const user = userEvent.setup()
     useBarangayActor()

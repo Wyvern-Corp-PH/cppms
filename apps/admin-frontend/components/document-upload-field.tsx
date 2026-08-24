@@ -3,6 +3,10 @@
 import { FileUp, X } from "lucide-react"
 import { useId, useRef, useState, type DragEvent } from "react"
 
+import {
+  isOverUploadSizeLimit,
+  UPLOAD_SIZE_LIMIT_MESSAGE,
+} from "@workspace/pocketbase/domain/upload-size"
 import { Button } from "@workspace/ui/components/button"
 import {
   Field,
@@ -65,9 +69,18 @@ export function DocumentUploadField({
     const list = Array.from(incoming)
     if (list.length === 0) return
 
+    const accepted = list.filter((file) => !isOverUploadSizeLimit(file))
+    const hasOversize = accepted.length !== list.length
+    if (accepted.length === 0) {
+      if (hasOversize) setLimitMessage(UPLOAD_SIZE_LIMIT_MESSAGE)
+      return
+    }
+
     if (multiple) {
-      const merged = [...files, ...list]
-      if (merged.length > maxFiles) {
+      const merged = [...files, ...accepted]
+      if (hasOversize) {
+        setLimitMessage(UPLOAD_SIZE_LIMIT_MESSAGE)
+      } else if (merged.length > maxFiles) {
         setLimitMessage(`Only ${maxFiles} files allowed. Extra files were not added.`)
       } else {
         setLimitMessage(null)
@@ -76,8 +89,8 @@ export function DocumentUploadField({
       return
     }
 
-    setLimitMessage(null)
-    onChange([list[0]!])
+    setLimitMessage(hasOversize ? UPLOAD_SIZE_LIMIT_MESSAGE : null)
+    onChange([accepted[0]!])
   }
 
   function onDrop(event: DragEvent) {
