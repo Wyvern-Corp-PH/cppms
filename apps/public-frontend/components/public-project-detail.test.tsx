@@ -117,8 +117,12 @@ describe("PublicProjectDetail", () => {
     expect(screen.getByText("Project Status")).toBeInTheDocument()
     expect(screen.getByText("Period of Implementation")).toBeInTheDocument()
     expect(screen.getByText("FY 2026 Q1–Q4")).toBeInTheDocument()
-    expect(screen.queryByText("Start Date")).not.toBeInTheDocument()
-    expect(screen.queryByText("End Date")).not.toBeInTheDocument()
+    expect(screen.getByText("Start Date").closest("div")).toHaveTextContent(
+      "Jan 15, 2026"
+    )
+    expect(screen.getByText("End Date").closest("div")).toHaveTextContent(
+      "Dec 31, 2026"
+    )
     expect(screen.getByText("Budget Year")).toBeInTheDocument()
     expect(screen.getByText("2026")).toBeInTheDocument()
     expect(screen.getByText("Fund Source")).toBeInTheDocument()
@@ -162,6 +166,23 @@ describe("PublicProjectDetail", () => {
     expect(screen.getByText("Sub Account").closest("div")).toHaveTextContent(
       "GF - Proper"
     )
+  })
+
+  it("should show dashes for missing start and end dates", async () => {
+    store.project = {
+      ...publishedProject,
+      start_date: "",
+      target_end_date: "",
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Start Date")).toBeInTheDocument()
+    })
+
+    expect(screen.getByText("Start Date").closest("div")).toHaveTextContent("—")
+    expect(screen.getByText("End Date").closest("div")).toHaveTextContent("—")
   })
 
   it("should show dashes for empty fund source parts on legacy rows", async () => {

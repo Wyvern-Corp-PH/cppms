@@ -4,7 +4,10 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
-import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+} from "@workspace/pocketbase/domain/format-display-date"
 import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import { formatProjectLocationContext } from "@workspace/pocketbase/domain/project-filters"
 import { recordFileUrl } from "@workspace/pocketbase/files"
@@ -127,6 +130,14 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
         <DetailField label="Municipality/Barangay" value={municipalityBarangay} />
         <DetailField label="Location" value={project.location || "—"} />
         <DetailField label="Contractor" value={project.contractor || "—"} />
+        <DetailField
+          label="Start Date"
+          value={formatDisplayDate(project.start_date)}
+        />
+        <DetailField
+          label="End Date"
+          value={formatDisplayDate(project.target_end_date)}
+        />
         <DetailField
           label="Period of Implementation"
           value={project.period_of_implementation || "—"}
