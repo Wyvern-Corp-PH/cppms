@@ -2309,7 +2309,7 @@ describe("ProjectsModule (J4)", () => {
   )
 
   it.each(["Municipality", "Barangay"] as const)(
-    "should show existing Resolution as read-only for %s and hint it is filled by PPDO",
+    "should list existing Resolution and Supporting Documents as download links when Edit Project opens for %s",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2324,6 +2324,7 @@ describe("ProjectsModule (J4)", () => {
       store.projects = [
         catalogProject({
           resolution_file: ["old-res.pdf"],
+          supporting_docs: ["old-sup.pdf"],
           lgu_encoded_at: "2026-08-01 00:00:00.000Z",
         }),
       ]
@@ -2336,9 +2337,17 @@ describe("ProjectsModule (J4)", () => {
       await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
 
       expect(screen.getByText("Resolution")).toBeInTheDocument()
-      expect(screen.getByText(/on record: old-res\.pdf/i)).toBeInTheDocument()
+      expect(
+        screen.getByRole("link", { name: /on record: old-res\.pdf/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/old-res.pdf")
+      expect(
+        screen.getByRole("link", { name: /on record: old-sup\.pdf/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/old-sup.pdf")
       expect(
         screen.getByTestId("document-upload-input-resolution-file")
+      ).toBeDisabled()
+      expect(
+        screen.getByTestId("document-upload-input-supporting-file")
       ).toBeDisabled()
       expect(screen.getAllByText(/filled by ppdo/i).length).toBeGreaterThan(0)
       expect(

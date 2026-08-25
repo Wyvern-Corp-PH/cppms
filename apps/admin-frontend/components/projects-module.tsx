@@ -1638,6 +1638,11 @@ export function ProjectsModule() {
                       label="Resolution"
                       files={resolutionFiles}
                       existingNames={retainedResolutionNames}
+                      existingFileHref={
+                        editing
+                          ? (name) => recordFileUrl(editing, name)
+                          : undefined
+                      }
                       onExistingNamesChange={setRetainedResolutionNames}
                       onChange={setResolutionFiles}
                       disabled={fieldLocked("resolution_file")}
@@ -1653,6 +1658,11 @@ export function ProjectsModule() {
                       multiple
                       files={supportingFiles}
                       existingNames={retainedSupportingNames}
+                      existingFileHref={
+                        editing
+                          ? (name) => recordFileUrl(editing, name)
+                          : undefined
+                      }
                       onExistingNamesChange={setRetainedSupportingNames}
                       onChange={setSupportingFiles}
                       disabled={fieldLocked("supporting_docs")}
