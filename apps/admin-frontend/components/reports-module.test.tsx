@@ -358,6 +358,13 @@ describe("ReportsModule (V12)", () => {
     expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith([
       expect.objectContaining({
         name: "Bridge",
+        category: "Infrastructure",
+        lgu: "Barangay",
+        location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        totalBudget: 200_000,
+        allocated: 100_000,
+        spent: 25_000,
+        remaining: 175_000,
         main_accounts: "General Fund",
         sub_accounts: "20% DF",
       }),
@@ -369,6 +376,227 @@ describe("ReportsModule (V12)", () => {
     expect(rows[0]).not.toHaveProperty("category_material")
     expect(rows[0]).not.toHaveProperty("fund_type")
     expect(rows[0]).not.toHaveProperty("funding_years")
+  })
+
+  it("should include category, lgu, and location in progress excel when exporting current tab", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 75,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^progress/i }))
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith([
+      expect.objectContaining({
+        project: "Bridge",
+        category: "Infrastructure",
+        lgu: "Barangay",
+        location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        from: 25,
+        to: 75,
+        change: 50,
+      }),
+    ])
+  })
+
+  it("should include category, lgu, location, spent, and savings in approvals excel when exporting current tab", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "u1",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-18",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: "Bridge",
+        category: "Infrastructure",
+        lgu: "Barangay",
+        location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        spent: 25_000,
+        savings: 175_000,
+      }),
+    ])
+  })
+
+  it("should include project table fields in projects excel when exporting current tab", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 75,
+        target_end_date: "2026-12-31",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    expect(XLSX.utils.json_to_sheet).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        lgu: "Barangay",
+        location: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        budget: 200_000,
+        progress: 75,
+      }),
+    ])
+  })
+
+  it("should export only filtered rows on all sheets when municipality filter is applied", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 75,
+      },
+      {
+        id: "p2",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        lgu_level: "Municipality",
+        budget_year: 2026,
+        bid_price: 300_000,
+        progress_pct: 40,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+      },
+      {
+        id: "u2",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p2",
+        from_pct: 20,
+        to_pct: 40,
+        site_photo: [],
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByLabelText(/filter by municipality/i))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("reports-projects")).toHaveTextContent("1")
+    })
+
+    await user.click(screen.getByTestId("export-all-sheets"))
+
+    const sheets = vi.mocked(XLSX.utils.json_to_sheet).mock.calls.map(
+      (call) => call[0] as Array<Record<string, unknown>>
+    )
+    expect(sheets).toHaveLength(4)
+    expect(sheets[0]).toEqual([
+      expect.objectContaining({ name: "City Bridge" }),
+    ])
+    expect(sheets[1]).toEqual([
+      expect.objectContaining({ name: "City Bridge" }),
+    ])
+    expect(sheets[2]).toEqual([
+      expect.objectContaining({ project: "City Bridge" }),
+    ])
+    expect(sheets[3]).toEqual([
+      expect.objectContaining({ name: "City Bridge" }),
+    ])
+    expect(JSON.stringify(sheets)).not.toContain("Lasam School")
   })
 
   it("renders current-user ids as names when the users list is unavailable", async () => {

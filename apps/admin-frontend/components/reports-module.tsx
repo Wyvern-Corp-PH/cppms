@@ -230,6 +230,7 @@ export function ReportsModule() {
         }))
       } else if (tab === "budget") {
         rows = breakdown.map((row) => {
+          const project = filteredProjects.find((item) => item.id === row.projectId)
           const projectExpenses = filteredExpenses.filter(
             (expense) => expense.project === row.projectId
           )
@@ -242,6 +243,8 @@ export function ReportsModule() {
 
           return {
             ...row,
+            category: project?.category,
+            lgu: project?.lgu_level,
             main_accounts: mainAccounts.join(", "),
             sub_accounts: subAccounts.join(", "),
           }
@@ -251,6 +254,11 @@ export function ReportsModule() {
           const project = filteredProjects.find((p) => p.id === update.project)
           return {
             project: project?.name,
+            category: project?.category,
+            lgu: project?.lgu_level,
+            location: project
+              ? projectLocationDisplayParts(project).join(" · ")
+              : undefined,
             from: update.from_pct,
             to: update.to_pct,
             change: update.to_pct - update.from_pct,
@@ -261,15 +269,25 @@ export function ReportsModule() {
           }
         })
       } else {
-        rows = filteredProjects.map((project) => ({
-          name: project.name,
-          status: project.status,
-          budget: project.bid_price,
-          approved_at: project.approved_at
-            ? formatDisplayDate(project.approved_at)
-            : "Pending",
-          approved_by: displayUserRef(project.approved_by, userDisplay, "Pending"),
-        }))
+        rows = filteredProjects.map((project) => {
+          const spent = filteredExpenses
+            .filter((expense) => expense.project === project.id)
+            .reduce((sum, expense) => sum + expense.amount, 0)
+          return {
+            name: project.name,
+            category: project.category,
+            lgu: project.lgu_level,
+            location: projectLocationDisplayParts(project).join(" · "),
+            status: project.status,
+            budget: project.bid_price,
+            spent,
+            savings: Math.max(0, (project.bid_price ?? 0) - spent),
+            approved_at: project.approved_at
+              ? formatDisplayDate(project.approved_at)
+              : "Pending",
+            approved_by: displayUserRef(project.approved_by, userDisplay, "Pending"),
+          }
+        })
       }
       XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), tab)
     }
