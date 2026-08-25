@@ -303,10 +303,13 @@ describe("DashboardModule (V9, V24)", () => {
       ).toBeInTheDocument()
       expect(
         screen.getByTestId("dashboard-inactive-locations-municipality-count")
-      ).toHaveTextContent("28")
+      ).toHaveTextContent("29")
       expect(
         screen.getByTestId("dashboard-inactive-locations-barangay-count")
       ).toHaveTextContent("819")
+      expect(
+        screen.getByTestId("dashboard-inactive-locations-municipality-list")
+      ).toHaveTextContent("Tuguegarao City")
       expect(
         screen.getByTestId("dashboard-inactive-locations-municipality-list")
       ).toHaveTextContent("Abulug")
@@ -345,7 +348,7 @@ describe("DashboardModule (V9, V24)", () => {
       expect(screen.getByTestId("dashboard-on-track")).toHaveTextContent("1")
       expect(
         screen.getByTestId("dashboard-inactive-locations-municipality-list")
-      ).not.toHaveTextContent("Tuguegarao City")
+      ).toHaveTextContent("Tuguegarao City")
       expect(
         screen.getByTestId("dashboard-inactive-locations-barangay-list")
       ).toHaveTextContent("Tuguegarao City — Centro 02")

@@ -11,6 +11,11 @@ type ProjectLocationRow = {
   barangay?: string
 }
 
+type LocationTreeNode = {
+  name: string
+  barangays: readonly string[]
+}
+
 function normalizeLocationName(value: string) {
   return value.trim().toLowerCase()
 }
@@ -32,17 +37,14 @@ export type InactiveLocationsResult = {
 }
 
 export function buildInactiveLocations(
-  projects: readonly ProjectLocationRow[]
+  projects: readonly ProjectLocationRow[],
+  locationTree: readonly LocationTreeNode[] = CAGAYAN_LOCATION_TREE
 ): InactiveLocationsResult {
-  const municipalitiesWithProjects = new Set<string>()
   const barangaysWithProjects = new Set<string>()
 
   for (const project of projects) {
     const municipality = project.municipality?.trim()
     const barangay = project.barangay?.trim()
-    if (municipality) {
-      municipalitiesWithProjects.add(normalizeLocationName(municipality))
-    }
     if (municipality && barangay) {
       barangaysWithProjects.add(barangayKey(municipality, barangay))
     }
@@ -51,16 +53,17 @@ export function buildInactiveLocations(
   const inactiveMunicipalities: string[] = []
   const inactiveBarangays: InactiveBarangayRow[] = []
 
-  for (const municipality of CAGAYAN_LOCATION_TREE) {
-    if (!municipalitiesWithProjects.has(normalizeLocationName(municipality.name))) {
+  for (const municipality of locationTree) {
+    const allBarangaysCovered = municipality.barangays.every((barangay) =>
+      barangaysWithProjects.has(barangayKey(municipality.name, barangay))
+    )
+    if (!allBarangaysCovered) {
       inactiveMunicipalities.push(municipality.name)
     }
 
     for (const barangay of municipality.barangays) {
       if (
-        !barangaysWithProjects.has(
-          barangayKey(municipality.name, barangay)
-        )
+        !barangaysWithProjects.has(barangayKey(municipality.name, barangay))
       ) {
         inactiveBarangays.push({
           municipality: municipality.name,
@@ -71,8 +74,11 @@ export function buildInactiveLocations(
   }
 
   return {
-    totalMunicipalities: TOTAL_MUNICIPALITIES,
-    totalBarangays: TOTAL_BARANGAYS,
+    totalMunicipalities: locationTree.length,
+    totalBarangays: locationTree.reduce(
+      (count, municipality) => count + municipality.barangays.length,
+      0
+    ),
     inactiveMunicipalities,
     inactiveBarangays,
   }
