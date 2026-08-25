@@ -335,39 +335,153 @@ describe("ApprovalsModule (J5, V5)", () => {
     expect(within(card).getByRole("button", { name: /^approve$/i })).toBeInTheDocument()
   })
 
-  it("sets For Approval when Province opens an approval dialog", async () => {
-    const user = userEvent.setup()
-    render(<ApprovalsModule />)
+  it.each([
+    {
+      label: "Approve",
+      button: /^approve$/i,
+      dialog: /approve project completion/i,
+    },
+    {
+      label: "Reject",
+      button: /^reject$/i,
+      dialog: /reject project completion/i,
+    },
+    {
+      label: "Request Revision",
+      button: /request revision/i,
+      dialog: /request revision/i,
+    },
+  ])(
+    "should keep For Completion when Province opens $label",
+    async ({ button, dialog }) => {
+      const user = userEvent.setup()
+      render(<ApprovalsModule />)
 
-    await user.click(await screen.findByRole("button", { name: /approve/i }))
+      await user.click(await screen.findByRole("button", { name: button }))
 
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
-      expect(store.projects[0]?.status).toBe("For Approval")
-      expect(store.projects[0]?.approval_status).toBe("pending")
-    })
-    expect(
-      screen.getByRole("dialog", { name: /approve project completion/i })
-    ).toBeInTheDocument()
-  })
+      expect(await screen.findByRole("dialog", { name: dialog })).toBeInTheDocument()
+      expect(updateMock).not.toHaveBeenCalled()
+      expect(store.projects[0]?.status).toBe("For Completion")
+    }
+  )
 
-  it("surfaces an error when For Approval-on-open write fails", async () => {
-    updateMock.mockRejectedValueOnce(new Error("Failed to mark For Approval."))
-    const user = userEvent.setup()
-    render(<ApprovalsModule />)
+  it.each([
+    { label: "empty", approval_status: "" as string | undefined },
+    { label: "missing", approval_status: undefined },
+  ])(
+    "should send Approve companions when original approval_status is $label",
+    async ({ approval_status }) => {
+      if (approval_status === undefined) {
+        delete store.projects[0]!.approval_status
+      } else {
+        store.projects[0] = { ...store.projects[0]!, approval_status }
+      }
+      const user = userEvent.setup()
+      render(<ApprovalsModule />)
 
-    await user.click(await screen.findByRole("button", { name: /approve/i }))
+      await user.click(await screen.findByRole("button", { name: /approve/i }))
+      await user.type(
+        screen.getByLabelText(/authority name/i),
+        "Provincial Engineer"
+      )
+      await user.click(screen.getByTestId("confirm-approval-action"))
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /failed to mark for approval/i
-    )
-    expect(
-      screen.queryByRole("dialog", { name: /approve project completion/i })
-    ).not.toBeInTheDocument()
-    expect(store.projects[0]?.status).toBe("For Completion")
-    expect(store.projects[0]?.approval_status).toBe("pending")
-    expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
-  })
+      await waitFor(() => {
+        expect(updateMock).not.toHaveBeenCalledWith("1", {
+          status: "For Approval",
+        })
+        expect(updateMock).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            status: "Completed",
+            approval_status: "approved",
+            approved_by: "province-user",
+            approved_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          })
+        )
+        expect(store.projects[0]?.status).toBe("Completed")
+        expect(store.projects[0]?.approval_status).toBe("approved")
+        expect(store.actions[0]?.action).toBe("approve")
+      })
+    }
+  )
+
+  it.each([
+    { label: "empty", approval_status: "" as string | undefined },
+    { label: "missing", approval_status: undefined },
+  ])(
+    "should send Reject companions when original approval_status is $label",
+    async ({ approval_status }) => {
+      if (approval_status === undefined) {
+        delete store.projects[0]!.approval_status
+      } else {
+        store.projects[0] = { ...store.projects[0]!, approval_status }
+      }
+      const user = userEvent.setup()
+      render(<ApprovalsModule />)
+
+      await user.click(await screen.findByRole("button", { name: /^reject$/i }))
+      fireEvent.change(await screen.findByLabelText(/reviewing authority name/i), {
+        target: { value: "Provincial Engineer" },
+      })
+      fireEvent.change(await screen.findByLabelText(/reason for rejection/i), {
+        target: { value: "Incomplete liquidation package." },
+      })
+      await user.click(screen.getByTestId("confirm-approval-action"))
+
+      await waitFor(() => {
+        expect(updateMock).not.toHaveBeenCalledWith("1", {
+          status: "For Approval",
+        })
+        expect(updateMock).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            status: "Rejected",
+            approval_status: "rejected",
+            rejection_reason: "Incomplete liquidation package.",
+          })
+        )
+        expect(store.projects[0]?.status).toBe("Rejected")
+        expect(store.projects[0]?.approval_status).toBe("rejected")
+        expect(store.actions[0]?.action).toBe("reject")
+      })
+    }
+  )
+
+  it.each([
+    { label: "empty", approval_status: "" as string | undefined },
+    { label: "missing", approval_status: undefined },
+  ])(
+    "should send Request Revision companions when original approval_status is $label",
+    async ({ approval_status }) => {
+      if (approval_status === undefined) {
+        delete store.projects[0]!.approval_status
+      } else {
+        store.projects[0] = { ...store.projects[0]!, approval_status }
+      }
+      const user = userEvent.setup()
+      render(<ApprovalsModule />)
+
+      const card = await screen.findByTestId("approval-card-1")
+      await submitRequestRevision(user, card)
+
+      await waitFor(() => {
+        expect(updateMock).not.toHaveBeenCalledWith("1", {
+          status: "For Approval",
+        })
+        expect(updateMock).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            status: "For Revision",
+            approval_status: "pending",
+          })
+        )
+        expect(store.projects[0]?.status).toBe("For Revision")
+        expect(store.projects[0]?.approval_status).toBe("pending")
+        expect(store.actions[0]?.action).toBe("request_revision")
+      })
+    }
+  )
 
   it("surfaces an error when project status update fails", async () => {
     updateMock.mockImplementation(async (id, payload) => {
@@ -394,7 +508,7 @@ describe("ApprovalsModule (J5, V5)", () => {
     expect(
       screen.getByRole("dialog", { name: /approve project completion/i })
     ).toBeInTheDocument()
-    expect(store.projects[0]?.status).toBe("For Approval")
+    expect(store.projects[0]?.status).toBe("For Completion")
     expect(store.projects[0]?.approval_status).toBe("pending")
     expect(store.actions).toHaveLength(0)
     expect(createMock).not.toHaveBeenCalled()
@@ -873,11 +987,7 @@ describe("ApprovalsModule (J5, V5)", () => {
       await screen.findByText(/certification of completion is missing/i)
     ).toBeInTheDocument()
     expect(store.actions).toHaveLength(0)
-    expect(updateMock).toHaveBeenCalledWith("1", { status: "For Approval" })
-    expect(updateMock).not.toHaveBeenCalledWith(
-      "1",
-      expect.objectContaining({ status: "Completed" })
-    )
+    expect(updateMock).not.toHaveBeenCalled()
   })
 
   it("shows uploaded completion documents while pending approval", async () => {

@@ -355,34 +355,7 @@ export function ApprovalsModule() {
     )
   }
 
-  async function markForApprovalIfWaiting(project: ProjectRecord) {
-    if (project.status !== "For Completion") return true
-    try {
-      await getPocketBase().collection("projects").update(project.id, {
-        status: "For Approval",
-      })
-      setProjects((rows) =>
-        rows.map((row) =>
-          row.id === project.id ? { ...row, status: "For Approval" } : row
-        )
-      )
-      setSelected((current) =>
-        current?.id === project.id
-          ? { ...current, status: "For Approval" }
-          : current
-      )
-      return true
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Could not mark project For Approval."
-      )
-      return false
-    }
-  }
-
-  async function openApprovalDialog(
+  function openApprovalDialog(
     kind: "approve" | "reject" | "request_revision",
     project?: ProjectRecord
   ) {
@@ -391,8 +364,6 @@ export function ApprovalsModule() {
     setSelected(target)
     setCompletionDocError(null)
     setActionError(null)
-    const started = await markForApprovalIfWaiting(target)
-    if (!started) return
     setDialog(kind)
   }
 

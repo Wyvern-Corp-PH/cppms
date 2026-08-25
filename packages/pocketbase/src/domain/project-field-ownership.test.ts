@@ -666,6 +666,63 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
+    "rejects %s status-only For Approval when original approval_status is empty or missing",
+    (role) => {
+      for (const approval_status of ["", undefined] as const) {
+        const original = {
+          ...ppdoCreate,
+          status: "For Completion",
+          ...(approval_status === undefined ? {} : { approval_status }),
+        }
+        const options = {
+          role,
+          isCreate: false,
+          original,
+          submitted: { status: "For Approval" },
+        }
+        const result = evaluateProjectFieldWrite(options)
+        expect(result).toEqual({
+          ok: false,
+          error: "You cannot update field 'status'.",
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+      }
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "lets %s write companion approval statuses when original approval_status is empty or missing",
+    (role) => {
+      for (const approval_status of ["", undefined] as const) {
+        const original = {
+          ...ppdoCreate,
+          status: "For Completion",
+          ...(approval_status === undefined ? {} : { approval_status }),
+        }
+        for (const submitted of [
+          {
+            status: "Completed",
+            approval_status: "approved",
+            approved_by: "province-user",
+            approved_at: "2026-08-19",
+          },
+          {
+            status: "Rejected",
+            approval_status: "rejected",
+            rejection_reason: "Incomplete liquidation package.",
+          },
+          { status: "For Revision", approval_status: "pending" },
+        ]) {
+          const options = { role, isCreate: false, original, submitted }
+          const result = evaluateProjectFieldWrite(options)
+          expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+          expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+        }
+      }
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
     "rejects %s For Approval write from a status other than For Completion",
     (role) => {
       const options = {
