@@ -20,14 +20,14 @@ const PPDO_OWNED_FIELDS = [
   "sub_account",
   "period_of_implementation",
   "moa_file",
+  "resolution_file",
+  "supporting_docs",
   "number_of_students",
 ]
 const LGU_OWNED_FIELDS = [
   "contractor",
   "bid_price",
   "project_photos",
-  "resolution_file",
-  "supporting_docs",
   "start_date",
   "target_end_date",
 ]
@@ -135,6 +135,7 @@ function ownedProjectFieldsForActor(role, original, isCreate) {
   if (isProvincialOverride(role)) return new Set(["*"])
   if (role === "PPDO") {
     const owned = new Set(PPDO_OWNED_FIELDS)
+    owned.add("project_photos")
     if (isCreate || !hasLguEncodedAt(original)) owned.add("status")
     return owned
   }

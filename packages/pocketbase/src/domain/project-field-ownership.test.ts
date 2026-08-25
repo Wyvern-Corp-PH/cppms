@@ -12,6 +12,7 @@ import {
   LGU_OWNED_FIELDS,
   LGU_OVERRIDE_LOCKED_FIELDS,
   LGU_PHASE_STATUS,
+  ownedProjectFieldsForActor,
   PPDO_OWNED_FIELDS,
   projectFieldFilledByLabel,
   projectPayloadForActor,
@@ -352,42 +353,60 @@ describe("project field ownership", () => {
     })
   })
 
-  it("rejects PPDO writes of LGU-owned resolution_file", () => {
-    const result = evaluateProjectFieldWrite({
-      role: "PPDO",
-      isCreate: false,
-      original: ppdoCreate,
-      submitted: { resolution_file: ["resolution.pdf"] },
-    })
-    expect(result).toEqual({
-      ok: false,
-      error: "You cannot update field 'resolution_file'.",
-    })
-  })
-
-  it("allows LGU writes of resolution_file and supporting_docs", () => {
-    const original = {
-      ...ppdoCreate,
-      status: "Ongoing",
-      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+  it.each(["PPDO", "Province", "Super Admin"] as const)(
+    "should allow %s to write resolution and supporting document files",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      }
+      for (const field of ["resolution_file", "supporting_docs"] as const) {
+        const options = {
+          role,
+          isCreate: false,
+          original,
+          submitted: { [field]: ["doc.pdf"] },
+        }
+        expect(evaluateProjectFieldWrite(options)).toEqual({
+          ok: true,
+          setLguEncodedAt: false,
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+          ok: true,
+          setLguEncodedAt: false,
+        })
+      }
     }
-    expect(
-      evaluateProjectFieldWrite({
-        role: "Municipality",
-        isCreate: false,
-        original,
-        submitted: { resolution_file: ["resolution.pdf"] },
-      }).ok
-    ).toBe(true)
-    expect(
-      evaluateProjectFieldWrite({
-        role: "Barangay",
-        isCreate: false,
-        original,
-        submitted: { supporting_docs: ["support.pdf"] },
-      }).ok
-    ).toBe(true)
-  })
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should reject %s writes of MOA, resolution, and supporting document files",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      }
+      for (const field of [
+        "moa_file",
+        "resolution_file",
+        "supporting_docs",
+      ] as const) {
+        expect(
+          evaluateProjectFieldWrite({
+            role,
+            isCreate: false,
+            original,
+            submitted: { [field]: ["doc.pdf"] },
+          })
+        ).toEqual({
+          ok: false,
+          error: `You cannot update field '${field}'.`,
+        })
+      }
+    }
+  )
 
   it("rejects LGU writes of scholarship student count", () => {
     const result = evaluateProjectFieldWrite({
@@ -756,11 +775,14 @@ describe("project field ownership", () => {
       "contractor",
       "bid_price",
       "project_photos",
-      "resolution_file",
-      "supporting_docs",
       "start_date",
       "target_end_date",
     ])
+    expect(PPDO_OWNED_FIELDS).toContain("resolution_file")
+    expect(PPDO_OWNED_FIELDS).toContain("supporting_docs")
+    expect(LGU_OWNED_FIELDS).not.toContain("resolution_file")
+    expect(LGU_OWNED_FIELDS).not.toContain("supporting_docs")
+    expect(LGU_OWNED_FIELDS).not.toContain("moa_file")
     expect(LGU_OWNED_FIELDS).not.toContain("planning_status")
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
   })
@@ -773,12 +795,105 @@ describe("project field ownership", () => {
     expect(projectFieldFilledByLabel("target_end_date")).toBe(
       "filled by LGU/Barangay"
     )
-    expect(projectFieldFilledByLabel("resolution_file")).toBe(
+    expect(projectFieldFilledByLabel("moa_file")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("resolution_file")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("supporting_docs")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("project_photos")).toBe(
       "filled by LGU/Barangay"
     )
-    expect(projectFieldFilledByLabel("supporting_docs")).toBe(
-      "filled by LGU/Barangay"
+  })
+
+  it.each(["PPDO", "Province", "Super Admin"] as const)(
+    "should treat all four project file fields as editable for %s",
+    (role) => {
+      const original = { ...ppdoCreate, status: "Ongoing" }
+      for (const field of [
+        "moa_file",
+        "resolution_file",
+        "supporting_docs",
+        "project_photos",
+      ] as const) {
+        expect(isProjectFieldEditable(role, field, original, false)).toBe(true)
+        expect(ownedProjectFieldsForActor(role, original, false).has(field)).toBe(
+          role === "PPDO"
+        )
+      }
+      if (role !== "PPDO") {
+        expect(ownedProjectFieldsForActor(role, original, false).has("*")).toBe(
+          true
+        )
+      }
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should treat only project photos as an owned file field for %s",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      }
+      const owned = ownedProjectFieldsForActor(role, original, false)
+      expect(owned.has("project_photos")).toBe(true)
+      expect(isProjectFieldEditable(role, "project_photos", original, false)).toBe(
+        true
+      )
+      for (const field of [
+        "moa_file",
+        "resolution_file",
+        "supporting_docs",
+      ] as const) {
+        expect(owned.has(field)).toBe(false)
+        expect(isProjectFieldEditable(role, field, original, false)).toBe(false)
+      }
+    }
+  )
+
+  it("should let every encoding role write project photos", () => {
+    const original = {
+      ...ppdoCreate,
+      status: "Ongoing",
+      lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+    }
+    for (const role of [
+      "PPDO",
+      "Province",
+      "Super Admin",
+      "Municipality",
+      "Barangay",
+    ] as const) {
+      expect(
+        evaluateProjectFieldWrite({
+          role,
+          isCreate: false,
+          original,
+          submitted: { project_photos: ["site.jpg"] },
+        })
+      ).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+    }
+  })
+
+  it("should omit provincial files from an LGU save payload", () => {
+    const payload = projectPayloadForActor(
+      "Municipality",
+      { ...ppdoCreate, lgu_encoded_at: "2026-08-01 00:00:00.000Z" },
+      false,
+      {
+        moa_file: ["old-moa.pdf"],
+        resolution_file: ["old-res.pdf"],
+        supporting_docs: ["old-sup.pdf"],
+        project_photos: ["site.jpg"],
+        contractor: "Build Co",
+      }
     )
+    expect(payload).toEqual({
+      project_photos: ["site.jpg"],
+      contractor: "Build Co",
+    })
   })
 
   it("lets PPDO edit number_of_students when the current category is Scholarship", () => {

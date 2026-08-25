@@ -2190,4 +2190,168 @@ describe("ProjectsModule (J4)", () => {
       )
     ).toBe(true)
   })
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should show only the Project photos upload when %s edits a project with no provincial files",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-photos-only`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        ...(role === "Barangay"
+          ? { barangay: "Centro 01 (Bagumbayan)" }
+          : {}),
+      }
+      store.projects = [
+        catalogProject({
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).not.toBeDisabled()
+      expect(
+        screen.queryByTestId("document-upload-input-moa-file")
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId("document-upload-input-resolution-file")
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId("document-upload-input-supporting-file")
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText("Resolution")).not.toBeInTheDocument()
+      expect(
+        screen.queryByText("Memorandum of Agreement")
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText("Supporting project documents")
+      ).not.toBeInTheDocument()
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should show existing Resolution as read-only for %s and hint it is filled by PPDO",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-res-readonly`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        ...(role === "Barangay"
+          ? { barangay: "Centro 01 (Bagumbayan)" }
+          : {}),
+      }
+      store.projects = [
+        catalogProject({
+          resolution_file: ["old-res.pdf"],
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(screen.getByText("Resolution")).toBeInTheDocument()
+      expect(screen.getByText(/on record: old-res\.pdf/i)).toBeInTheDocument()
+      expect(
+        screen.getByTestId("document-upload-input-resolution-file")
+      ).toBeDisabled()
+      expect(screen.getAllByText(/filled by ppdo/i).length).toBeGreaterThan(0)
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).not.toBeDisabled()
+    }
+  )
+
+  it.each(["PPDO", "Province", "Super Admin"] as const)(
+    "should show all four project uploads as writable for %s on New Project",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-all-uploads`,
+        role,
+        account_status: "Active",
+      }
+
+      render(<ProjectsModule />)
+
+      await user.click(await screen.findByTestId("create-project"))
+
+      expect(
+        screen.getByTestId("document-upload-input-moa-file")
+      ).not.toBeDisabled()
+      expect(
+        screen.getByTestId("document-upload-input-resolution-file")
+      ).not.toBeDisabled()
+      expect(
+        screen.getByTestId("document-upload-input-supporting-file")
+      ).not.toBeDisabled()
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).not.toBeDisabled()
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should omit resolution and supporting files when %s saves so existing attachments stay",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-omit-provincial`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        ...(role === "Barangay"
+          ? { barangay: "Centro 01 (Bagumbayan)" }
+          : {}),
+      }
+      store.projects = [
+        catalogProject({
+          resolution_file: ["old-res.pdf"],
+          supporting_docs: ["old-sup.pdf"],
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.upload(screen.getByTestId("document-upload-input-project-photos"), [
+        new File(["photo"], "site.jpg", { type: "image/jpeg" }),
+      ])
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled()
+      })
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).toBeInstanceOf(FormData)
+      expect((payload as FormData).getAll("resolution_file")).toEqual([])
+      expect((payload as FormData).getAll("supporting_docs")).toEqual([])
+      expect(
+        (payload as FormData)
+          .getAll("project_photos")
+          .some((value) => value instanceof File && value.name === "site.jpg")
+      ).toBe(true)
+    }
+  )
 })

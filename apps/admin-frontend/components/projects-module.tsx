@@ -998,6 +998,8 @@ export function ProjectsModule() {
   }
   const fieldLocked = (field: string) =>
     !isProjectFieldEditable(actorRole, field, ownershipRecord, !editing)
+  const showUploadField = (field: string, existingNames: string[]) =>
+    !fieldLocked(field) || existingNames.length > 0
   const FieldOwnerHint = ({ field }: { field: string }) => {
     if (!fieldLocked(field)) return null
     const label = projectFieldFilledByLabel(field)
@@ -1586,62 +1588,70 @@ export function ProjectsModule() {
                 <FieldDescription className="text-sm font-medium text-foreground">
                   Required documents
                 </FieldDescription>
-                <div className="space-y-1">
-                  <FieldOwnerHint field="moa_file" />
-                  <DocumentUploadField
-                    id="moa-file"
-                    label="Memorandum of Agreement"
-                    files={moaFiles}
-                    existingNames={retainedMoaNames}
-                    existingFileHref={
-                      editing
-                        ? (name) => recordFileUrl(editing, name)
-                        : undefined
-                    }
-                    onExistingNamesChange={setRetainedMoaNames}
-                    onChange={setMoaFiles}
-                    disabled={fieldLocked("moa_file")}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <FieldOwnerHint field="project_photos" />
-                  <DocumentUploadField
-                    id="project-photos"
-                    label="Project photos"
-                    accept={IMAGE_UPLOAD_ACCEPT}
-                    helperText="JPG, PNG, WEBP"
-                    files={projectPhotoFiles}
-                    existingNames={retainedPhotoNames}
-                    onExistingNamesChange={setRetainedPhotoNames}
-                    onChange={setProjectPhotoFiles}
-                    disabled={fieldLocked("project_photos")}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <FieldOwnerHint field="resolution_file" />
-                  <DocumentUploadField
-                    id="resolution-file"
-                    label="Resolution"
-                    files={resolutionFiles}
-                    existingNames={retainedResolutionNames}
-                    onExistingNamesChange={setRetainedResolutionNames}
-                    onChange={setResolutionFiles}
-                    disabled={fieldLocked("resolution_file")}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <FieldOwnerHint field="supporting_docs" />
-                  <DocumentUploadField
-                    id="supporting-file"
-                    label="Supporting project documents"
-                    multiple
-                    files={supportingFiles}
-                    existingNames={retainedSupportingNames}
-                    onExistingNamesChange={setRetainedSupportingNames}
-                    onChange={setSupportingFiles}
-                    disabled={fieldLocked("supporting_docs")}
-                  />
-                </div>
+                {showUploadField("moa_file", retainedMoaNames) ? (
+                  <div className="space-y-1">
+                    <FieldOwnerHint field="moa_file" />
+                    <DocumentUploadField
+                      id="moa-file"
+                      label="Memorandum of Agreement"
+                      files={moaFiles}
+                      existingNames={retainedMoaNames}
+                      existingFileHref={
+                        editing
+                          ? (name) => recordFileUrl(editing, name)
+                          : undefined
+                      }
+                      onExistingNamesChange={setRetainedMoaNames}
+                      onChange={setMoaFiles}
+                      disabled={fieldLocked("moa_file")}
+                    />
+                  </div>
+                ) : null}
+                {showUploadField("project_photos", retainedPhotoNames) ? (
+                  <div className="space-y-1">
+                    <FieldOwnerHint field="project_photos" />
+                    <DocumentUploadField
+                      id="project-photos"
+                      label="Project photos"
+                      accept={IMAGE_UPLOAD_ACCEPT}
+                      helperText="JPG, PNG, WEBP"
+                      files={projectPhotoFiles}
+                      existingNames={retainedPhotoNames}
+                      onExistingNamesChange={setRetainedPhotoNames}
+                      onChange={setProjectPhotoFiles}
+                      disabled={fieldLocked("project_photos")}
+                    />
+                  </div>
+                ) : null}
+                {showUploadField("resolution_file", retainedResolutionNames) ? (
+                  <div className="space-y-1">
+                    <FieldOwnerHint field="resolution_file" />
+                    <DocumentUploadField
+                      id="resolution-file"
+                      label="Resolution"
+                      files={resolutionFiles}
+                      existingNames={retainedResolutionNames}
+                      onExistingNamesChange={setRetainedResolutionNames}
+                      onChange={setResolutionFiles}
+                      disabled={fieldLocked("resolution_file")}
+                    />
+                  </div>
+                ) : null}
+                {showUploadField("supporting_docs", retainedSupportingNames) ? (
+                  <div className="space-y-1">
+                    <FieldOwnerHint field="supporting_docs" />
+                    <DocumentUploadField
+                      id="supporting-file"
+                      label="Supporting project documents"
+                      multiple
+                      files={supportingFiles}
+                      existingNames={retainedSupportingNames}
+                      onExistingNamesChange={setRetainedSupportingNames}
+                      onChange={setSupportingFiles}
+                      disabled={fieldLocked("supporting_docs")}
+                    />
+                  </div>
+                ) : null}
               </FieldSet>
             </FieldSet>
           </FieldGroup>

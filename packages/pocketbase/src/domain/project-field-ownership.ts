@@ -32,6 +32,8 @@ export const PPDO_OWNED_FIELDS = [
   "sub_account",
   "period_of_implementation",
   "moa_file",
+  "resolution_file",
+  "supporting_docs",
   "number_of_students",
 ] as const
 
@@ -39,8 +41,6 @@ export const LGU_OWNED_FIELDS = [
   "contractor",
   "bid_price",
   "project_photos",
-  "resolution_file",
-  "supporting_docs",
   "start_date",
   "target_end_date",
 ] as const
@@ -199,6 +199,7 @@ export function ownedProjectFieldsForActor(
   }
   if (role === "PPDO") {
     const owned = new Set<string>(PPDO_OWNED_FIELDS)
+    owned.add("project_photos")
     if (isCreate || !hasLguEncodedAt(original)) {
       owned.add("status")
     }
