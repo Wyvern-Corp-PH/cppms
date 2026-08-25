@@ -66,6 +66,60 @@ export function createActivityLogEvent(
   }
 }
 
+const ACTIVITY_RESOURCE_LABELS: Record<string, string> = {
+  projects: "Projects",
+  budget_allocations: "Budget",
+  budget_expenses: "Budget",
+  progress_updates: "Progress",
+  approval_actions: "Approvals",
+  users: "Users",
+  locations: "Locations",
+}
+
+export function activityLogResourceLabel(
+  log: Pick<ActivityLogEvent, "resource" | "resource_id" | "before" | "after">,
+  projectsById: ReadonlyMap<string, string>
+): string {
+  const projectId = projectIdFromLog(log)
+  if (projectId) {
+    const name = projectsById.get(projectId)?.trim()
+    if (name) return name
+  }
+
+  const moduleLabel = ACTIVITY_RESOURCE_LABELS[log.resource]
+  if (moduleLabel) return moduleLabel
+
+  const description = firstHumanString(
+    log.after?.name,
+    log.before?.name,
+    log.after?.description,
+    log.before?.description
+  )
+  return description ?? "Activity"
+}
+
+function projectIdFromLog(
+  log: Pick<ActivityLogEvent, "resource" | "resource_id" | "before" | "after">
+): string | undefined {
+  return (
+    firstHumanString(
+      log.after?.project,
+      log.before?.project,
+      log.after?.project_id,
+      log.before?.project_id
+    ) ?? log.resource_id
+  )
+}
+
+function firstHumanString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
 function sanitizeActivityError(error: string | undefined): string | undefined {
   if (!error) {
     return undefined

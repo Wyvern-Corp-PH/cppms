@@ -7,6 +7,7 @@ import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocket
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDate, formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import { projectLocationDisplayParts } from "@workspace/pocketbase/domain/project-filters"
+import { activityLogResourceLabel } from "@workspace/pocketbase/domain/activity-log"
 import {
   buildUserDisplayMap,
   displayUserRef,
@@ -169,6 +170,10 @@ export function ReportsModule() {
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, user ? [user] : []),
     [user, users]
+  )
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects]
   )
 
   const filteredAllocations = useMemo(
@@ -550,8 +555,7 @@ export function ReportsModule() {
     {
       accessorKey: "resource",
       header: "Resource",
-      cell: ({ row }) =>
-        `${row.original.resource}${row.original.resource_id ? `:${row.original.resource_id}` : ""}`,
+      cell: ({ row }) => activityLogResourceLabel(row.original, projectNames),
     },
     { accessorKey: "outcome", header: "Outcome" },
     {

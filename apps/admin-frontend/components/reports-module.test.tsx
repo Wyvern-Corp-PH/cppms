@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -21,21 +21,21 @@ const store = {
   users: [] as Array<Record<string, unknown>>,
   projectStatusOptions: [] as Array<Record<string, unknown>>,
   projectCategoryOptions: [] as Array<Record<string, unknown>>,
-  logs: [
-    {
-      id: "log1",
-      collectionId: "logs",
-      collectionName: "activity_logs",
-      created: "2026-06-23 00:00:00.000Z",
-      updated: "",
-      actor_user: "u1",
-      actor_role: "Super Admin",
-      action: "update",
-      resource: "projects",
-      outcome: "success",
-      duration_ms: 4,
-    },
-  ] as Array<Record<string, unknown>>,
+  logs: [] as Array<Record<string, unknown>>,
+}
+
+const DEFAULT_ACTIVITY_LOG = {
+  id: "log1",
+  collectionId: "logs",
+  collectionName: "activity_logs",
+  created: "2026-06-23 00:00:00.000Z",
+  updated: "",
+  actor_user: "u1",
+  actor_role: "Super Admin",
+  action: "update",
+  resource: "projects",
+  outcome: "success",
+  duration_ms: 4,
 }
 
 vi.mock("xlsx", () => ({
@@ -187,6 +187,7 @@ describe("ReportsModule (V12)", () => {
       },
     ]
     store.users = []
+    store.logs = [{ ...DEFAULT_ACTIVITY_LOG }]
     vi.mocked(XLSX.utils.json_to_sheet).mockClear()
     vi.mocked(XLSX.utils.book_append_sheet).mockClear()
     vi.mocked(XLSX.writeFile).mockClear()
@@ -303,8 +304,72 @@ describe("ReportsModule (V12)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Activity Logs")).toBeInTheDocument()
-      expect(screen.getByText("projects")).toBeInTheDocument()
     })
+    expect(screen.queryByText(/^projects$/)).not.toBeInTheDocument()
+  })
+
+  it("should show a human-readable activity log resource when Super Admin views logs", async () => {
+    const liveProjectId = "proj-live-9f3a2c1b0e8d7a6"
+    const deletedProjectId = "gone-uuid-aaaa-bbbb-ccccdddd"
+    const locationId = "loc-uuid-1111-2222-33334444"
+
+    authState.user = {
+      id: "u1",
+      name: "Current Admin",
+      email: "current@example.test",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: liveProjectId,
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Cagayan Bridge Rehab",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+    ]
+    store.logs = [
+      {
+        ...DEFAULT_ACTIVITY_LOG,
+        id: "log-live",
+        resource: "projects",
+        resource_id: liveProjectId,
+      },
+      {
+        ...DEFAULT_ACTIVITY_LOG,
+        id: "log-gone",
+        resource: "projects",
+        resource_id: deletedProjectId,
+      },
+      {
+        ...DEFAULT_ACTIVITY_LOG,
+        id: "log-locations",
+        resource: "locations",
+        resource_id: locationId,
+      },
+    ]
+
+    render(<ReportsModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Activity Logs")).toBeInTheDocument()
+    })
+
+    const logsSection = screen.getByText("Activity Logs").closest("section")
+    expect(logsSection).toBeTruthy()
+    const logs = within(logsSection as HTMLElement)
+
+    expect(logs.getByText("Cagayan Bridge Rehab")).toBeInTheDocument()
+    expect(logs.getByText("Projects")).toBeInTheDocument()
+    expect(logs.getByText("Locations")).toBeInTheDocument()
+    expect(logs.queryByText(liveProjectId)).not.toBeInTheDocument()
+    expect(logs.queryByText(deletedProjectId)).not.toBeInTheDocument()
+    expect(logs.queryByText(locationId)).not.toBeInTheDocument()
+    expect(logs.queryByText(`projects:${liveProjectId}`)).not.toBeInTheDocument()
   })
 
   it("exports budget rows with released amount fund source data", async () => {
