@@ -492,16 +492,23 @@ export function ProjectsModule() {
   const [importing, setImporting] = useState(false)
   const [saving, setSaving] = useState(false)
   const actor = getPocketBase().authStore?.record
-  const canCreateProjects = actor
-    ? canAccess(actor, "projects.create")
+  const actorRole =
+    actor?.collectionName === "_superusers"
+      ? "Super Admin"
+      : typeof actor?.role === "string"
+        ? actor.role
+        : undefined
+  const policyActor =
+    actor && actorRole ? { ...actor, role: actorRole } : actor
+  const canCreateProjects = policyActor
+    ? canAccess(policyActor, "projects.create")
     : false
-  const canUpdateProjects = actor
-    ? canAccess(actor, "projects.update")
+  const canUpdateProjects = policyActor
+    ? canAccess(policyActor, "projects.update")
     : false
-  const canDeleteProjects = actor
-    ? canAccess(actor, "projects.delete")
+  const canDeleteProjects = policyActor
+    ? canAccess(policyActor, "projects.delete")
     : false
-  const actorRole = typeof actor?.role === "string" ? actor.role : undefined
 
   function clearUploadFiles() {
     setMoaFiles([])

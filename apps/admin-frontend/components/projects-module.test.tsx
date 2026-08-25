@@ -2074,6 +2074,75 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
+  it.each(["Super Admin", "Province"] as const)(
+    "should persist last remaining MOA removal on save for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-moa-last`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          moa_file: ["old-moa.pdf"],
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+      await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalled()
+      })
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).toBeInstanceOf(FormData)
+      const moaValues = (payload as FormData).getAll("moa_file")
+      expect(moaValues).toContain("-old-moa.pdf")
+      expect(moaValues).not.toContain("old-moa.pdf")
+    }
+  )
+
+  it("should persist last remaining MOA removal when Super Admin has no users.role", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "sa-superuser",
+      collectionName: "_superusers",
+      account_status: "Active",
+    }
+    store.projects = [
+      catalogProject({
+        moa_file: ["old-moa.pdf"],
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+    await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalled()
+    })
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).toBeInstanceOf(FormData)
+    const moaValues = (payload as FormData).getAll("moa_file")
+    expect(moaValues).toContain("-old-moa.pdf")
+    expect(moaValues).not.toContain("old-moa.pdf")
+  })
+
   it("should omit MOA files when Municipality saves so existing attachments stay on the record", async () => {
     const user = userEvent.setup()
     store.authRecord = {

@@ -964,6 +964,69 @@ describe("project field ownership", () => {
     })
   })
 
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should allow %s to submit empty or reduced moa_file",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        moa_file: ["old-moa.pdf", "keep-moa.pdf"],
+      }
+      const emptyOptions = {
+        role,
+        isCreate: false,
+        original: { ...original, moa_file: ["old-moa.pdf"] },
+        submitted: { moa_file: [] },
+      }
+      const reducedOptions = {
+        role,
+        isCreate: false,
+        original,
+        submitted: { moa_file: ["keep-moa.pdf"] },
+      }
+      expect(evaluateProjectFieldWrite(emptyOptions)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(emptyOptions)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(evaluateProjectFieldWrite(reducedOptions)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(reducedOptions)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should reject %s writes to moa_file including empty lists",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        moa_file: ["old-moa.pdf"],
+      }
+      for (const submitted of [
+        { moa_file: [] },
+        { moa_file: ["-old-moa.pdf"] },
+      ]) {
+        const options = { role, isCreate: false, original, submitted }
+        expect(evaluateProjectFieldWrite(options)).toEqual({
+          ok: false,
+          error: "You cannot update field 'moa_file'.",
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+          ok: false,
+          error: "You cannot update field 'moa_file'.",
+        })
+      }
+    }
+  )
+
   it("patches only fields the actor owns", () => {
     const submitted = {
       name: "Charter Bridge",
