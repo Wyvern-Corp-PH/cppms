@@ -189,17 +189,21 @@ function appendRetainedAndNewFiles(
   field: string,
   retainedNames: string[],
   files: File[],
-  originalNames: string[]
+  originalNames: string[],
+  isUpdate: boolean
 ) {
-  for (const name of retainedNames) {
-    formData.append(field, name)
+  if (!isUpdate) {
+    for (const file of files) {
+      formData.append(field, file)
+    }
+    return
   }
   for (const file of files) {
-    formData.append(field, file)
+    formData.append(`${field}+`, file)
   }
   for (const name of originalNames) {
     if (retainedNames.includes(name)) continue
-    formData.append(field, `-${name}`)
+    formData.append(`${field}-`, name)
   }
 }
 
@@ -221,7 +225,8 @@ function projectFileFieldsDirty(fields: ProjectFileFieldInput[]) {
 
 function appendProjectFileFields(
   formData: FormData,
-  fields: ProjectFileFieldInput[]
+  fields: ProjectFileFieldInput[],
+  isUpdate: boolean
 ) {
   for (const field of fields) {
     if (!field.allowed) continue
@@ -230,7 +235,8 @@ function appendProjectFileFields(
       field.key,
       field.retainedNames,
       field.files,
-      field.originalNames
+      field.originalNames,
+      isUpdate
     )
   }
 }
@@ -807,7 +813,7 @@ export function ProjectsModule() {
             formData.append(key, String(value))
           }
         }
-        appendProjectFileFields(formData, fileFields)
+        appendProjectFileFields(formData, fileFields, Boolean(editing))
 
         if (editing) {
           await pb.collection("projects").update(editing.id, formData)
