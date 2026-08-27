@@ -309,6 +309,61 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
+  it("should accept progress_update when a budget expense is bound to a progress row", () => {
+    const result = budgetExpenseRecordSchema.safeParse({
+      id: "o9jfia8svz2j0rj",
+      collectionId: "pbc_2635419501",
+      collectionName: "budget_expenses",
+      project: "p1",
+      amount: 500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "Road materials",
+      date: "2026-06-15 00:00:00.000Z",
+      progress_update: "pu1234567890abc",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.progress_update).toBe("pu1234567890abc")
+    }
+  })
+
+  it("should leave progress_update unset when a legacy budget expense is unbound", () => {
+    const missing = budgetExpenseRecordSchema.safeParse({
+      id: "o9jfia8svz2j0rj",
+      collectionId: "pbc_2635419501",
+      collectionName: "budget_expenses",
+      project: "p1",
+      amount: 500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "Road materials",
+      date: "2026-06-15 00:00:00.000Z",
+    })
+    const empty = budgetExpenseRecordSchema.safeParse({
+      id: "o9jfia8svz2j0rj",
+      collectionId: "pbc_2635419501",
+      collectionName: "budget_expenses",
+      project: "p1",
+      amount: 500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "Road materials",
+      date: "2026-06-15 00:00:00.000Z",
+      progress_update: "",
+    })
+
+    expect(missing.success).toBe(true)
+    expect(empty.success).toBe(true)
+    if (missing.success) {
+      expect(missing.data.progress_update).toBeUndefined()
+    }
+    if (empty.success) {
+      expect(empty.data.progress_update).toBeUndefined()
+    }
+  })
+
   it("parses Budget fund dropdown option records", () => {
     const result = budgetFundOptionRecordSchema.safeParse({
       id: "fs1",

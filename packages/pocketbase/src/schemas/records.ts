@@ -117,6 +117,7 @@ export const budgetExpenseRecordSchema = z.preprocess(
     date: z.string(),
     receipt_number: pbEmptyAsUndefined(z.string().optional()),
     description: z.string().optional(),
+    progress_update: pbEmptyAsUndefined(z.string().optional()),
   })
 )
 

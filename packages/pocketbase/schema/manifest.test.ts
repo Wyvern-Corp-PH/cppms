@@ -203,6 +203,11 @@ const projectStatusForCompletionMigrationPath = resolve(
   "pb_migrations",
   "1740000035_project_status_for_completion.js"
 )
+const budgetExpenseProgressUpdateMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000036_budget_expense_progress_update.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -338,6 +343,15 @@ describe("schema manifest (SPEC §I)", () => {
       )?.fields
     ).toEqual(["main_account", "name", "active", "sort_order"])
   })
+
+  it("should declare an optional progress_update relation on budget_expenses", () => {
+    const expenses = COLLECTION_MANIFEST.find(
+      (collection) => collection.name === "budget_expenses"
+    )
+
+    expect(expenses?.fields).toContain("progress_update")
+    expect(expenses?.relations).toEqual(["project", "progress_update"])
+  })
 })
 
 describe("pb migration file", () => {
@@ -354,6 +368,7 @@ describe("pb migration file", () => {
     usersPasswordResetMigrationPath,
     ppdoLguOwnershipMigrationPath,
     projectFundSourceFieldsMigrationPath,
+    budgetExpenseProgressUpdateMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -1085,6 +1100,26 @@ describe("PocketBase project status For Completion migration", () => {
     expect(migrationSource).not.toMatch(
       /findRecordsByFilter\([^)]*,\s*1000,\s*0/
     )
+  })
+})
+
+describe("budget_expenses progress_update relation", () => {
+  const migrationSource = readFileSync(
+    budgetExpenseProgressUpdateMigrationPath,
+    "utf8"
+  )
+
+  it("should add an optional unique progress_update link when the field is set", () => {
+    expect(migrationSource).toContain('name: "progress_update"')
+    expect(migrationSource).toContain("progress_updates")
+    expect(migrationSource).toContain("maxSelect: 1")
+    expect(migrationSource).toContain("cascadeDelete: false")
+    expect(migrationSource).toContain("addIndex")
+    expect(migrationSource).toContain(
+      "idx_budget_expenses_progress_update"
+    )
+    expect(migrationSource).toContain("progress_update != ''")
+    expect(migrationSource).not.toContain("required: true")
   })
 })
 

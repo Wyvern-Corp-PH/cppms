@@ -119,8 +119,9 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "date",
       "receipt_number",
       "description",
+      "progress_update",
     ],
-    relations: ["project"],
+    relations: ["project", "progress_update"],
   },
   {
     name: "budget_fund_sources",

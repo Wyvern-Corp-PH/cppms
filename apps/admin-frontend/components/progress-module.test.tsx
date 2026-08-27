@@ -2805,6 +2805,48 @@ describe("ProgressModule (V81, V84)", () => {
     )
   }, 20_000)
 
+  it("should bind Released Amount to the new progress row when Update Progress creates an expense", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          progress_update: "pu-new",
+        })
+      )
+    })
+  }, 20_000)
+
   it("shows released amount fields for Super Admin users without requiring them", async () => {
     useSuperAdminActor()
     store.projects = [
@@ -3555,6 +3597,33 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(progressUpdateMock).toHaveBeenCalledTimes(1)
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it("should bind Released Amount to the updated progress row when For Revision records an expense", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          progress_update: "pu-latest",
+        })
+      )
     })
   })
 

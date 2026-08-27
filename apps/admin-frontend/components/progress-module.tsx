@@ -972,6 +972,7 @@ export function ProgressModule() {
       await options.pb.collection("budget_expenses").create({
         project: options.projectId,
         ...options.releasedAmount,
+        progress_update: options.progressRecordId,
       })
     } catch (error) {
       console.warn("Released amount sync failed after progress save.", {
