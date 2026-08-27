@@ -64,11 +64,15 @@ vi.mock("@/lib/pocketbase", () => ({
         }
         return createMock(payload)
       },
-      update: (id: string, payload: unknown) => {
+      update: (id: string, payload: unknown, options?: unknown) => {
         if (name === "progress_updates") {
-          return progressUpdateMock(id, payload)
+          return options === undefined
+            ? progressUpdateMock(id, payload)
+            : progressUpdateMock(id, payload, options)
         }
-        return projectUpdateMock(id, payload)
+        return options === undefined
+          ? projectUpdateMock(id, payload)
+          : projectUpdateMock(id, payload, options)
       },
       delete: deleteMock,
     }),
@@ -85,6 +89,7 @@ async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: s
 
 describe("ProgressModule (V81, V84)", () => {
   beforeAll(() => {
+    process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://pb.test"
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
       configurable: true,
       value: vi.fn(() => false),
@@ -914,6 +919,12 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByText("early band")).toBeInTheDocument()
     expect(within(dialog).getByText("mid band")).toBeInTheDocument()
     expect(within(dialog).getByText("late band")).toBeInTheDocument()
+    expect(within(dialog).getAllByRole("button", { name: /^view$/i })).toHaveLength(
+      3
+    )
+    expect(
+      within(dialog).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
 
     await user.clear(dialogFrom)
     await user.type(dialogFrom, "70")
@@ -922,6 +933,12 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByText("early band")).toBeInTheDocument()
     expect(within(dialog).getByText("mid band")).toBeInTheDocument()
     expect(within(dialog).queryByText("late band")).not.toBeInTheDocument()
+    expect(within(dialog).getAllByRole("button", { name: /^view$/i })).toHaveLength(
+      2
+    )
+    expect(
+      within(dialog).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
     expect(
       within(panel).getByText("early band", { hidden: true })
     ).toBeInTheDocument()
@@ -1837,7 +1854,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
-  it("corrects progress at 50% via Update Progress, not per-row history editors", async () => {
+  it("corrects live progress via Update Progress and still exposes per-row history View/Edit", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     store.projects = [
@@ -1866,7 +1883,7 @@ describe("ProgressModule (V81, V84)", () => {
         from_pct: 0,
         to_pct: 50,
         notes: "Halfway",
-        site_photo: [],
+        site_photo: ["site-on-record.jpg"],
         updated_by: "super-admin-user",
       },
     ]
@@ -1875,11 +1892,14 @@ describe("ProgressModule (V81, V84)", () => {
 
     await user.click(await screen.findByRole("button", { name: /view details/i }))
 
-    const detail = await screen.findByRole("dialog")
+    const detail = await screen.findByRole("dialog", { name: /project detail/i })
     expect(within(detail).getByText(/0% → 50%/)).toBeInTheDocument()
     expect(
-      within(detail).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument()
+      within(detail).getByRole("button", { name: /^view$/i })
+    ).toBeInTheDocument()
+    expect(
+      within(detail).getByRole("button", { name: /^edit$/i })
+    ).toBeInTheDocument()
     expect(
       within(detail).getByRole("button", { name: /update progress/i })
     ).toBeInTheDocument()
@@ -1896,7 +1916,399 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
     })
+    expect(progressUpdateMock).not.toHaveBeenCalled()
   })
+
+  function historyUpdateAt(
+    id: string,
+    toPct: number,
+    notes: string,
+    created: string
+  ) {
+    return {
+      id,
+      collectionId: "updates",
+      collectionName: "progress_updates",
+      created,
+      project: "1",
+      from_pct: 0,
+      to_pct: toPct,
+      notes,
+      site_photo: ["site-on-record.jpg"],
+      certification_completion: ["cert.pdf"],
+      certificate_acceptance: ["accept.pdf"],
+      proof_payment_barangay: ["pay.pdf"],
+      acknowledgment_completion: ["ack.pdf"],
+      audit_documents: ["audit.pdf"],
+      verification_documents: ["verify.pdf"],
+      liquidation_documents: ["liq.pdf"],
+      updated_by: "super-admin-user",
+    }
+  }
+
+  async function openProjectHistoryDialog(
+    user: ReturnType<typeof userEvent.setup>
+  ) {
+    await user.click(await screen.findByRole("button", { name: /view details/i }))
+    return screen.findByRole("dialog", { name: /project detail/i })
+  }
+
+  it("keeps View and Edit on filtered history rows for Super Admin", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-late", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+      historyUpdateAt("u-early", 70, "early band", "2026-05-12 00:00:00.000Z"),
+    ]
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    const from = within(detail).getByLabelText(/^from %$/i)
+    const to = within(detail).getByLabelText(/^to %$/i)
+
+    await user.clear(from)
+    await user.type(from, "70")
+    await user.clear(to)
+    await user.type(to, "78")
+
+    expect(within(detail).getByText("early band")).toBeInTheDocument()
+    expect(within(detail).getByText("mid band")).toBeInTheDocument()
+    expect(within(detail).queryByText("late band")).not.toBeInTheDocument()
+    expect(within(detail).getAllByRole("button", { name: /^view$/i })).toHaveLength(2)
+    expect(within(detail).getAllByRole("button", { name: /^edit$/i })).toHaveLength(2)
+
+    const earlyRow = within(detail).getByText("early band").closest("li")
+    expect(earlyRow).not.toBeNull()
+    await user.click(within(earlyRow!).getByRole("button", { name: /^view$/i }))
+    const viewDialog = await screen.findByRole("dialog", {
+      name: /progress update/i,
+    })
+    expect(within(viewDialog).getByText(/0% → 70%/)).toBeInTheDocument()
+    expect(
+      within(viewDialog).queryByRole("button", { name: /save update/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("lets Provincial Admin view filtered history but not edit it", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-late", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    const from = within(detail).getByLabelText(/^from %$/i)
+    await user.clear(from)
+    await user.type(from, "78")
+
+    expect(within(detail).getByText("late band")).toBeInTheDocument()
+    expect(within(detail).getByText("mid band")).toBeInTheDocument()
+    expect(within(detail).getAllByRole("button", { name: /^view$/i }).length).toBeGreaterThan(0)
+    expect(
+      within(detail).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("saves a filtered history edit without changing overall progress, including at 100%", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "For Completion",
+        budget_year: 2026,
+        progress_pct: 100,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-latest", 100, "done band", "2026-08-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 80, "mid band", "2026-06-12 00:00:00.000Z"),
+      historyUpdateAt("u-early", 50, "early band", "2026-05-12 00:00:00.000Z"),
+    ]
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    expect(within(detail).getByText(/overall progress:\s*100%/i)).toBeInTheDocument()
+
+    const from = within(detail).getByLabelText(/^from %$/i)
+    const to = within(detail).getByLabelText(/^to %$/i)
+    await user.clear(from)
+    await user.type(from, "80")
+    await user.clear(to)
+    await user.type(to, "100")
+
+    expect(within(detail).queryByText("early band")).not.toBeInTheDocument()
+    const midRow = within(detail).getByText("mid band").closest("li")
+    expect(midRow).not.toBeNull()
+    await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected mid band")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "u-mid",
+      expect.objectContaining({ notes: "Corrected mid band" }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+      })
+    )
+    expect(createMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+
+    const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
+    expect(within(detailAfter).getByText(/overall progress:\s*100%/i)).toBeInTheDocument()
+    expect(within(detailAfter).getByText("Corrected mid band")).toBeInTheDocument()
+    expect(within(detailAfter).getByText("done band")).toBeInTheDocument()
+    expect(within(detailAfter).queryByText("early band")).not.toBeInTheDocument()
+    expect(store.updates.find((row) => row.id === "u-latest")?.notes).toBe(
+      "done band"
+    )
+    expect(store.updates.find((row) => row.id === "u-early")?.notes).toBe(
+      "early band"
+    )
+  })
+
+  it("saves a latest history-row edit without changing overall progress", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-latest", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    expect(within(detail).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
+
+    const lateRow = within(detail).getByText("late band").closest("li")
+    expect(lateRow).not.toBeNull()
+    await user.click(within(lateRow!).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected latest band")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "u-latest",
+      expect.objectContaining({ notes: "Corrected latest band" }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+      })
+    )
+    expect(createMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+    expect(store.updates.find((row) => row.id === "u-mid")?.notes).toBe("mid band")
+    expect(store.updates.find((row) => row.id === "u-mid")?.to_pct).toBe(78)
+
+    const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
+    expect(within(detailAfter).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
+    expect(within(detailAfter).getByText("Corrected latest band")).toBeInTheDocument()
+    expect(within(detailAfter).getByText("mid band")).toBeInTheDocument()
+  })
+
+  it("cancels a history edit without changing records or overall progress", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-latest", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    const from = within(detail).getByLabelText(/^from %$/i)
+    await user.clear(from)
+    await user.type(from, "70")
+
+    const midRow = within(detail).getByText("mid band").closest("li")
+    expect(midRow).not.toBeNull()
+    await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Should not persist")
+    await user.click(within(editor).getByRole("button", { name: /cancel/i }))
+
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+    expect(createMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+    expect(store.updates.find((row) => row.id === "u-mid")?.notes).toBe("mid band")
+
+    const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
+    expect(within(detailAfter).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
+    expect(within(detailAfter).getByText("mid band")).toBeInTheDocument()
+    expect(within(detailAfter).queryByText("Should not persist")).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { role: "Municipality" as const, actor: "useMunicipality" },
+    { role: "Barangay" as const, actor: "useBarangay" },
+  ])(
+    "lets $role edit a filtered history entry when the project is at 100%",
+    async ({ role }) => {
+      const user = userEvent.setup()
+      if (role === "Municipality") {
+        useMunicipalityActor()
+      } else {
+        useBarangayActor()
+      }
+      store.projects = [
+        {
+          id: "1",
+          collectionId: "p",
+          collectionName: "projects",
+          created: "",
+          updated: "",
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "For Completion",
+          budget_year: 2026,
+          progress_pct: 100,
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+        },
+      ]
+      store.updates = [
+        historyUpdateAt("u-latest", 100, "done band", "2026-08-12 00:00:00.000Z"),
+        historyUpdateAt("u-mid", 80, "mid band", "2026-06-12 00:00:00.000Z"),
+      ]
+      progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+        const row = store.updates.find((update) => update.id === id)
+        if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+          Object.assign(row, payload)
+        }
+      })
+
+      render(<ProgressModule />)
+      const detail = await openProjectHistoryDialog(user)
+      const from = within(detail).getByLabelText(/^from %$/i)
+      await user.clear(from)
+      await user.type(from, "80")
+
+      const midRow = within(detail).getByText("mid band").closest("li")
+      expect(midRow).not.toBeNull()
+      await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
+
+      const editor = await screen.findByRole("dialog", { name: /update progress/i })
+      const notes = within(editor).getByLabelText(/update notes/i)
+      await user.clear(notes)
+      await user.type(notes, `${role} corrected history`)
+      await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+      await waitFor(() => {
+        expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      })
+      expect(progressUpdateMock).toHaveBeenCalledWith(
+        "u-mid",
+        expect.objectContaining({ notes: `${role} corrected history` }),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+        })
+      )
+      expect(createMock).not.toHaveBeenCalled()
+      expect(projectUpdateMock).not.toHaveBeenCalled()
+      expect(expenseCreateMock).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     { role: "Municipality" as const, pct: 50 },

@@ -6,6 +6,7 @@ import {
   canAccess,
   canRepairProjectProgress,
   filterProjectsForUser,
+  isProjectInUserScope,
 } from "@workspace/pocketbase/domain/access-control"
 import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
@@ -97,6 +98,19 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
+const HISTORY_EDIT_ROLES = new Set(["Super Admin", "Municipality", "Barangay"])
+const SKIP_PROGRESS_SYNC = {
+  headers: { "X-Skip-Progress-Sync": "1" },
+}
+
+function canEditProgressHistoryEntry(
+  actor: ReturnType<typeof getPocketBase>["authStore"]["record"],
+  project: ProjectRecord
+) {
+  if (!actor || !HISTORY_EDIT_ROLES.has(String(actor.role))) return false
+  if (!canAccess(actor, "progress_updates.update")) return false
+  return isProjectInUserScope(actor, project)
+}
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
@@ -148,6 +162,8 @@ function ProgressUpdateHistory({
   onToPctChange,
   projectName,
   userDisplay,
+  onView,
+  onEdit,
 }: {
   updates: readonly ProgressUpdateRecord[]
   fromPct: string
@@ -156,6 +172,8 @@ function ProgressUpdateHistory({
   onToPctChange: (value: string) => void
   projectName: string
   userDisplay: Map<string, string>
+  onView: (update: ProgressUpdateRecord) => void
+  onEdit?: (update: ProgressUpdateRecord) => void
 }) {
   const visibleUpdates = filterProgressUpdatesByToPctRange(updates, {
     from: parseHistoryPctBound(fromPct),
@@ -210,6 +228,26 @@ function ProgressUpdateHistory({
               alt={`${projectName} progress update`}
               className="mt-1 h-24 w-full max-w-xs"
             />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onView(update)}
+              >
+                View
+              </Button>
+              {onEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(update)}
+                >
+                  Edit
+                </Button>
+              ) : null}
+            </div>
           </li>
         ))}
       </ul>
@@ -468,6 +506,13 @@ export function ProgressModule() {
   const [loading, setLoading] = useState(true)
   const [detailOpen, setDetailOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<"update" | "history-edit">(
+    "update"
+  )
+  const [historyEditId, setHistoryEditId] = useState<string | null>(null)
+  const [viewingUpdate, setViewingUpdate] = useState<ProgressUpdateRecord | null>(
+    null
+  )
   const [dialogProjectId, setDialogProjectId] = useState("")
   const [toPct, setToPct] = useState(50)
   const [notes, setNotes] = useState("")
@@ -708,6 +753,8 @@ export function ProgressModule() {
     }
     const { latestUpdate, latestExpense } = revisionContextFor(project)
 
+    setDialogMode("update")
+    setHistoryEditId(null)
     setDialogProjectId(project.id)
     setToPct(
       latestUpdate
@@ -742,6 +789,30 @@ export function ProgressModule() {
     setDetailOpen(true)
   }
 
+  function openHistoryView(update: ProgressUpdateRecord) {
+    setViewingUpdate(update)
+  }
+
+  function openHistoryEdit(project: ProjectRecord, update: ProgressUpdateRecord) {
+    if (!canEditProgressHistoryEntry(actor, project)) {
+      return
+    }
+    setDialogMode("history-edit")
+    setHistoryEditId(update.id)
+    setDialogProjectId(project.id)
+    setToPct(update.to_pct)
+    setNotes(update.notes ?? "")
+    setPhotos([])
+    setCompletionDocs(emptyCompletionDocuments())
+    setExistingSitePhotoNames(namesOnRecord(update.site_photo))
+    setExistingCompletionDocNames(existingCompletionDocNamesFromUpdate(update))
+    setReleasedAmount(emptyReleasedAmountFormValue())
+    setReleasedAmountErrors({})
+    setFieldErrors({})
+    setFormError(null)
+    setDialogOpen(true)
+  }
+
   function setCompletionDocument(
     field: CompletionDocumentField,
     files: File[]
@@ -765,12 +836,15 @@ export function ProgressModule() {
     revision: boolean
     latestUpdate: ProgressUpdateRecord | undefined
     latestExpense: BudgetExpenseRecord | undefined
+    skipReleasedAmount?: boolean
   }) {
     const existingSitePhotoNamesFromRecord = options.latestUpdate
       ? namesOnRecord(options.latestUpdate.site_photo)
       : []
     const existingCompletionDocNamesFromRecord =
       existingCompletionDocNamesFromUpdate(options.latestUpdate)
+    const withReleasedAmount =
+      !options.skipReleasedAmount && includeReleasedAmount
 
     const parseInput = {
       projectId: options.projectId,
@@ -784,7 +858,7 @@ export function ProgressModule() {
             existingCompletionDocNames: existingCompletionDocNamesFromRecord,
           }
         : {}),
-      ...(includeReleasedAmount
+      ...(withReleasedAmount
         ? {
             releasedAmount: toReleasedAmountInput(releasedAmount),
             ...(options.revision && options.latestExpense
@@ -811,7 +885,7 @@ export function ProgressModule() {
 
     return progressUpdateFormSchemaFor({
       revision: options.revision,
-      withReleasedAmount: includeReleasedAmount,
+      withReleasedAmount,
     }).safeParse(parseInput)
   }
 
@@ -822,7 +896,8 @@ export function ProgressModule() {
       notes?: string
       sitePhoto: File[]
     },
-    latestUpdate: ProgressUpdateRecord | undefined
+    latestUpdate: ProgressUpdateRecord | undefined,
+    options?: { skipCompletionDocs?: boolean }
   ) {
     const formData = new FormData()
     formData.append("project", parsed.projectId)
@@ -835,7 +910,7 @@ export function ProgressModule() {
     for (const file of parsed.sitePhoto) {
       formData.append("site_photo", file)
     }
-    if (parsed.toPct >= 100) {
+    if (parsed.toPct >= 100 && !options?.skipCompletionDocs) {
       appendCompletionDocuments(formData)
     }
     return formData
@@ -949,6 +1024,8 @@ export function ProgressModule() {
 
   function resetProgressDialogState() {
     setDialogOpen(false)
+    setDialogMode("update")
+    setHistoryEditId(null)
     setPhotos([])
     setCompletionDocs(emptyCompletionDocuments())
     setExistingSitePhotoNames([])
@@ -968,8 +1045,30 @@ export function ProgressModule() {
       sitePhoto: File[]
       releasedAmount?: ReleasedAmountPayload
     }
+    historyEdit?: boolean
   }) {
     const pb = getPocketBase()
+    if (options.historyEdit) {
+      const historyTarget = historyEditId
+        ? options.projectUpdates.find((row) => row.id === historyEditId)
+        : undefined
+      if (!historyTarget) {
+        throw new Error("Progress history entry was not found.")
+      }
+      const replaceFiles = options.parsed.sitePhoto.length > 0
+      const payload = replaceFiles
+        ? buildProgressUpdateFormData(options.parsed, historyTarget, {
+            skipCompletionDocs: true,
+          })
+        : buildProgressUpdateScalarPayload(options.parsed)
+      await pb
+        .collection("progress_updates")
+        .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
+      resetProgressDialogState()
+      await load()
+      return
+    }
+
     const replaceFiles = hasNewProgressFiles(
       options.parsed.sitePhoto,
       options.parsed.toPct
@@ -1024,7 +1123,8 @@ export function ProgressModule() {
   }
 
   async function saveUpdate() {
-    if (!canCreateProgressUpdates) {
+    const isHistoryEdit = dialogMode === "history-edit"
+    if (!isHistoryEdit && !canCreateProgressUpdates) {
       return
     }
 
@@ -1034,28 +1134,43 @@ export function ProgressModule() {
       setFormError("Project is required.")
       return
     }
-    const { projectUpdates, latestUpdate, latestExpense } =
-      revisionContextFor(project)
-    if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
+    if (isHistoryEdit) {
+      if (!canEditProgressHistoryEntry(actor, project)) {
+        setFormError("This project is read-only for progress history.")
+        return
+      }
+    } else if (!canUpdateProjectProgress(project, canCreateProgressUpdates)) {
       setFormError("This project is read-only for progress updates.")
       return
     }
+    const { projectUpdates, latestUpdate, latestExpense } =
+      revisionContextFor(project)
+    const historyUpdate = isHistoryEdit
+      ? projectUpdates.find((row) => row.id === historyEditId)
+      : undefined
+    if (isHistoryEdit && !historyUpdate) {
+      setFormError("Progress history entry was not found.")
+      return
+    }
 
-    if (requiresReleasedAmount && expensesLoadError) {
+    if (!isHistoryEdit && requiresReleasedAmount && expensesLoadError) {
       setFormError(expensesLoadError)
       return
     }
 
-    if (requiresReleasedAmount && allocationsLoadError) {
+    if (!isHistoryEdit && requiresReleasedAmount && allocationsLoadError) {
       setFormError(allocationsLoadError)
       return
     }
 
     const parsed = validateProgressUpdateInput({
       projectId: dialogProjectId,
-      revision: Boolean(project.status === "For Revision" && latestUpdate),
-      latestUpdate,
-      latestExpense,
+      revision:
+        isHistoryEdit ||
+        Boolean(project.status === "For Revision" && latestUpdate),
+      latestUpdate: isHistoryEdit ? historyUpdate : latestUpdate,
+      latestExpense: isHistoryEdit ? undefined : latestExpense,
+      skipReleasedAmount: isHistoryEdit,
     })
 
     if (!parsed.success) {
@@ -1076,17 +1191,17 @@ export function ProgressModule() {
 
     // Create capability is the intentional UI gate. Immediately before mutate,
     // re-check create vs update to match the PB operation (same role policies).
-    const canMutateThisPath = latestUpdate
-      ? canUpdateProgressUpdates
-      : canCreateProgressUpdates
-    if (
-      !canUpdateProjectProgress(project, canMutateThisPath)
-    ) {
-      setFormError("This project is read-only for progress updates.")
-      return
+    if (!isHistoryEdit) {
+      const canMutateThisPath = latestUpdate
+        ? canUpdateProgressUpdates
+        : canCreateProgressUpdates
+      if (!canUpdateProjectProgress(project, canMutateThisPath)) {
+        setFormError("This project is read-only for progress updates.")
+        return
+      }
     }
 
-    if (includeReleasedAmount) {
+    if (!isHistoryEdit && includeReleasedAmount) {
       const nextReleasedAmount = toReleasedAmountInput(releasedAmount)
       const wouldCreateExpense = !releasedAmountEqualsLatest(
         nextReleasedAmount,
@@ -1115,9 +1230,10 @@ export function ProgressModule() {
       await persistProgressUpdate({
         project,
         projectUpdates,
-        latestUpdate,
-        latestExpense,
+        latestUpdate: isHistoryEdit ? historyUpdate : latestUpdate,
+        latestExpense: isHistoryEdit ? undefined : latestExpense,
         parsed: parsed.data,
+        historyEdit: isHistoryEdit,
       })
     } catch (error) {
       setFormError(persistErrorMessage(error, "Unable to save progress update."))
@@ -1133,9 +1249,10 @@ export function ProgressModule() {
   const dialogProgress = dialogProject
     ? effectiveProgressPct(dialogProject, dialogProjectUpdates)
     : 0
-  const selectedProgress = selected
-    ? effectiveProgressPct(selected, selectedUpdates)
-    : 0
+  const selectedProgress = selected?.progress_pct ?? 0
+  const canEditSelectedHistory = selected
+    ? canEditProgressHistoryEntry(actor, selected)
+    : false
 
   if (loading) {
     return (
@@ -1339,6 +1456,12 @@ export function ProgressModule() {
                 onToPctChange={setHistoryToPct}
                 projectName={selected.name}
                 userDisplay={userDisplay}
+                onView={openHistoryView}
+                onEdit={
+                  canEditSelectedHistory
+                    ? (update) => openHistoryEdit(selected, update)
+                    : undefined
+                }
               />
               {canUpdateProjectProgress(
                 selected,
@@ -1400,6 +1523,12 @@ export function ProgressModule() {
                 onToPctChange={setHistoryToPct}
                 projectName={selected.name}
                 userDisplay={userDisplay}
+                onView={openHistoryView}
+                onEdit={
+                  canEditSelectedHistory
+                    ? (update) => openHistoryEdit(selected, update)
+                    : undefined
+                }
               />
               {canUpdateProjectProgress(
                 selected,
@@ -1424,10 +1553,63 @@ export function ProgressModule() {
       </Dialog>
 
       <Dialog
+        open={Boolean(viewingUpdate)}
+        onOpenChange={(open) => {
+          if (!open) setViewingUpdate(null)
+        }}
+      >
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Progress update</DialogTitle>
+            <DialogDescription>
+              Review this recorded progress history entry.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingUpdate ? (
+            <div className="space-y-2 text-sm">
+              <p>
+                {viewingUpdate.from_pct}% → {viewingUpdate.to_pct}%
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatDisplayDateTime(
+                  viewingUpdate.updated_at ?? viewingUpdate.created
+                )}{" "}
+                ·{" "}
+                {displayUserRef(
+                  viewingUpdate.updated_by,
+                  userDisplay,
+                  "Unknown user"
+                )}
+              </p>
+              {viewingUpdate.notes ? (
+                <p className="text-xs">{viewingUpdate.notes}</p>
+              ) : null}
+              <SitePhoto
+                update={viewingUpdate}
+                alt={`${selected?.name ?? "Project"} progress update`}
+                className="mt-1 h-24 w-full max-w-xs"
+              />
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setViewingUpdate(null)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
           if (!open) {
+            setDialogMode("update")
+            setHistoryEditId(null)
             setPhotos([])
             setCompletionDocs(emptyCompletionDocuments())
             setExistingSitePhotoNames([])
@@ -1500,7 +1682,7 @@ export function ProgressModule() {
                   existingNames={existingSitePhotoNames}
                   error={fieldErrors.sitePhoto}
                 />
-                {toPct >= 100 ? (
+                {toPct >= 100 && dialogMode !== "history-edit" ? (
                   <FieldSet className="space-y-2 border-t pt-3">
                     <FieldDescription className="text-sm font-medium text-foreground">
                       Completion documents
@@ -1528,6 +1710,7 @@ export function ProgressModule() {
                     })}
                   </FieldSet>
                 ) : null}
+                {dialogMode !== "history-edit" ? (
                 <FieldSet className="space-y-2 border-t pt-3">
                   <FieldDescription className="text-sm font-medium text-foreground">
                     Released amount
@@ -1544,6 +1727,7 @@ export function ProgressModule() {
                     loadOptions={dialogOpen}
                   />
                 </FieldSet>
+                ) : null}
               </FieldSet>
             </FieldGroup>
             <DialogFooter>
