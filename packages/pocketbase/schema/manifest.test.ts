@@ -844,10 +844,14 @@ describe("PocketBase sync-project-progress hook", () => {
     expect(hookSource).toContain("app.save")
   })
 
-  it("skips project sync on history-edit when the request header is set", () => {
-    expect(hookEntrypointSource).toContain("requestInfo")
-    expect(hookEntrypointSource).toContain("x-skip-progress-sync")
-    expect(hookEntrypointSource).toContain("X-Skip-Progress-Sync")
+  it("skips project sync on history-edit only for authorized in-scope roles", () => {
+    expect(hookEntrypointSource).toContain("handleProgressUpdateAfterUpdate")
+    expect(hookSource).toContain("x-skip-progress-sync")
+    expect(hookSource).toContain("HISTORY_EDIT_SKIP_ROLES")
+    expect(hookSource).toContain("Super Admin")
+    expect(hookSource).toContain("Municipality")
+    expect(hookSource).toContain("Barangay")
+    expect(hookSource).toContain("shouldSkipProgressSyncOnUpdate")
   })
 
   it("sets For Completion when to_pct ≥ 100 from a gated from-status", () => {

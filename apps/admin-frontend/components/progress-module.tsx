@@ -379,34 +379,27 @@ async function rollbackCreatedProgressUpdate(
 /** Optional Super Admin/Province load heal — ⊥ Mun/Barangay client repair. */
 async function healStuckProjectsAt100(
   pb: ReturnType<typeof getPocketBase>,
-  projects: ProjectRecord[],
-  updates: ProgressUpdateRecord[]
+  projects: ProjectRecord[]
 ): Promise<ProjectRecord[]> {
   const healActor = pb.authStore?.record
   if (!healActor || !canRepairProjectProgress(healActor)) {
     return projects
   }
 
-  const stuck = projects.filter((project) => {
-    const projectUpdates = updates.filter(
-      (update) => update.project === project.id
-    )
-    return isStuckAt100NeedingReadyForReview({
+  const stuck = projects.filter((project) =>
+    isStuckAt100NeedingReadyForReview({
       status: project.status,
-      effectivePct: effectiveProgressPct(project, projectUpdates),
+      effectivePct: project.progress_pct ?? 0,
     })
-  })
+  )
   if (stuck.length === 0) {
     return projects
   }
 
   await Promise.all(
     stuck.map(async (project) => {
-      const projectUpdates = updates.filter(
-        (update) => update.project === project.id
-      )
       const patch = projectProgressPatchFromUpdate(
-        effectiveProgressPct(project, projectUpdates),
+        project.progress_pct ?? 0,
         project.status
       )
       try {
@@ -596,8 +589,7 @@ export function ProgressModule() {
       parsedUpdates.sort(compareByRecencyDesc)
       const parsedProjects = await healStuckProjectsAt100(
         pb,
-        parseRecordList(projectRecordSchema, projectRows),
-        parsedUpdates
+        parseRecordList(projectRecordSchema, projectRows)
       )
 
       setProjects(parsedProjects)
@@ -1090,7 +1082,7 @@ export function ProgressModule() {
       )
       formData.append(
         "from_pct",
-        String(effectiveProgressPct(options.project, options.projectUpdates))
+        String(options.project.progress_pct ?? 0)
       )
       const progressRecord = await pb
         .collection("progress_updates")
@@ -1243,12 +1235,7 @@ export function ProgressModule() {
   }
 
   const dialogProject = projects.find((p) => p.id === dialogProjectId)
-  const dialogProjectUpdates = dialogProject
-    ? updates.filter((update) => update.project === dialogProject.id)
-    : []
-  const dialogProgress = dialogProject
-    ? effectiveProgressPct(dialogProject, dialogProjectUpdates)
-    : 0
+  const dialogProgress = dialogProject?.progress_pct ?? 0
   const selectedProgress = selected?.progress_pct ?? 0
   const canEditSelectedHistory = selected
     ? canEditProgressHistoryEntry(actor, selected)
@@ -1330,10 +1317,7 @@ export function ProgressModule() {
             const projectUpdates = updates.filter(
               (u) => u.project === project.id
             )
-            const displayProgress = effectiveProgressPct(
-              project,
-              projectUpdates
-            )
+            const displayProgress = project.progress_pct ?? 0
             const recent = projectUpdates.slice(0, 3)
             return (
               <li

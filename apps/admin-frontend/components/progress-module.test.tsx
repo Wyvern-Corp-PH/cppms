@@ -972,7 +972,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("uses the latest progress update for the visible project meter", async () => {
+  it("uses stored project progress_pct for the visible project meter", async () => {
     store.projects = [
       {
         id: "1",
@@ -1003,7 +1003,7 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
 
     const row = await screen.findByTestId("progress-row-1")
-    expect(within(row).getByText(/^75%$/)).toBeInTheDocument()
+    expect(within(row).getByText(/^25%$/)).toBeInTheDocument()
   })
 
   it("renders progress updater user ids as user names", async () => {
@@ -1610,6 +1610,43 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it("does not heal from latest history to_pct when stored progress_pct is below 100", async () => {
+    store.projects = [
+      {
+        id: "stuck",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Try",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        id: "u-latest",
+        collectionId: "u",
+        collectionName: "progress_updates",
+        created: "2026-07-12 00:00:00.000Z",
+        project: "stuck",
+        from_pct: 80,
+        to_pct: 100,
+        notes: "history amended to 100",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    const row = await screen.findByTestId("progress-row-stuck")
+    expect(within(row).getByText(/^90%$/)).toBeInTheDocument()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+  })
+
   it("does not heal stuck 100% projects on load for Barangay (V6)", async () => {
     useBarangayActor()
     store.projects = [
@@ -2186,6 +2223,74 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(detailAfter).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
     expect(within(detailAfter).getByText("Corrected latest band")).toBeInTheDocument()
     expect(within(detailAfter).getByText("mid band")).toBeInTheDocument()
+  })
+
+  it("keeps list and dialog overall percent on stored progress after latest-row to_pct edit", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-latest", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const listRow = await screen.findByTestId("progress-row-1")
+    expect(within(listRow).getByText(/^90%$/)).toBeInTheDocument()
+
+    const detail = await openProjectHistoryDialog(user)
+    expect(within(detail).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
+
+    const lateRow = within(detail).getByText("late band").closest("li")
+    expect(lateRow).not.toBeNull()
+    await user.click(within(lateRow!).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    expect(within(editor).getByText(/current 90%/i)).toBeInTheDocument()
+    const slider = within(editor).getByRole("slider")
+    slider.focus()
+    await user.keyboard("{End}")
+    expect(within(editor).getByText(/Progress: 100%/i)).toBeInTheDocument()
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "u-latest",
+      expect.objectContaining({ to_pct: 100 }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+      })
+    )
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(100)
+    expect(store.projects[0]?.progress_pct).toBe(90)
+
+    const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
+    expect(within(detailAfter).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
+    expect(within(screen.getByTestId("progress-row-1")).getByText(/^90%$/)).toBeInTheDocument()
   })
 
   it("cancels a history edit without changing records or overall progress", async () => {

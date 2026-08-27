@@ -71,6 +71,102 @@ function latestProgressUpdate(app, projectId) {
   return pickLatestProgressUpdate(rows)
 }
 
+const HISTORY_EDIT_SKIP_ROLES = ["Super Admin", "Municipality", "Barangay"]
+
+function headerValue(headers, name) {
+  if (!headers) return ""
+  const lower = name.toLowerCase()
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) return headers[key]
+  }
+  return ""
+}
+
+function headerRequestsSkip(headers) {
+  const skip = String(headerValue(headers, "x-skip-progress-sync"))
+  return skip === "1" || skip === "true"
+}
+
+function actorField(auth, field) {
+  if (!auth) return ""
+  if (typeof auth.get === "function") return auth.get(field) || ""
+  return auth[field] || ""
+}
+
+function actorRoleFromAuth(auth) {
+  const collection = auth?.collection
+  const collectionName =
+    typeof collection === "function" ? collection()?.name : collection?.name
+  if (collectionName === "_superusers") return "Super Admin"
+  return actorField(auth, "role")
+}
+
+function sameScopeValue(a, b) {
+  const left = String(a ?? "").trim().toLowerCase()
+  const right = String(b ?? "").trim().toLowerCase()
+  if (!left || !right) return false
+  return left === right
+}
+
+function isActorInProjectScope(auth, project) {
+  const role = actorRoleFromAuth(auth)
+  if (role === "Super Admin") return true
+  if (!project) return false
+  if (role === "Municipality") {
+    return sameScopeValue(actorField(auth, "municipality"), project.municipality)
+  }
+  if (role === "Barangay") {
+    return (
+      sameScopeValue(actorField(auth, "municipality"), project.municipality) &&
+      sameScopeValue(actorField(auth, "barangay"), project.barangay)
+    )
+  }
+  return false
+}
+
+function canSkipProgressSync(auth, project) {
+  return (
+    HISTORY_EDIT_SKIP_ROLES.includes(actorRoleFromAuth(auth)) &&
+    isActorInProjectScope(auth, project)
+  )
+}
+
+function shouldSkipProgressSyncOnUpdate(info, project) {
+  if (!headerRequestsSkip(info?.headers)) return false
+  return canSkipProgressSync(info?.auth, project)
+}
+
+function projectScopeFromApp(app, projectId) {
+  if (!app || !projectId) return null
+  try {
+    const project = app.findRecordById("projects", projectId)
+    if (!project) return null
+    return {
+      municipality: project.get("municipality"),
+      barangay: project.get("barangay"),
+    }
+  } catch {
+    return null
+  }
+}
+
+function handleProgressUpdateAfterUpdate(event, sync) {
+  const info =
+    typeof event.requestInfo === "function"
+      ? event.requestInfo()
+      : event.requestInfo
+  const record = event.record
+  const projectId =
+    record && typeof record.get === "function"
+      ? record.get("project")
+      : record?.project
+  const project = projectScopeFromApp(event.app, projectId)
+  if (shouldSkipProgressSyncOnUpdate(info, project)) {
+    return
+  }
+  sync(event.app, record)
+}
+
 function syncProjectFromProgressUpdate(app, progressRecord) {
   try {
     const projectId = progressRecord.get("project")
@@ -98,4 +194,6 @@ module.exports = {
   latestProgressUpdate,
   pickLatestProgressUpdate,
   syncProjectFromProgressUpdate,
+  handleProgressUpdateAfterUpdate,
+  shouldSkipProgressSyncOnUpdate,
 }
