@@ -127,8 +127,12 @@ function expenseBoundToProgressUpdate(
 
 function isProgressUpdateUniqueConflict(error: unknown) {
   if (!error || typeof error !== "object") return false
-  const payload = error as { data?: { progress_update?: { code?: string } } }
-  return payload.data?.progress_update?.code === "validation_not_unique"
+  const obj = error as {
+    response?: { data?: { progress_update?: { code?: string } } }
+    data?: { data?: { progress_update?: { code?: string } } }
+  }
+  const fields = obj.response?.data ?? obj.data?.data
+  return fields?.progress_update?.code === "validation_not_unique"
 }
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {

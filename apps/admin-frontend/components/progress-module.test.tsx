@@ -4351,9 +4351,11 @@ describe("ProgressModule (V81, V84)", () => {
     store.expenses = []
     expenseCreateMock.mockRejectedValueOnce({
       data: {
-        progress_update: {
-          code: "validation_not_unique",
-          message: "Value must be unique.",
+        data: {
+          progress_update: {
+            code: "validation_not_unique",
+            message: "Value must be unique.",
+          },
         },
       },
       message: "Failed to create record.",
