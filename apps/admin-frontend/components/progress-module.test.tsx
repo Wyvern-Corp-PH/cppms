@@ -27,6 +27,7 @@ const projectUpdateMock = vi.fn()
 const progressUpdateMock = vi.fn()
 const expenseCreateMock = vi.fn()
 const expenseUpdateMock = vi.fn()
+const expenseGetFirstListItemMock = vi.fn()
 const deleteMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
@@ -35,6 +36,12 @@ vi.mock("@/lib/pocketbase", () => ({
       record: store.authRecord,
     },
     collection: (name: string) => ({
+      getFirstListItem: (filter: string) => {
+        if (name === "budget_expenses") {
+          return expenseGetFirstListItemMock(filter)
+        }
+        return Promise.reject(new Error(`Missing getFirstListItem for ${name}`))
+      },
       getFullList: vi.fn(async () => {
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
@@ -223,6 +230,18 @@ describe("ProgressModule (V81, V84)", () => {
     progressUpdateMock.mockReset().mockResolvedValue({})
     expenseCreateMock.mockReset().mockResolvedValue({})
     expenseUpdateMock.mockReset().mockResolvedValue({})
+    expenseGetFirstListItemMock.mockReset().mockImplementation(async (filter: string) => {
+      const progressUpdateId = /progress_update="([^"]+)"/.exec(filter)?.[1]
+      const row = store.expenses.find(
+        (expense) => expense.progress_update === progressUpdateId
+      )
+      if (!row) {
+        throw Object.assign(new Error("The requested resource wasn't found."), {
+          status: 404,
+        })
+      }
+      return row
+    })
     deleteMock.mockReset().mockResolvedValue({})
   })
 
@@ -3065,6 +3084,99 @@ describe("ProgressModule (V81, V84)", () => {
     20_000
   )
 
+  it("should block history-edit CREATE when amount exceeds release cap", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      rangeHistoryUpdate({
+        id: "u-a",
+        fromPct: 0,
+        toPct: 25,
+        notes: "unlinked notes",
+        created: "2026-05-12 00:00:00.000Z",
+        sitePhoto: "site-a.jpg",
+      }),
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "1",
+        amount: 1_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "unlinked notes")
+    await fillRequiredReleasedAmount(user)
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findAllByText(
+        "Released amount cannot exceed the allocated budget."
+      )
+    ).not.toHaveLength(0)
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it("should allow history-edit PATCH when bound amount would exceed create-cap", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "1",
+        amount: 3_600,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+    expenseUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.expenses, id, payload)
+    })
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    const amount = within(editor).getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "2000")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseUpdateMock).toHaveBeenCalledWith(
+        "be-a",
+        expect.objectContaining({ amount: 2000 })
+      )
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText("Released amount cannot exceed the allocated budget.")
+    ).not.toBeInTheDocument()
+  }, 20_000)
+
   it.each([
     { role: "Municipality" as const, pct: 50 },
     { role: "Municipality" as const, pct: 100 },
@@ -4197,6 +4309,95 @@ describe("ProgressModule (V81, V84)", () => {
     expect(progressUpdateMock).not.toHaveBeenCalled()
   })
 
+  it("should patch the bound expense when For Revision amount changes", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({
+        progress_update: "pu-latest",
+      }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const amount = screen.getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "2000")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseUpdateMock).toHaveBeenCalledWith(
+        "be-latest",
+        expect.objectContaining({
+          amount: 2000,
+        })
+      )
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  })
+
+  it("should patch the reloaded expense when CREATE hits a unique progress_update", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+    expenseCreateMock.mockRejectedValueOnce({
+      data: {
+        progress_update: {
+          code: "validation_not_unique",
+          message: "Value must be unique.",
+        },
+      },
+      message: "Failed to create record.",
+    })
+    expenseGetFirstListItemMock.mockResolvedValueOnce({
+      id: "be-raced",
+      collectionId: "budget_expenses",
+      collectionName: "budget_expenses",
+      project: "1",
+      amount: 1500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "GF - Proper",
+      date: "2026-07-20",
+      receipt_number: "OR-1500",
+      description: "Release for progress",
+      progress_update: "pu-latest",
+    })
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+      expect(expenseGetFirstListItemMock).toHaveBeenCalledWith(
+        'progress_update="pu-latest"'
+      )
+      expect(expenseUpdateMock).toHaveBeenCalledWith(
+        "be-raced",
+        expect.objectContaining({
+          amount: 1500,
+        })
+      )
+    })
+    expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
   it("creates expense when For Revision released amount differs from latest (T3/V4)", async () => {
     const user = userEvent.setup()
     useBarangayActor()
@@ -4248,7 +4449,7 @@ describe("ProgressModule (V81, V84)", () => {
       expect(progressUpdateMock).toHaveBeenCalledTimes(1)
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
     })
-  })
+  }, 20_000)
 
   it("should bind Released Amount to the updated progress row when For Revision records an expense", async () => {
     const user = userEvent.setup()
@@ -4275,7 +4476,7 @@ describe("ProgressModule (V81, V84)", () => {
         })
       )
     })
-  })
+  }, 20_000)
 
   it("keeps dialog open and does not delete progress when expense fails after For Revision update (T3/V7)", async () => {
     const user = userEvent.setup()
@@ -4302,7 +4503,7 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
     })
     expect(deleteMock).not.toHaveBeenCalled()
-  })
+  }, 20_000)
 
   it("keeps blank open and create save path for non–For Revision projects (T4/V6)", async () => {
     const user = userEvent.setup()

@@ -1155,5 +1155,11 @@ describe("budget_expenses scoped bound update rule", () => {
     expect(migrationSource).toContain("BUDGET_EXPENSE_CREATE_RULE")
     expect(migrationSource).not.toContain('ROLE_POLICIES')
   })
+
+  it("should require CREATE progress_update empty or same project as the expense", () => {
+    expect(migrationSource).toContain('progress_update = ""')
+    expect(migrationSource).toContain("progress_update.project = project")
+    expect(migrationSource).toContain("BOUND_EXPENSE_CREATE_SAME_PROJECT_RULE")
+  })
 })
 

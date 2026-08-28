@@ -125,6 +125,12 @@ function expenseBoundToProgressUpdate(
   return expenses.find((row) => row.progress_update === progressUpdateId)
 }
 
+function isProgressUpdateUniqueConflict(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const payload = error as { data?: { progress_update?: { code?: string } } }
+  return payload.data?.progress_update?.code === "validation_not_unique"
+}
+
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
   if (!date) return false
@@ -957,29 +963,40 @@ export function ProgressModule() {
   async function syncReleasedAmountExpense(options: {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
-    releasedAmount: ReleasedAmountPayload
+    releasedAmount: ReleasedAmountPayload | undefined
     latestExpense: BudgetExpenseRecord | undefined
     latestUpdate: ProgressUpdateRecord | undefined
     progressRecordId: string | undefined
   }) {
-    const shouldCreateExpense = !releasedAmountEqualsLatest(
-      options.releasedAmount,
-      options.latestExpense
-    )
-    if (!shouldCreateExpense) {
+    const boundExpense = options.progressRecordId
+      ? expenseBoundToProgressUpdate(expenses, options.progressRecordId)
+      : undefined
+    if (boundExpense) {
+      if (
+        !options.releasedAmount ||
+        releasedAmountEqualsLatest(options.releasedAmount, boundExpense)
+      ) {
+        return
+      }
+      await options.pb
+        .collection("budget_expenses")
+        .update(boundExpense.id, options.releasedAmount)
       return
     }
 
-    const projectAllocations = allocations.filter(
-      (row) => row.project === options.projectId
-    )
-    const projectExpenses = expenses.filter(
-      (row) => row.project === options.projectId
-    )
+    if (
+      !options.releasedAmount ||
+      releasedAmountEqualsLatest(options.releasedAmount, options.latestExpense)
+    ) {
+      return
+    }
+
     const releaseCap = validateReleasedAmountCreate({
       newAmount: options.releasedAmount.amount,
-      existingReleasedAmounts: projectExpenses,
-      allocations: projectAllocations,
+      existingReleasedAmounts: expenses.filter(
+        (row) => row.project === options.projectId
+      ),
+      allocations: allocations.filter((row) => row.project === options.projectId),
     })
     if (!releaseCap.ok) {
       if (!options.latestUpdate && options.progressRecordId) {
@@ -998,6 +1015,17 @@ export function ProgressModule() {
         progress_update: options.progressRecordId,
       })
     } catch (error) {
+      if (options.progressRecordId && isProgressUpdateUniqueConflict(error)) {
+        const existing = await options.pb
+          .collection("budget_expenses")
+          .getFirstListItem(
+            `progress_update="${options.progressRecordId}"`
+          )
+        await options.pb
+          .collection("budget_expenses")
+          .update(existing.id, options.releasedAmount)
+        return
+      }
       console.warn("Released amount sync failed after progress save.", {
         projectId: options.projectId,
         progressUpdateId: options.progressRecordId,
@@ -1010,61 +1038,6 @@ export function ProgressModule() {
           options.progressRecordId
         )
       }
-      throw error
-    }
-  }
-
-  async function persistHistoryEditExpense(options: {
-    pb: ReturnType<typeof getPocketBase>
-    projectId: string
-    progressUpdateId: string
-    releasedAmount: ReleasedAmountPayload | undefined
-  }) {
-    const boundExpense = expenseBoundToProgressUpdate(
-      expenses,
-      options.progressUpdateId
-    )
-    if (boundExpense) {
-      if (
-        !options.releasedAmount ||
-        releasedAmountEqualsLatest(options.releasedAmount, boundExpense)
-      ) {
-        return
-      }
-      await options.pb
-        .collection("budget_expenses")
-        .update(boundExpense.id, options.releasedAmount)
-      return
-    }
-    if (!options.releasedAmount || !releasedAmountHasInput(releasedAmount)) {
-      return
-    }
-
-    const releaseCap = validateReleasedAmountCreate({
-      newAmount: options.releasedAmount.amount,
-      existingReleasedAmounts: expenses.filter(
-        (row) => row.project === options.projectId
-      ),
-      allocations: allocations.filter(
-        (row) => row.project === options.projectId
-      ),
-    })
-    if (!releaseCap.ok) {
-      throw new Error(releaseCap.message)
-    }
-
-    try {
-      await options.pb.collection("budget_expenses").create({
-        project: options.projectId,
-        ...options.releasedAmount,
-        progress_update: options.progressUpdateId,
-      })
-    } catch (error) {
-      console.warn("Released amount sync failed after progress save.", {
-        projectId: options.projectId,
-        progressUpdateId: options.progressUpdateId,
-        error,
-      })
       throw error
     }
   }
@@ -1138,11 +1111,13 @@ export function ProgressModule() {
       await pb
         .collection("progress_updates")
         .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
-      await persistHistoryEditExpense({
+      await syncReleasedAmountExpense({
         pb,
         projectId: options.parsed.projectId,
-        progressUpdateId: historyTarget.id,
         releasedAmount: options.parsed.releasedAmount,
+        latestExpense: options.latestExpense,
+        latestUpdate: historyTarget,
+        progressRecordId: historyTarget.id,
       })
       resetProgressDialogState()
       await load()
@@ -1290,10 +1265,12 @@ export function ProgressModule() {
 
     if (!isHistoryEdit && includeReleasedAmount) {
       const nextReleasedAmount = toReleasedAmountInput(releasedAmount)
-      const wouldCreateExpense = !releasedAmountEqualsLatest(
-        nextReleasedAmount,
-        latestExpense
-      )
+      const boundExpenseForLatest = latestUpdate
+        ? expenseBoundToProgressUpdate(expenses, latestUpdate.id)
+        : undefined
+      const wouldCreateExpense =
+        !boundExpenseForLatest &&
+        !releasedAmountEqualsLatest(nextReleasedAmount, latestExpense)
       if (wouldCreateExpense) {
         const releaseCap = validateReleasedAmountCreate({
           newAmount: nextReleasedAmount.amount,
