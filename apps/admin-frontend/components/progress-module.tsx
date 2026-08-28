@@ -99,7 +99,7 @@ import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
-const HISTORY_EDIT_ROLES = new Set(["Super Admin", "Municipality", "Barangay"])
+const HISTORY_EDIT_ROLES = new Set(["Super Admin", "Province", "Municipality", "Barangay"])
 const SKIP_PROGRESS_SYNC = {
   headers: { "X-Skip-Progress-Sync": "1" },
 }

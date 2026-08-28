@@ -71,7 +71,7 @@ function latestProgressUpdate(app, projectId) {
   return pickLatestProgressUpdate(rows)
 }
 
-const HISTORY_EDIT_SKIP_ROLES = ["Super Admin", "Municipality", "Barangay"]
+const HISTORY_EDIT_SKIP_ROLES = ["Super Admin", "Province", "Municipality", "Barangay"]
 
 function headerValue(headers, name) {
   if (!headers) return ""
@@ -110,7 +110,7 @@ function sameScopeValue(a, b) {
 
 function isActorInProjectScope(auth, project) {
   const role = actorRoleFromAuth(auth)
-  if (role === "Super Admin") return true
+  if (role === "Super Admin" || role === "Province") return true
   if (!project) return false
   if (role === "Municipality") {
     return sameScopeValue(actorField(auth, "municipality"), project.municipality)

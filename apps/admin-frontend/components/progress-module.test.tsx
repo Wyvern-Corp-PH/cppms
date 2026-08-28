@@ -929,9 +929,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getAllByRole("button", { name: /^view$/i })).toHaveLength(
       3
     )
-    expect(
-      within(dialog).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument()
+    expect(within(dialog).getAllByRole("button", { name: /^edit$/i })).toHaveLength(
+      3
+    )
 
     await user.clear(dialogFrom)
     await user.type(dialogFrom, "70")
@@ -943,9 +943,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getAllByRole("button", { name: /^view$/i })).toHaveLength(
       2
     )
-    expect(
-      within(dialog).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument()
+    expect(within(dialog).getAllByRole("button", { name: /^edit$/i })).toHaveLength(
+      2
+    )
     expect(
       within(panel).getByText("early band", { hidden: true })
     ).toBeInTheDocument()
@@ -2175,7 +2175,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("lets Provincial Admin view filtered history but not edit it", async () => {
+  it("should save history-edit without advancing progress when Provincial Admin edits a filtered row", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -2197,6 +2197,12 @@ describe("ProgressModule (V81, V84)", () => {
       historyUpdateAt("u-late", 90, "late band", "2026-07-12 00:00:00.000Z"),
       historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
     ]
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
 
     render(<ProgressModule />)
     const detail = await openProjectHistoryDialog(user)
@@ -2207,9 +2213,35 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(detail).getByText("late band")).toBeInTheDocument()
     expect(within(detail).getByText("mid band")).toBeInTheDocument()
     expect(within(detail).getAllByRole("button", { name: /^view$/i }).length).toBeGreaterThan(0)
-    expect(
-      within(detail).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument()
+
+    const midRow = within(detail).getByText("mid band").closest("li")
+    expect(midRow).not.toBeNull()
+    await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Province corrected history")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "u-mid",
+      expect.objectContaining({ notes: "Province corrected history" }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+      })
+    )
+    expect(createMock).not.toHaveBeenCalled()
+    expect(projectUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(store.updates.find((row) => row.id === "u-late")?.notes).toBe(
+      "late band"
+    )
   })
 
   it("saves a filtered history edit without changing overall progress, including at 100%", async () => {
@@ -2885,6 +2917,101 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseCreateMock).not.toHaveBeenCalled()
     expect(expenseUpdateMock).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { role: "Municipality" as const, actor: "useMunicipality" },
+    { role: "Barangay" as const, actor: "useBarangay" },
+  ])(
+    "should skip expense create when $role saves notes only on an unlinked range",
+    async ({ role }) => {
+      const user = userEvent.setup()
+      if (role === "Municipality") {
+        useMunicipalityActor()
+      } else {
+        useBarangayActor()
+      }
+      store.projects = [
+        {
+          id: "1",
+          collectionId: "p",
+          collectionName: "projects",
+          created: "",
+          updated: "",
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "Ongoing",
+          budget_year: 2026,
+          progress_pct: 25,
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+        },
+      ]
+      store.updates = [
+        rangeHistoryUpdate({
+          id: "u-a",
+          fromPct: 0,
+          toPct: 25,
+          notes: "unlinked notes",
+          created: "2026-05-12 00:00:00.000Z",
+          sitePhoto: "site-a.jpg",
+        }),
+      ]
+
+      render(<ProgressModule />)
+      const editor = await openFilteredRangeEdit(user, "unlinked notes")
+      expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
+
+      const notes = within(editor).getByLabelText(/update notes/i)
+      await user.clear(notes)
+      await user.type(notes, `${role} notes only`)
+      await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+      await waitFor(() => {
+        expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+      })
+      expect(expenseCreateMock).not.toHaveBeenCalled()
+      expect(expenseUpdateMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { role: "Municipality" as const },
+    { role: "Barangay" as const },
+  ])(
+    "should patch only the bound expense when $role saves a history-edit amount",
+    async ({ role }) => {
+      const user = userEvent.setup()
+      if (role === "Municipality") {
+        useMunicipalityActor()
+      } else {
+        useBarangayActor()
+      }
+      twoIsolatedRanges()
+      expenseUpdateMock.mockImplementation(async (id, payload) => {
+        applyRowUpdate(store.expenses, id, payload)
+      })
+
+      render(<ProgressModule />)
+      const editor = await openFilteredRangeEdit(user, "band A notes")
+      const amount = within(editor).getByLabelText(/^amount \(php\)$/i)
+      await user.clear(amount)
+      await user.type(amount, "1100")
+      await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+      await waitFor(() => {
+        expect(expenseUpdateMock).toHaveBeenCalledTimes(1)
+      })
+      expect(expenseUpdateMock).toHaveBeenCalledWith(
+        "be-a",
+        expect.objectContaining({ amount: 1100 })
+      )
+      expect(expenseUpdateMock).not.toHaveBeenCalledWith(
+        "be-b",
+        expect.anything()
+      )
+      expect(expenseCreateMock).not.toHaveBeenCalled()
+    }
+  )
 
   it(
     "should create a bound expense when unlinked range submits expense data",

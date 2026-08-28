@@ -208,6 +208,11 @@ const budgetExpenseProgressUpdateMigrationPath = resolve(
   "pb_migrations",
   "1740000036_budget_expense_progress_update.js"
 )
+const budgetExpensesScopedBoundUpdateRuleMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000037_budget_expenses_scoped_bound_update_rule.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -864,6 +869,7 @@ describe("PocketBase sync-project-progress hook", () => {
     expect(hookSource).toContain("x-skip-progress-sync")
     expect(hookSource).toContain("HISTORY_EDIT_SKIP_ROLES")
     expect(hookSource).toContain("Super Admin")
+    expect(hookSource).toContain("Province")
     expect(hookSource).toContain("Municipality")
     expect(hookSource).toContain("Barangay")
     expect(hookSource).toContain("shouldSkipProgressSyncOnUpdate")
@@ -1120,6 +1126,34 @@ describe("budget_expenses progress_update relation", () => {
     )
     expect(migrationSource).toContain("progress_update != ''")
     expect(migrationSource).not.toContain("required: true")
+  })
+})
+
+describe("budget_expenses scoped bound update rule", () => {
+  const migrationSource = readFileSync(
+    budgetExpensesScopedBoundUpdateRuleMigrationPath,
+    "utf8"
+  )
+
+  it("should allow Municipality and Barangay to patch only a bound in-scope expense", () => {
+    expect(migrationSource).toContain("budget_expenses")
+    expect(migrationSource).toContain("updateRule")
+    expect(migrationSource).toContain('role = "Municipality"')
+    expect(migrationSource).toContain('role = "Barangay"')
+    expect(migrationSource).toContain("project.municipality = @request.auth.municipality")
+    expect(migrationSource).toContain("project.barangay = @request.auth.barangay")
+    expect(migrationSource).toContain("progress_update != \"\"")
+    expect(migrationSource).toContain("@request.body.progress_update:isset")
+    expect(migrationSource).toContain("@request.body.project:isset")
+    expect(migrationSource).toContain("@request.body.progress_update = progress_update")
+    expect(migrationSource).toContain("@request.body.project = project")
+  })
+
+  it("should keep Super Admin and Province full expense update and not grant Mun/Barangay create-only policy", () => {
+    expect(migrationSource).toContain("SUPER_ADMIN_OR_PROVINCE_RULE")
+    expect(migrationSource).toContain("expenses.deleteRule = SUPER_ADMIN_OR_PROVINCE_RULE")
+    expect(migrationSource).toContain("BUDGET_EXPENSE_CREATE_RULE")
+    expect(migrationSource).not.toContain('ROLE_POLICIES')
   })
 })
 

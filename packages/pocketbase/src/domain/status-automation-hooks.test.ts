@@ -136,10 +136,21 @@ describe("sync-project-progress skip header", () => {
     expect(calls).toHaveLength(0)
   })
 
-  it("still syncs when Province sends the skip header", () => {
+  it("does not call sync when Province sends the skip header", () => {
     const calls: unknown[] = []
     progressHook.handleProgressUpdateAfterUpdate(
       eventFor({ role: "Province" }, { "X-Skip-Progress-Sync": "1" }),
+      (app, record) => {
+        calls.push([app, record])
+      }
+    )
+    expect(calls).toHaveLength(0)
+  })
+
+  it("still syncs when Province omits the skip header", () => {
+    const calls: unknown[] = []
+    progressHook.handleProgressUpdateAfterUpdate(
+      eventFor({ role: "Province" }, {}),
       (app, record) => {
         calls.push([app, record])
       }

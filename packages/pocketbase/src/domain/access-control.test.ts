@@ -249,6 +249,51 @@ describe("access control (V115-V121)", () => {
     ).toBe(false)
   })
 
+  it("should deny general budget_expenses.update when actor is Municipality or Barangay", () => {
+    expect(getRolePolicy("Municipality")).not.toContain("budget_expenses.update")
+    expect(getRolePolicy("Barangay")).not.toContain("budget_expenses.update")
+    expect(
+      canAccess(
+        {
+          id: "m1",
+          role: "Municipality",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+        },
+        "budget_expenses.update"
+      )
+    ).toBe(false)
+    expect(
+      canAccess(
+        {
+          id: "b1",
+          role: "Barangay",
+          account_status: "Active",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01",
+        },
+        "budget_expenses.update"
+      )
+    ).toBe(false)
+  })
+
+  it("should allow budget_expenses.update when actor is Super Admin or Province", () => {
+    expect(getRolePolicy("Super Admin")).toContain("budget_expenses.update")
+    expect(getRolePolicy("Province")).toContain("budget_expenses.update")
+    expect(
+      canAccess(
+        { id: "s1", role: "Super Admin", account_status: "Active" },
+        "budget_expenses.update"
+      )
+    ).toBe(true)
+    expect(
+      canAccess(
+        { id: "p1", role: "Province", account_status: "Active" },
+        "budget_expenses.update"
+      )
+    ).toBe(true)
+  })
+
   it("grants PPDO encode-only project create and update", () => {
     const policy = getRolePolicy("PPDO")
 
