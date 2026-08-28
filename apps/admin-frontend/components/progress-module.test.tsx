@@ -26,6 +26,7 @@ const createMock = vi.fn()
 const projectUpdateMock = vi.fn()
 const progressUpdateMock = vi.fn()
 const expenseCreateMock = vi.fn()
+const expenseUpdateMock = vi.fn()
 const deleteMock = vi.fn()
 
 vi.mock("@/lib/pocketbase", () => ({
@@ -69,6 +70,11 @@ vi.mock("@/lib/pocketbase", () => ({
           return options === undefined
             ? progressUpdateMock(id, payload)
             : progressUpdateMock(id, payload, options)
+        }
+        if (name === "budget_expenses") {
+          return options === undefined
+            ? expenseUpdateMock(id, payload)
+            : expenseUpdateMock(id, payload, options)
         }
         return options === undefined
           ? projectUpdateMock(id, payload)
@@ -216,6 +222,7 @@ describe("ProgressModule (V81, V84)", () => {
     projectUpdateMock.mockReset().mockResolvedValue({})
     progressUpdateMock.mockReset().mockResolvedValue({})
     expenseCreateMock.mockReset().mockResolvedValue({})
+    expenseUpdateMock.mockReset().mockResolvedValue({})
     deleteMock.mockReset().mockResolvedValue({})
   })
 
@@ -1990,6 +1997,131 @@ describe("ProgressModule (V81, V84)", () => {
     return screen.findByRole("dialog", { name: /project detail/i })
   }
 
+  function rangeHistoryUpdate(options: {
+    id: string
+    fromPct: number
+    toPct: number
+    notes: string
+    created: string
+    sitePhoto: string
+  }) {
+    return {
+      ...historyUpdateAt(options.id, options.toPct, options.notes, options.created),
+      from_pct: options.fromPct,
+      site_photo: [options.sitePhoto],
+    }
+  }
+
+  function rangeBoundExpense(options: {
+    id: string
+    progressUpdate: string
+    amount: number
+    receipt: string
+    date: string
+    description: string
+    subAccount: string
+    created: string
+  }) {
+    return {
+      id: options.id,
+      collectionId: "budget_expenses",
+      collectionName: "budget_expenses",
+      created: options.created,
+      updated: "",
+      project: "1",
+      amount: options.amount,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: options.subAccount,
+      date: options.date,
+      receipt_number: options.receipt,
+      description: options.description,
+      progress_update: options.progressUpdate,
+    }
+  }
+
+  function twoIsolatedRanges() {
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 50,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      rangeHistoryUpdate({
+        id: "u-b",
+        fromPct: 25,
+        toPct: 50,
+        notes: "band B notes",
+        created: "2026-06-12 00:00:00.000Z",
+        sitePhoto: "site-b.jpg",
+      }),
+      rangeHistoryUpdate({
+        id: "u-a",
+        fromPct: 0,
+        toPct: 25,
+        notes: "band A notes",
+        created: "2026-05-12 00:00:00.000Z",
+        sitePhoto: "site-a.jpg",
+      }),
+    ]
+    store.expenses = [
+      rangeBoundExpense({
+        id: "be-b",
+        progressUpdate: "u-b",
+        amount: 2500,
+        receipt: "OR-B",
+        date: "2026-06-12",
+        description: "Band B release",
+        subAccount: "20% DF",
+        created: "2026-06-12 00:00:00.000Z",
+      }),
+      rangeBoundExpense({
+        id: "be-a",
+        progressUpdate: "u-a",
+        amount: 1000,
+        receipt: "OR-A",
+        date: "2026-05-12",
+        description: "Band A release",
+        subAccount: "GF - Proper",
+        created: "2026-05-12 00:00:00.000Z",
+      }),
+    ]
+    store.subAccounts = [
+      ...store.subAccounts,
+      {
+        id: "sa2",
+        collectionId: "budget_fund_sub_accounts",
+        collectionName: "budget_fund_sub_accounts",
+        name: "20% DF",
+        main_account: "General Fund",
+        active: true,
+        sort_order: 2,
+      },
+    ]
+  }
+
+  function applyRowUpdate(
+    rows: Array<Record<string, unknown>>,
+    id: string,
+    payload: unknown
+  ) {
+    const row = rows.find((item) => item.id === id)
+    if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+      Object.assign(row, payload)
+    }
+  }
+
   it("keeps View and Edit on filtered history rows for Super Admin", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
@@ -2127,7 +2259,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(midRow).not.toBeNull()
     await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
 
-    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
     const notes = within(editor).getByLabelText(/update notes/i)
     await user.clear(notes)
     await user.type(notes, "Corrected mid band")
@@ -2198,7 +2332,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(lateRow).not.toBeNull()
     await user.click(within(lateRow!).getByRole("button", { name: /^edit$/i }))
 
-    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
     const notes = within(editor).getByLabelText(/update notes/i)
     await user.clear(notes)
     await user.type(notes, "Corrected latest band")
@@ -2225,7 +2361,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(detailAfter).getByText("mid band")).toBeInTheDocument()
   })
 
-  it("keeps list and dialog overall percent on stored progress after latest-row to_pct edit", async () => {
+  it("should show saved from to as read-only and omit percents when history-edit saves", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     store.projects = [
@@ -2266,26 +2402,32 @@ describe("ProgressModule (V81, V84)", () => {
     expect(lateRow).not.toBeNull()
     await user.click(within(lateRow!).getByRole("button", { name: /^edit$/i }))
 
-    const editor = await screen.findByRole("dialog", { name: /update progress/i })
-    expect(within(editor).getByText(/current 90%/i)).toBeInTheDocument()
-    const slider = within(editor).getByRole("slider")
-    slider.focus()
-    await user.keyboard("{End}")
-    expect(within(editor).getByText(/Progress: 100%/i)).toBeInTheDocument()
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
+    expect(within(editor).getByLabelText(/saved progress range/i)).toHaveTextContent(
+      "0% → 90%"
+    )
+    expect(within(editor).queryByRole("slider")).not.toBeInTheDocument()
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
       expect(progressUpdateMock).toHaveBeenCalledTimes(1)
     })
-    expect(progressUpdateMock).toHaveBeenCalledWith(
-      "u-latest",
-      expect.objectContaining({ to_pct: 100 }),
+    const [, payload, options] = progressUpdateMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+      unknown,
+    ]
+    expect(payload).not.toHaveProperty("to_pct")
+    expect(payload).not.toHaveProperty("from_pct")
+    expect(options).toEqual(
       expect.objectContaining({
         headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
       })
     )
     expect(projectUpdateMock).not.toHaveBeenCalled()
-    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(100)
+    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(90)
     expect(store.projects[0]?.progress_pct).toBe(90)
 
     const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
@@ -2327,7 +2469,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(midRow).not.toBeNull()
     await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
 
-    const editor = await screen.findByRole("dialog", { name: /update progress/i })
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
     const notes = within(editor).getByLabelText(/update notes/i)
     await user.clear(notes)
     await user.type(notes, "Should not persist")
@@ -2393,7 +2537,9 @@ describe("ProgressModule (V81, V84)", () => {
       expect(midRow).not.toBeNull()
       await user.click(within(midRow!).getByRole("button", { name: /^edit$/i }))
 
-      const editor = await screen.findByRole("dialog", { name: /update progress/i })
+      const editor = await screen.findByRole("dialog", {
+        name: /edit progress range/i,
+      })
       const notes = within(editor).getByLabelText(/update notes/i)
       await user.clear(notes)
       await user.type(notes, `${role} corrected history`)
@@ -2413,6 +2559,383 @@ describe("ProgressModule (V81, V84)", () => {
       expect(projectUpdateMock).not.toHaveBeenCalled()
       expect(expenseCreateMock).not.toHaveBeenCalled()
     }
+  )
+
+  async function openFilteredRangeEdit(
+    user: ReturnType<typeof userEvent.setup>,
+    notes: string
+  ) {
+    const detail = await openProjectHistoryDialog(user)
+    const from = within(detail).getByLabelText(/^from %$/i)
+    const to = within(detail).getByLabelText(/^to %$/i)
+    await user.clear(from)
+    await user.type(from, "0")
+    await user.clear(to)
+    await user.type(to, "50")
+    const row = within(detail).getByText(notes).closest("li")
+    expect(row).not.toBeNull()
+    await user.click(within(row!).getByRole("button", { name: /^edit$/i }))
+    return screen.findByRole("dialog", { name: /edit progress range/i })
+  }
+
+  it("should prefill only the selected range when history-edit opens", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+
+    expect(within(editor).getByLabelText(/update notes/i)).toHaveValue(
+      "band A notes"
+    )
+    expect(within(editor).getByText("On record: site-a.jpg")).toBeInTheDocument()
+    expect(
+      within(editor).queryByText("On record: site-b.jpg")
+    ).not.toBeInTheDocument()
+    expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1000)
+    expect(within(editor).getByLabelText(/^receipt number$/i)).toHaveValue("OR-A")
+    expect(within(editor).getByLabelText(/^sub account$/i)).toHaveTextContent(
+      "GF - Proper"
+    )
+    expect(within(editor).getByLabelText(/^expense date$/i)).toHaveValue(
+      "2026-05-12"
+    )
+    expect(within(editor).getByLabelText(/^description$/i)).toHaveValue(
+      "Band A release"
+    )
+    expect(within(editor).queryByText("band B notes")).not.toBeInTheDocument()
+    expect(within(editor).queryByDisplayValue("OR-B")).not.toBeInTheDocument()
+  })
+
+  it("should leave sibling range notes photo and expense unchanged when one range is saved", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    progressUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.updates, id, payload)
+    })
+    expenseUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.expenses, id, payload)
+    })
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected band A")
+    const amount = within(editor).getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "1100")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "u-a",
+      expect.objectContaining({ notes: "Corrected band A" }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
+      })
+    )
+    expect(expenseUpdateMock).toHaveBeenCalledWith(
+      "be-a",
+      expect.objectContaining({ amount: 1100 })
+    )
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(expenseUpdateMock).not.toHaveBeenCalledWith(
+      "be-b",
+      expect.anything()
+    )
+
+    const siblingUpdate = store.updates.find((row) => row.id === "u-b")
+    const siblingExpense = store.expenses.find((row) => row.id === "be-b")
+    expect(siblingUpdate?.notes).toBe("band B notes")
+    expect(siblingUpdate?.site_photo).toEqual(["site-b.jpg"])
+    expect(siblingExpense?.amount).toBe(2500)
+    expect(siblingExpense?.receipt_number).toBe("OR-B")
+    expect(siblingExpense?.sub_account).toBe("20% DF")
+    expect(siblingExpense?.date).toBe("2026-06-12")
+    expect(siblingExpense?.description).toBe("Band B release")
+    expect(siblingExpense?.progress_update).toBe("u-b")
+  })
+
+  it("should keep the other six stored values when only receipt number is changed", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    progressUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.updates, id, payload)
+    })
+    expenseUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.expenses, id, payload)
+    })
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    const receipt = within(editor).getByLabelText(/^receipt number$/i)
+    await user.clear(receipt)
+    await user.type(receipt, "OR-A-FIXED")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(expenseUpdateMock).toHaveBeenCalledWith(
+      "be-a",
+      expect.objectContaining({
+        receipt_number: "OR-A-FIXED",
+        amount: 1000,
+        description: "Band A release",
+        date: "2026-05-12",
+        sub_account: "GF - Proper",
+      })
+    )
+    const editedUpdate = store.updates.find((row) => row.id === "u-a")
+    expect(editedUpdate?.notes).toBe("band A notes")
+    expect(editedUpdate?.site_photo).toEqual(["site-a.jpg"])
+  })
+
+  it("should persist the opened history row when From To filter matches more than one row", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    progressUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.updates, id, payload)
+    })
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band B notes")
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected band B")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock.mock.calls[0]?.[0]).toBe("u-b")
+    expect(store.updates.find((row) => row.id === "u-a")?.notes).toBe(
+      "band A notes"
+    )
+  })
+
+  it("should show all seven range fields when history-edit opens", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+
+    expect(within(editor).getByLabelText(/update notes/i)).toBeInTheDocument()
+    expect(within(editor).getByText(/site photo/i)).toBeInTheDocument()
+    expect(within(editor).getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toBeInTheDocument()
+    expect(within(editor).getByLabelText(/^receipt number$/i)).toBeInTheDocument()
+    expect(within(editor).getByText("Fund Source")).toBeInTheDocument()
+    expect(within(editor).getByLabelText(/^expense date$/i)).toBeInTheDocument()
+    expect(within(editor).getByLabelText(/^description$/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole("dialog", { name: /^update progress$/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("should hide Edit when project is Completed or Rejected", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "done",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Done Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+      {
+        id: "rejected",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Rejected Bridge",
+        category: "Infrastructure",
+        status: "Rejected",
+        budget_year: 2026,
+        progress_pct: 40,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        ...historyUpdateAt("u-done", 100, "done band", "2026-08-12 00:00:00.000Z"),
+        project: "done",
+      },
+      {
+        ...historyUpdateAt(
+          "u-rejected",
+          40,
+          "rejected band",
+          "2026-08-12 00:00:00.000Z"
+        ),
+        project: "rejected",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-done")).getByRole(
+        "button",
+        { name: /view details/i }
+      )
+    )
+    const doneDetail = await screen.findByRole("dialog", {
+      name: /project detail/i,
+    })
+    expect(
+      within(doneDetail).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
+    await user.keyboard("{Escape}")
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-rejected")).getByRole(
+        "button",
+        { name: /view details/i }
+      )
+    )
+    const rejectedDetail = await screen.findByRole("dialog", {
+      name: /project detail/i,
+    })
+    expect(
+      within(rejectedDetail).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it("should leave expense fields empty and skip create when unlinked range saves notes only", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      rangeHistoryUpdate({
+        id: "u-a",
+        fromPct: 0,
+        toPct: 25,
+        notes: "unlinked notes",
+        created: "2026-05-12 00:00:00.000Z",
+        sitePhoto: "site-a.jpg",
+      }),
+    ]
+    store.expenses = [
+      rangeBoundExpense({
+        id: "be-legacy",
+        progressUpdate: "",
+        amount: 9999,
+        receipt: "OR-LEGACY",
+        date: "2026-01-01",
+        description: "Legacy unbound",
+        subAccount: "GF - Proper",
+        created: "2026-01-01 00:00:00.000Z",
+      }),
+    ]
+    progressUpdateMock.mockImplementation(async (id, payload) => {
+      applyRowUpdate(store.updates, id, payload)
+    })
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "unlinked notes")
+    expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
+    expect(within(editor).getByLabelText(/^receipt number$/i)).toHaveValue("")
+    expect(
+      within(editor).queryByDisplayValue("OR-LEGACY")
+    ).not.toBeInTheDocument()
+
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Notes only")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it(
+    "should create a bound expense when unlinked range submits expense data",
+    async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      rangeHistoryUpdate({
+        id: "u-a",
+        fromPct: 0,
+        toPct: 25,
+        notes: "unlinked notes",
+        created: "2026-05-12 00:00:00.000Z",
+        sitePhoto: "site-a.jpg",
+      }),
+    ]
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "unlinked notes")
+    await fillRequiredReleasedAmount(user)
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          progress_update: "u-a",
+          amount: 1500,
+          receipt_number: "OR-1500",
+        })
+      )
+    })
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    },
+    20_000
   )
 
   it.each([

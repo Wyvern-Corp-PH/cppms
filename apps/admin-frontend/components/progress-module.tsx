@@ -23,6 +23,7 @@ import {
 import {
   buildProgressSummaryCards,
   canShowUpdateProgress,
+  EDITABLE_PROGRESS_STATUSES,
   effectiveProgressPct,
   filterProgressUpdatesByToPctRange,
   isStuckAt100NeedingReadyForReview,
@@ -109,7 +110,19 @@ function canEditProgressHistoryEntry(
 ) {
   if (!actor || !HISTORY_EDIT_ROLES.has(String(actor.role))) return false
   if (!canAccess(actor, "progress_updates.update")) return false
+  if (
+    !(EDITABLE_PROGRESS_STATUSES as readonly string[]).includes(project.status)
+  ) {
+    return false
+  }
   return isProjectInUserScope(actor, project)
+}
+
+function expenseBoundToProgressUpdate(
+  expenses: readonly BudgetExpenseRecord[],
+  progressUpdateId: string
+) {
+  return expenses.find((row) => row.progress_update === progressUpdateId)
 }
 
 function recordInDateRange(date: string | undefined, from: string, to: string) {
@@ -798,7 +811,12 @@ export function ProgressModule() {
     setCompletionDocs(emptyCompletionDocuments())
     setExistingSitePhotoNames(namesOnRecord(update.site_photo))
     setExistingCompletionDocNames(existingCompletionDocNamesFromUpdate(update))
-    setReleasedAmount(emptyReleasedAmountFormValue())
+    const boundExpense = expenseBoundToProgressUpdate(expenses, update.id)
+    setReleasedAmount(
+      boundExpense
+        ? releasedAmountFormFromExpense(boundExpense)
+        : emptyReleasedAmountFormValue()
+    )
     setReleasedAmountErrors({})
     setFieldErrors({})
     setFormError(null)
@@ -889,11 +907,13 @@ export function ProgressModule() {
       sitePhoto: File[]
     },
     latestUpdate: ProgressUpdateRecord | undefined,
-    options?: { skipCompletionDocs?: boolean }
+    options?: { skipCompletionDocs?: boolean; omitPercents?: boolean }
   ) {
     const formData = new FormData()
     formData.append("project", parsed.projectId)
-    formData.append("to_pct", String(parsed.toPct))
+    if (!options?.omitPercents) {
+      formData.append("to_pct", String(parsed.toPct))
+    }
     if (latestUpdate) {
       formData.append("notes", parsed.notes ?? "")
     } else if (parsed.notes) {
@@ -908,14 +928,17 @@ export function ProgressModule() {
     return formData
   }
 
-  function buildProgressUpdateScalarPayload(parsed: {
-    projectId: string
-    toPct: number
-    notes?: string
-  }) {
+  function buildProgressUpdateScalarPayload(
+    parsed: {
+      projectId: string
+      toPct: number
+      notes?: string
+    },
+    options?: { omitPercents?: boolean }
+  ) {
     return {
       project: parsed.projectId,
-      to_pct: parsed.toPct,
+      ...(options?.omitPercents ? {} : { to_pct: parsed.toPct }),
       notes: parsed.notes ?? "",
     }
   }
@@ -991,6 +1014,61 @@ export function ProgressModule() {
     }
   }
 
+  async function persistHistoryEditExpense(options: {
+    pb: ReturnType<typeof getPocketBase>
+    projectId: string
+    progressUpdateId: string
+    releasedAmount: ReleasedAmountPayload | undefined
+  }) {
+    const boundExpense = expenseBoundToProgressUpdate(
+      expenses,
+      options.progressUpdateId
+    )
+    if (boundExpense) {
+      if (
+        !options.releasedAmount ||
+        releasedAmountEqualsLatest(options.releasedAmount, boundExpense)
+      ) {
+        return
+      }
+      await options.pb
+        .collection("budget_expenses")
+        .update(boundExpense.id, options.releasedAmount)
+      return
+    }
+    if (!options.releasedAmount || !releasedAmountHasInput(releasedAmount)) {
+      return
+    }
+
+    const releaseCap = validateReleasedAmountCreate({
+      newAmount: options.releasedAmount.amount,
+      existingReleasedAmounts: expenses.filter(
+        (row) => row.project === options.projectId
+      ),
+      allocations: allocations.filter(
+        (row) => row.project === options.projectId
+      ),
+    })
+    if (!releaseCap.ok) {
+      throw new Error(releaseCap.message)
+    }
+
+    try {
+      await options.pb.collection("budget_expenses").create({
+        project: options.projectId,
+        ...options.releasedAmount,
+        progress_update: options.progressUpdateId,
+      })
+    } catch (error) {
+      console.warn("Released amount sync failed after progress save.", {
+        projectId: options.projectId,
+        progressUpdateId: options.progressUpdateId,
+        error,
+      })
+      throw error
+    }
+  }
+
   async function patchProjectAfterProgressSave(options: {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
@@ -1052,11 +1130,20 @@ export function ProgressModule() {
       const payload = replaceFiles
         ? buildProgressUpdateFormData(options.parsed, historyTarget, {
             skipCompletionDocs: true,
+            omitPercents: true,
           })
-        : buildProgressUpdateScalarPayload(options.parsed)
+        : buildProgressUpdateScalarPayload(options.parsed, {
+            omitPercents: true,
+          })
       await pb
         .collection("progress_updates")
         .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
+      await persistHistoryEditExpense({
+        pb,
+        projectId: options.parsed.projectId,
+        progressUpdateId: historyTarget.id,
+        releasedAmount: options.parsed.releasedAmount,
+      })
       resetProgressDialogState()
       await load()
       return
@@ -1145,6 +1232,13 @@ export function ProgressModule() {
       setFormError("Progress history entry was not found.")
       return
     }
+    const boundExpense = historyUpdate
+      ? expenseBoundToProgressUpdate(expenses, historyUpdate.id)
+      : undefined
+    const skipReleasedAmount =
+      isHistoryEdit &&
+      !boundExpense &&
+      !releasedAmountHasInput(releasedAmount)
 
     if (!isHistoryEdit && requiresReleasedAmount && expensesLoadError) {
       setFormError(expensesLoadError)
@@ -1162,8 +1256,8 @@ export function ProgressModule() {
         isHistoryEdit ||
         Boolean(project.status === "For Revision" && latestUpdate),
       latestUpdate: isHistoryEdit ? historyUpdate : latestUpdate,
-      latestExpense: isHistoryEdit ? undefined : latestExpense,
-      skipReleasedAmount: isHistoryEdit,
+      latestExpense: isHistoryEdit ? boundExpense : latestExpense,
+      skipReleasedAmount,
     })
 
     if (!parsed.success) {
@@ -1224,7 +1318,7 @@ export function ProgressModule() {
         project,
         projectUpdates,
         latestUpdate: isHistoryEdit ? historyUpdate : latestUpdate,
-        latestExpense: isHistoryEdit ? undefined : latestExpense,
+        latestExpense: isHistoryEdit ? boundExpense : latestExpense,
         parsed: parsed.data,
         historyEdit: isHistoryEdit,
       })
@@ -1615,10 +1709,15 @@ export function ProgressModule() {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Update progress</DialogTitle>
+              <DialogTitle>
+                {dialogMode === "history-edit"
+                  ? "Edit progress range"
+                  : "Update progress"}
+              </DialogTitle>
               <DialogDescription>
-                Add a site update, progress percentage, and required completion
-                documents.
+                {dialogMode === "history-edit"
+                  ? "Correct this submitted range without changing overall progress."
+                  : "Add a site update, progress percentage, and required completion documents."}
               </DialogDescription>
             </DialogHeader>
             <FieldGroup>
@@ -1629,6 +1728,21 @@ export function ProgressModule() {
                 {dialogProject?.name} — current {dialogProgress}%
               </p>
               <FieldSet>
+                {dialogMode === "history-edit" ? (
+                  <Field>
+                    <FieldLabel htmlFor="saved-progress-range">
+                      Saved progress range
+                    </FieldLabel>
+                    <p
+                      id="saved-progress-range"
+                      aria-label="Saved progress range"
+                    >
+                      {updates.find((row) => row.id === historyEditId)
+                        ?.from_pct ?? 0}
+                      % → {toPct}%
+                    </p>
+                  </Field>
+                ) : (
                 <Field data-invalid={Boolean(fieldErrors.toPct)}>
                   <FieldLabel>Progress: {toPct}%</FieldLabel>
                   <Slider
@@ -1645,6 +1759,7 @@ export function ProgressModule() {
                   </div>
                   <FieldError>{fieldErrors.toPct}</FieldError>
                 </Field>
+                )}
                 <Field data-invalid={Boolean(fieldErrors.notes)}>
                   <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
                   <Textarea
@@ -1695,7 +1810,6 @@ export function ProgressModule() {
                     })}
                   </FieldSet>
                 ) : null}
-                {dialogMode !== "history-edit" ? (
                 <FieldSet className="space-y-2 border-t pt-3">
                   <FieldDescription className="text-sm font-medium text-foreground">
                     Released amount
@@ -1712,7 +1826,6 @@ export function ProgressModule() {
                     loadOptions={dialogOpen}
                   />
                 </FieldSet>
-                ) : null}
               </FieldSet>
             </FieldGroup>
             <DialogFooter>
