@@ -67,6 +67,27 @@ describe("DocumentUploadField", () => {
     ).toHaveAttribute("href", "http://files.test/api/files/p/p1/signed-moa.pdf")
   })
 
+  it("should keep on-record names as download links when the field is disabled", () => {
+    render(
+      <DocumentUploadField
+        id="project-photos"
+        label="Project photos"
+        files={[]}
+        existingNames={["site.jpg"]}
+        existingFileHref={(name) => `http://files.test/api/files/p/p1/${name}`}
+        onChange={vi.fn()}
+        disabled
+      />
+    )
+
+    expect(
+      screen.getByRole("link", { name: /on record: site\.jpg/i })
+    ).toHaveAttribute("href", "http://files.test/api/files/p/p1/site.jpg")
+    expect(
+      screen.getByTestId("document-upload-input-project-photos")
+    ).toBeDisabled()
+  })
+
   it("should keep on-record names as text when the file URL cannot be built", () => {
     render(
       <DocumentUploadField

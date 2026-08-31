@@ -1630,6 +1630,11 @@ export function ProjectsModule() {
                       helperText="JPG, PNG, WEBP"
                       files={projectPhotoFiles}
                       existingNames={retainedPhotoNames}
+                      existingFileHref={
+                        editing
+                          ? (name) => recordFileUrl(editing, name)
+                          : undefined
+                      }
                       onExistingNamesChange={setRetainedPhotoNames}
                       onChange={setProjectPhotoFiles}
                       disabled={fieldLocked("project_photos")}

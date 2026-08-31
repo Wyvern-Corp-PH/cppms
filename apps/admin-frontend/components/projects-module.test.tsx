@@ -1961,6 +1961,76 @@ describe("ProjectsModule (J4)", () => {
   )
 
   it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should list existing Project photos as download links when Edit Project opens for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-photo-list`,
+        role,
+        account_status: "Active",
+      }
+      store.projects = [
+        catalogProject({
+          project_photos: ["site.jpg", "front.webp"],
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(
+        screen.getByRole("link", { name: /on record: site\.jpg/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/site.jpg")
+      expect(
+        screen.getByRole("link", { name: /on record: front\.webp/i })
+      ).toHaveAttribute(
+        "href",
+        "http://localhost:8090/api/files/p/p1/front.webp"
+      )
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should list existing Project photos as download links when Edit Project opens for %s",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-photo-list`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        ...(role === "Barangay"
+          ? { barangay: "Centro 01 (Bagumbayan)" }
+          : {}),
+      }
+      store.projects = [
+        catalogProject({
+          project_photos: ["site.jpg"],
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        }),
+      ]
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(
+        screen.getByRole("link", { name: /on record: site\.jpg/i })
+      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/site.jpg")
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).not.toBeDisabled()
+    }
+  )
+
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
     "should keep existing MOA filenames on save for %s when none are removed",
     async (role) => {
       const user = userEvent.setup()
@@ -2430,6 +2500,39 @@ describe("ProjectsModule (J4)", () => {
       expect(
         screen.getByTestId("document-upload-input-project-photos")
       ).not.toBeDisabled()
+    }
+  )
+
+  it.each(["Super Admin", "Province", "PPDO"] as const)(
+    "should accept image types on Project photos and document types on other slots when %s opens New Project",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-photo-mime`,
+        role,
+        account_status: "Active",
+      }
+
+      render(<ProjectsModule />)
+
+      await user.click(await screen.findByTestId("create-project"))
+
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).toHaveAttribute("accept", "image/jpeg,image/png,image/webp")
+      expect(screen.getAllByText("JPG, PNG, WEBP").length).toBeGreaterThan(0)
+      expect(
+        screen.getByTestId("document-upload-input-moa-file")
+      ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
+      expect(
+        screen.getByTestId("document-upload-input-resolution-file")
+      ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
+      expect(
+        screen.getByTestId("document-upload-input-supporting-file")
+      ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
+      expect(screen.getAllByText("PDF, DOC, XLS, JPG, PNG").length).toBeGreaterThan(
+        0
+      )
     }
   )
 
