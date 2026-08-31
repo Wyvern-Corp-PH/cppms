@@ -917,7 +917,7 @@ export function ProgressModule() {
       sitePhoto: File[]
     },
     latestUpdate: ProgressUpdateRecord | undefined,
-    options?: { skipCompletionDocs?: boolean; omitPercents?: boolean }
+    options?: { omitPercents?: boolean }
   ) {
     const formData = new FormData()
     formData.append("project", parsed.projectId)
@@ -932,7 +932,7 @@ export function ProgressModule() {
     for (const file of parsed.sitePhoto) {
       formData.append("site_photo", file)
     }
-    if (parsed.toPct >= 100 && !options?.skipCompletionDocs) {
+    if (parsed.toPct >= 100) {
       appendCompletionDocuments(formData)
     }
     return formData
@@ -1103,10 +1103,12 @@ export function ProgressModule() {
       if (!historyTarget) {
         throw new Error("Progress history entry was not found.")
       }
-      const replaceFiles = options.parsed.sitePhoto.length > 0
+      const replaceFiles = hasNewProgressFiles(
+        options.parsed.sitePhoto,
+        options.parsed.toPct
+      )
       const payload = replaceFiles
         ? buildProgressUpdateFormData(options.parsed, historyTarget, {
-            skipCompletionDocs: true,
             omitPercents: true,
           })
         : buildProgressUpdateScalarPayload(options.parsed, {
@@ -1761,7 +1763,7 @@ export function ProgressModule() {
                   existingNames={existingSitePhotoNames}
                   error={fieldErrors.sitePhoto}
                 />
-                {toPct >= 100 && dialogMode !== "history-edit" ? (
+                {toPct >= 100 ? (
                   <FieldSet className="space-y-2 border-t pt-3">
                     <FieldDescription className="text-sm font-medium text-foreground">
                       Completion documents

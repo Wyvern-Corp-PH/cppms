@@ -1377,6 +1377,48 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
+  it("should still show seven completion documents on Update Progress at 100%", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "For Completion",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+
+    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
+    expect(within(dialog).getByText("Completion documents")).toBeInTheDocument()
+    expect(within(dialog).getByText("Certification of Completion")).toBeInTheDocument()
+    expect(within(dialog).getByText("Certificate of Acceptance")).toBeInTheDocument()
+    expect(within(dialog).getByText("Proof of Payment from Barangay")).toBeInTheDocument()
+    expect(within(dialog).getByText("Acknowledgment of Completion")).toBeInTheDocument()
+    expect(within(dialog).getByText("Audit Documents")).toBeInTheDocument()
+    expect(within(dialog).getByText("Verification Documents")).toBeInTheDocument()
+    expect(within(dialog).getByText("Liquidation Documents")).toBeInTheDocument()
+    expect(
+      within(dialog).getByTestId("document-upload-input-completion-certification_completion")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByTestId("document-upload-input-completion-liquidation_documents")
+    ).toBeInTheDocument()
+  })
+
   it("shows Update Progress at 100% for Planning, For Completion, and For Revision", async () => {
     useBarangayActor()
     store.projects = [
@@ -2791,6 +2833,172 @@ describe("ProgressModule (V81, V84)", () => {
     expect(
       screen.queryByRole("dialog", { name: /^update progress$/i })
     ).not.toBeInTheDocument()
+  })
+
+  const COMPLETION_DOC_FIELDS = [
+    "certification_completion",
+    "certificate_acceptance",
+    "proof_payment_barangay",
+    "acknowledgment_completion",
+    "audit_documents",
+    "verification_documents",
+    "liquidation_documents",
+  ] as const
+
+  const COMPLETION_DOC_LABELS = [
+    "Certification of Completion",
+    "Certificate of Acceptance",
+    "Proof of Payment from Barangay",
+    "Acknowledgment of Completion",
+    "Audit Documents",
+    "Verification Documents",
+    "Liquidation Documents",
+  ] as const
+
+  function expectSevenCompletionDocs(scope: ReturnType<typeof within>) {
+    expect(scope.getByText("Completion documents")).toBeInTheDocument()
+    for (const field of COMPLETION_DOC_FIELDS) {
+      expect(
+        scope.getByTestId(`document-upload-input-completion-${field}`)
+      ).toBeInTheDocument()
+    }
+    for (const label of COMPLETION_DOC_LABELS) {
+      expect(scope.getByText(label)).toBeInTheDocument()
+    }
+  }
+
+  function hundredPercentHistoryProject(
+    latest: Record<string, unknown> = {}
+  ) {
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "For Completion",
+        budget_year: 2026,
+        progress_pct: 100,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        ...historyUpdateAt("u-latest", 100, "done band", "2026-08-12 00:00:00.000Z"),
+        ...latest,
+      },
+      historyUpdateAt("u-mid", 80, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+  }
+
+  async function openHistoryEditByNotes(
+    user: ReturnType<typeof userEvent.setup>,
+    notes: string
+  ) {
+    const detail = await openProjectHistoryDialog(user)
+    const row = within(detail).getByText(notes).closest("li")
+    expect(row).not.toBeNull()
+    await user.click(within(row!).getByRole("button", { name: /^edit$/i }))
+    return screen.findByRole("dialog", { name: /edit progress range/i })
+  }
+
+  it("should show seven completion documents and prefill on-record files when history-edit To is 100%", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject()
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "done band")
+
+    expectSevenCompletionDocs(within(editor))
+    expect(within(editor).getByText(/on record: cert\.pdf/i)).toBeInTheDocument()
+    expect(within(editor).getByText(/on record: accept\.pdf/i)).toBeInTheDocument()
+    expect(within(editor).getByText(/on record: liq\.pdf/i)).toBeInTheDocument()
+  })
+
+  it("should block history-edit save at 100% when completion documents are missing", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject({
+      certification_completion: [],
+      certificate_acceptance: [],
+      proof_payment_barangay: [],
+      acknowledgment_completion: [],
+      audit_documents: [],
+      verification_documents: [],
+      liquidation_documents: [],
+    })
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "done band")
+    expectSevenCompletionDocs(within(editor))
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findByText(/certification of completion is required/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/liquidation documents are required/i)
+    ).toBeInTheDocument()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it("should hide completion documents when history-edit To is not 100%", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject()
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "mid band")
+
+    expect(within(editor).queryByText("Completion documents")).not.toBeInTheDocument()
+    for (const field of COMPLETION_DOC_FIELDS) {
+      expect(
+        within(editor).queryByTestId(`document-upload-input-completion-${field}`)
+      ).not.toBeInTheDocument()
+    }
+  })
+
+  it("should persist on-record completion files when history-edit at 100% saves without new uploads", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject()
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "done band")
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected done band")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ]
+    expect(updateId).toBe("u-latest")
+    expect(payload).not.toBeInstanceOf(FormData)
+    expect(payload).toEqual(
+      expect.objectContaining({ notes: "Corrected done band" })
+    )
+    for (const field of COMPLETION_DOC_FIELDS) {
+      expect(payload).not.toHaveProperty(field)
+    }
+    const saved = store.updates.find((row) => row.id === "u-latest")
+    expect(saved?.certification_completion).toEqual(["cert.pdf"])
+    expect(saved?.liquidation_documents).toEqual(["liq.pdf"])
   })
 
   it("should hide Edit when project is Completed or Rejected", async () => {
