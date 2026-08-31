@@ -361,24 +361,16 @@ describe("UserManagementModule (J6)", () => {
     expect(screen.getByText("new@example.test")).toBeInTheDocument()
   })
 
-  it("creates a PPDO account without municipality or barangay", async () => {
+  it("creates a Province account without municipality or barangay and never offers PPDO", async () => {
     const user = userEvent.setup()
     store.userRoleOptions = [
-      {
-        id: "role-ppdo",
-        collectionId: "user_role_options",
-        collectionName: "user_role_options",
-        name: "PPDO",
-        active: true,
-        sort_order: 1,
-      },
       {
         id: "role-province",
         collectionId: "user_role_options",
         collectionName: "user_role_options",
         name: "Province",
         active: true,
-        sort_order: 2,
+        sort_order: 1,
       },
     ]
     store.userAccountStatusOptions = [
@@ -392,14 +384,14 @@ describe("UserManagementModule (J6)", () => {
       },
     ]
     createMock.mockResolvedValueOnce({
-      id: "u-ppdo",
+      id: "u-province",
       collectionId: "users",
       collectionName: "users",
       created: "",
       updated: "",
-      email: "ppdo@example.test",
-      name: "PPDO Encoder",
-      role: "PPDO",
+      email: "province@example.test",
+      name: "Province Encoder",
+      role: "Province",
       account_status: "Active",
       municipality: "",
       barangay: "",
@@ -407,17 +399,18 @@ describe("UserManagementModule (J6)", () => {
     render(<UserManagementModule />)
 
     await user.click(await screen.findByRole("button", { name: /create account/i }))
-    await chooseSelectOption(user, /^role$/i, "PPDO")
+    expect(screen.queryByRole("option", { name: "PPDO" })).not.toBeInTheDocument()
+    await chooseSelectOption(user, /^role$/i, "Province")
     expect(screen.queryByLabelText(/^municipality$/i)).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText(/^name$/i), "PPDO Encoder")
-    await user.type(screen.getByLabelText(/^email$/i), "ppdo@example.test")
+    await user.type(screen.getByLabelText(/^name$/i), "Province Encoder")
+    await user.type(screen.getByLabelText(/^email$/i), "province@example.test")
     await user.type(screen.getByLabelText(/initial password/i), "secret123")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          role: "PPDO",
+          role: "Province",
           municipality: "",
           barangay: "",
         })

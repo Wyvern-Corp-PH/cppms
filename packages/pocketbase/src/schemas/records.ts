@@ -196,7 +196,7 @@ export const locationRecordSchema = baseRecordSchema.extend({
 export const activityLogRecordSchema = baseRecordSchema.extend({
   collectionName: z.literal("activity_logs").optional(),
   actor_user: pbEmptyAsUndefined(z.string().optional()),
-  actor_role: roleSchema,
+  actor_role: z.string(),
   actor_municipality: pbEmptyAsUndefined(z.string().optional()),
   actor_barangay: pbEmptyAsUndefined(z.string().optional()),
   action: auditActionSchema,

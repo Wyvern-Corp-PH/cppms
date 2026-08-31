@@ -13,7 +13,7 @@ import {
   LGU_OVERRIDE_LOCKED_FIELDS,
   LGU_PHASE_STATUS,
   ownedProjectFieldsForActor,
-  PPDO_OWNED_FIELDS,
+  PROVINCIAL_OWNED_FIELDS,
   projectFieldFilledByLabel,
   projectPayloadForActor,
   statusOptionsForActor,
@@ -72,7 +72,7 @@ runInNewContext(
   jsOwnershipSandbox
 )
 const jsOwnership = jsOwnershipSandbox.module.exports as {
-  PPDO_OWNED_FIELDS: readonly string[]
+  PROVINCIAL_OWNED_FIELDS: readonly string[]
   LGU_OWNED_FIELDS: readonly string[]
   LGU_OVERRIDE_LOCKED_FIELDS: readonly string[]
   evaluateProjectFieldWrite: typeof evaluateProjectFieldWrite
@@ -107,16 +107,16 @@ function ownershipHookEvent(options: {
 }
 
 describe("project field ownership", () => {
-  it("lets PPDO create without LGU-owned fields", () => {
+  it("lets Province create without LGU-owned fields", () => {
     const result = evaluateProjectFieldWrite({
-      role: "PPDO",
+      role: "Province",
       isCreate: true,
       submitted: { ...ppdoCreate, progress_pct: 0, lgu_level: "Municipality" },
     })
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
   })
 
-  it("rejects stuffed LGU-owned fields on PPDO create", () => {
+  it("rejects a retired PPDO role from writing projects", () => {
     const result = evaluateProjectFieldWrite({
       role: "PPDO",
       isCreate: true,
@@ -124,32 +124,7 @@ describe("project field ownership", () => {
     })
     expect(result).toEqual({
       ok: false,
-      error: "You cannot update field 'contractor'.",
-    })
-  })
-
-  it("lets PPDO set status until lgu_encoded_at is set", () => {
-    const before = evaluateProjectFieldWrite({
-      role: "PPDO",
-      isCreate: false,
-      original: { ...ppdoCreate, status: "Planning" },
-      submitted: { status: "Procurement" },
-    })
-    expect(before.ok).toBe(true)
-
-    const after = evaluateProjectFieldWrite({
-      role: "PPDO",
-      isCreate: false,
-      original: {
-        ...ppdoCreate,
-        status: "Planning",
-        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
-      },
-      submitted: { status: "Procurement" },
-    })
-    expect(after).toEqual({
-      ok: false,
-      error: "You cannot update field 'status'.",
+      error: "You cannot update this project.",
     })
   })
 
@@ -311,7 +286,7 @@ describe("project field ownership", () => {
     expect(result.ok).toBe(false)
   })
 
-  it("rejects LGU writes of PPDO-owned fields and municipality moves", () => {
+  it("rejects LGU writes of provincial-owned fields and municipality moves", () => {
     const budgetYear = evaluateProjectFieldWrite({
       role: "Municipality",
       isCreate: false,
@@ -353,7 +328,7 @@ describe("project field ownership", () => {
     })
   })
 
-  it.each(["PPDO", "Province", "Super Admin"] as const)(
+  it.each(["Province", "Super Admin"] as const)(
     "should allow %s to write resolution and supporting document files",
     (role) => {
       const original = {
@@ -423,9 +398,9 @@ describe("project field ownership", () => {
     expect(result.ok).toBe(false)
   })
 
-  it("allows PPDO create when PocketBase zero-fills unowned number fields", () => {
+  it("allows Province create when PocketBase zero-fills unowned number fields", () => {
     const options = {
-      role: "PPDO",
+      role: "Province",
       isCreate: true,
       original: {},
       submitted: ppdoCreateZeroFilled,
@@ -435,17 +410,14 @@ describe("project field ownership", () => {
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
-  it("rejects PPDO create when bid_price is stuffed above the PocketBase default", () => {
+  it("lets Province include bid_price on create", () => {
     const options = {
-      role: "PPDO",
+      role: "Province",
       isCreate: true,
       submitted: { ...ppdoCreate, bid_price: 1500 },
     }
     const result = evaluateProjectFieldWrite(options)
-    expect(result).toEqual({
-      ok: false,
-      error: "You cannot update field 'bid_price'.",
-    })
+    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
@@ -490,9 +462,9 @@ describe("project field ownership", () => {
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
   })
 
-  it("rejects PPDO writing bid_price from 100 to 0", () => {
+  it("rejects Province writing bid_price from 100 to 0", () => {
     const options = {
-      role: "PPDO",
+      role: "Province",
       isCreate: false,
       original: { ...ppdoCreate, bid_price: 100 },
       submitted: { bid_price: 0 },
@@ -505,7 +477,7 @@ describe("project field ownership", () => {
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
-  it("lets Super Admin and Province mutate PPDO-owned fields without setting the marker", () => {
+  it("lets Super Admin and Province mutate provincial-owned fields without setting the marker", () => {
     const result = evaluateProjectFieldWrite({
       role: "Province",
       isCreate: false,
@@ -814,20 +786,20 @@ describe("project field ownership", () => {
     ).toEqual([])
   })
 
-  it("should assign funding year and sub account to PPDO without a second main-account field", () => {
-    expect(PPDO_OWNED_FIELDS).toContain("fund_source")
-    expect(PPDO_OWNED_FIELDS).toContain("funding_year")
-    expect(PPDO_OWNED_FIELDS).toContain("sub_account")
-    expect(PPDO_OWNED_FIELDS).not.toContain("main_account")
-    expect(projectFieldFilledByLabel("funding_year")).toBe("filled by PPDO")
-    expect(projectFieldFilledByLabel("sub_account")).toBe("filled by PPDO")
+  it("should assign funding year and sub account to Province without a second main-account field", () => {
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("fund_source")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("funding_year")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("sub_account")
+    expect(PROVINCIAL_OWNED_FIELDS).not.toContain("main_account")
+    expect(projectFieldFilledByLabel("funding_year")).toBe("filled by Province")
+    expect(projectFieldFilledByLabel("sub_account")).toBe("filled by Province")
   })
 
-  it("should assign Period of Implementation to PPDO and drop schedule/phase/moa text ownership", () => {
-    expect(PPDO_OWNED_FIELDS).toContain("period_of_implementation")
-    expect(PPDO_OWNED_FIELDS).toContain("moa_file")
-    expect(PPDO_OWNED_FIELDS).not.toContain("total_budget")
-    expect(PPDO_OWNED_FIELDS).not.toContain("moa_details")
+  it("should assign Period of Implementation to Province and drop schedule/phase/moa text ownership", () => {
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("period_of_implementation")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("moa_file")
+    expect(PROVINCIAL_OWNED_FIELDS).not.toContain("total_budget")
+    expect(PROVINCIAL_OWNED_FIELDS).not.toContain("moa_details")
     expect(LGU_OWNED_FIELDS).toEqual([
       "contractor",
       "bid_price",
@@ -835,8 +807,8 @@ describe("project field ownership", () => {
       "start_date",
       "target_end_date",
     ])
-    expect(PPDO_OWNED_FIELDS).toContain("resolution_file")
-    expect(PPDO_OWNED_FIELDS).toContain("supporting_docs")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("resolution_file")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("supporting_docs")
     expect(LGU_OWNED_FIELDS).not.toContain("resolution_file")
     expect(LGU_OWNED_FIELDS).not.toContain("supporting_docs")
     expect(LGU_OWNED_FIELDS).not.toContain("moa_file")
@@ -844,23 +816,23 @@ describe("project field ownership", () => {
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
   })
 
-  it("should label non-owned fields as filled by PPDO or LGU/Barangay", () => {
-    expect(projectFieldFilledByLabel("name")).toBe("filled by PPDO")
+  it("should label non-owned fields as filled by Province or LGU/Barangay", () => {
+    expect(projectFieldFilledByLabel("name")).toBe("filled by Province")
     expect(projectFieldFilledByLabel("bid_price")).toBe("filled by LGU/Barangay")
     expect(projectFieldFilledByLabel("status")).toBe("filled by LGU/Barangay")
     expect(projectFieldFilledByLabel("start_date")).toBe("filled by LGU/Barangay")
     expect(projectFieldFilledByLabel("target_end_date")).toBe(
       "filled by LGU/Barangay"
     )
-    expect(projectFieldFilledByLabel("moa_file")).toBe("filled by PPDO")
-    expect(projectFieldFilledByLabel("resolution_file")).toBe("filled by PPDO")
-    expect(projectFieldFilledByLabel("supporting_docs")).toBe("filled by PPDO")
+    expect(projectFieldFilledByLabel("moa_file")).toBe("filled by Province")
+    expect(projectFieldFilledByLabel("resolution_file")).toBe("filled by Province")
+    expect(projectFieldFilledByLabel("supporting_docs")).toBe("filled by Province")
     expect(projectFieldFilledByLabel("project_photos")).toBe(
       "filled by LGU/Barangay"
     )
   })
 
-  it.each(["PPDO", "Province", "Super Admin"] as const)(
+  it.each(["Province", "Super Admin"] as const)(
     "should treat all four project file fields as editable for %s",
     (role) => {
       const original = { ...ppdoCreate, status: "Ongoing" }
@@ -871,15 +843,10 @@ describe("project field ownership", () => {
         "project_photos",
       ] as const) {
         expect(isProjectFieldEditable(role, field, original, false)).toBe(true)
-        expect(ownedProjectFieldsForActor(role, original, false).has(field)).toBe(
-          role === "PPDO"
-        )
       }
-      if (role !== "PPDO") {
-        expect(ownedProjectFieldsForActor(role, original, false).has("*")).toBe(
-          true
-        )
-      }
+      expect(ownedProjectFieldsForActor(role, original, false).has("*")).toBe(
+        true
+      )
     }
   )
 
@@ -914,7 +881,6 @@ describe("project field ownership", () => {
       lgu_encoded_at: "2026-08-01 00:00:00.000Z",
     }
     for (const role of [
-      "PPDO",
       "Province",
       "Super Admin",
       "Municipality",
@@ -953,10 +919,10 @@ describe("project field ownership", () => {
     })
   })
 
-  it("lets PPDO edit number_of_students when the current category is Scholarship", () => {
+  it("lets Province edit number_of_students when the current category is Scholarship", () => {
     expect(
       isProjectFieldEditable(
-        "PPDO",
+        "Province",
         "number_of_students",
         { category: "Scholarship" },
         false
@@ -964,12 +930,12 @@ describe("project field ownership", () => {
     ).toBe(true)
     expect(
       isProjectFieldEditable(
-        "PPDO",
+        "Province",
         "number_of_students",
         { category: "Infrastructure" },
         false
       )
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("should keep moa_file editable for owning roles when status is For Revision", () => {
@@ -979,7 +945,7 @@ describe("project field ownership", () => {
       lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       moa_file: ["old-moa.pdf"],
     }
-    for (const role of ["PPDO", "Province", "Super Admin"] as const) {
+    for (const role of ["Province", "Super Admin"] as const) {
       expect(isProjectFieldEditable(role, "moa_file", original, false)).toBe(true)
     }
     expect(
@@ -996,7 +962,7 @@ describe("project field ownership", () => {
     }
     const submitted = { moa_file: ["revised-moa.pdf"] }
 
-    for (const role of ["PPDO", "Province", "Super Admin"] as const) {
+    for (const role of ["Province", "Super Admin"] as const) {
       const options = { role, isCreate: false, original, submitted }
       expect(evaluateProjectFieldWrite(options)).toEqual({
         ok: true,
@@ -1021,7 +987,7 @@ describe("project field ownership", () => {
     })
   })
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should allow %s to submit empty or reduced moa_file",
     (role) => {
       const original = {
@@ -1092,9 +1058,6 @@ describe("project field ownership", () => {
       bid_price: 12_000,
     }
 
-    expect(
-      projectPayloadForActor("PPDO", ppdoCreate, false, submitted)
-    ).toEqual({ name: "Charter Bridge" })
     expect(
       projectPayloadForActor("Municipality", ppdoCreate, false, submitted)
     ).toEqual({
@@ -1258,7 +1221,7 @@ describe("awaiting details badge copy", () => {
 
 describe("JS hook and TS ownership list parity", () => {
   it("keeps owned-field lists identical", () => {
-    expect([...jsOwnership.PPDO_OWNED_FIELDS]).toEqual([...PPDO_OWNED_FIELDS])
+    expect([...jsOwnership.PROVINCIAL_OWNED_FIELDS]).toEqual([...PROVINCIAL_OWNED_FIELDS])
     expect([...jsOwnership.LGU_OWNED_FIELDS]).toEqual([...LGU_OWNED_FIELDS])
     expect([...jsOwnership.LGU_OVERRIDE_LOCKED_FIELDS]).toEqual([
       ...LGU_OVERRIDE_LOCKED_FIELDS,
@@ -1268,23 +1231,23 @@ describe("JS hook and TS ownership list parity", () => {
   it("matches evaluateProjectFieldWrite on the ownership cases", () => {
     const cases = [
       {
-        role: "PPDO",
+        role: "Province",
         isCreate: true,
         submitted: { ...ppdoCreate, progress_pct: 0 },
       },
       {
-        role: "PPDO",
+        role: "Province",
         isCreate: true,
         original: {},
         submitted: ppdoCreateZeroFilled,
       },
       {
-        role: "PPDO",
+        role: "Province",
         isCreate: true,
         submitted: { ...ppdoCreate, contractor: "Build Co" },
       },
       {
-        role: "PPDO",
+        role: "Province",
         isCreate: false,
         original: { ...ppdoCreate, lgu_encoded_at: "2026-08-01 00:00:00.000Z" },
         submitted: { status: "Procurement" },
@@ -1471,7 +1434,7 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
-  it("should throw and skip next when PPDO create stuffs contractor", () => {
+  it("should throw and skip next when a retired PPDO role writes a project", () => {
     const { event, next, set } = ownershipHookEvent({
       role: "PPDO",
       fields: { contractor: "Build Co" },

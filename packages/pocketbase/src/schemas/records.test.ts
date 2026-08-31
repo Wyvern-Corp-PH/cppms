@@ -63,7 +63,7 @@ describe("collection record schemas (V33, V36)", () => {
     }
   })
 
-  it("parses PPDO and LGU project fields", () => {
+  it("parses provincial and LGU project fields", () => {
     const result = projectRecordSchema.safeParse({
       ...base,
       name: "Bridge repair",
@@ -523,6 +523,20 @@ describe("collection record schemas (V33, V36)", () => {
         duration_ms: 12,
         request_id: "req_1",
         env: { version: "test" },
+      }).success
+    ).toBe(true)
+
+    expect(
+      activityLogRecordSchema.safeParse({
+        ...base,
+        collectionName: "activity_logs",
+        actor_user: "u-ppdo",
+        actor_role: "PPDO",
+        action: "create",
+        resource: "projects",
+        resource_id: "p1",
+        outcome: "success",
+        duration_ms: 8,
       }).success
     ).toBe(true)
   })

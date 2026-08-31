@@ -105,7 +105,7 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("accepts PPDO create payload without LGU-owned fields", () => {
+  it("accepts provincial create payload without LGU-owned fields", () => {
     const result = projectMutateSchema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
@@ -122,8 +122,8 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires PPDO create identity fields without total budget", () => {
-    const schema = projectMutateSchemaForActor("PPDO", true)
+  it("requires Province form identity fields without total budget", () => {
+    const schema = projectMutateSchemaForActor("Province", true, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
@@ -161,12 +161,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
+      funding_year: 2025,
+      fund_source: "Special Education Fund",
     })
     expect(complete.success).toBe(true)
   })
 
   it("requires fund source on the form when the actor owns it", () => {
-    const schema = projectMutateSchemaForActor("PPDO", true, { form: true })
+    const schema = projectMutateSchemaForActor("Province", true, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
@@ -231,8 +233,8 @@ describe("projectMutateSchema (V34)", () => {
     expect(sef.success).toBe(true)
   })
 
-  it("does not require fund source on PPDO create used by excel import", () => {
-    const schema = projectMutateSchemaForActor("PPDO", true)
+  it("does not require fund source on Province create used by excel import", () => {
+    const schema = projectMutateSchemaForActor("Province", true)
     const result = schema.safeParse({
       name: "Imported road",
       category: "Infrastructure",
@@ -250,8 +252,8 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires owned identity fields on PPDO form edit", () => {
-    const schema = projectMutateSchemaForActor("PPDO", false, { form: true })
+  it("requires owned identity fields on Province form edit", () => {
+    const schema = projectMutateSchemaForActor("Province", false, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
@@ -267,7 +269,7 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("does not require PPDO-owned empties on municipality edit", () => {
+  it("does not require provincial-owned empties on municipality edit", () => {
     const schema = projectMutateSchemaForActor("Municipality", false, {
       form: true,
     })
@@ -677,10 +679,10 @@ describe("userAccountFormSchema (V115, V168, V195)", () => {
     }
   })
 
-  it("clears scope fields for Province, Super Admin, and PPDO roles", () => {
+  it("clears scope fields for Province and Super Admin roles", () => {
     const result = userAccountFormSchema.safeParse({
       ...baseInput,
-      role: "PPDO",
+      role: "Province",
       municipality: "Tuguegarao City",
       barangay: "Centro 01 (Bagumbayan)",
     })

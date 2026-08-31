@@ -146,7 +146,7 @@ export const projectMutateSchema = z
     }
   })
 
-const PROJECT_FORM_OWNERS = new Set(["PPDO", "Province", "Super Admin"])
+const PROJECT_FORM_OWNERS = new Set(["Province", "Super Admin"])
 const LGU_DATE_OWNERS = new Set(["Municipality", "Barangay"])
 const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
   "General Fund",
@@ -178,11 +178,11 @@ function refineBudgetExpenseSubAccount(
 
 export function projectMutateSchemaForActor(
   role: string | undefined,
-  isCreate: boolean,
+  _isCreate: boolean,
   options?: { form?: boolean }
 ) {
   const ownsFormFields = PROJECT_FORM_OWNERS.has(role ?? "")
-  const requireIdentity = options?.form ? ownsFormFields : role === "PPDO" && isCreate
+  const requireIdentity = Boolean(options?.form) && ownsFormFields
   const requireFundSource = Boolean(options?.form) && ownsFormFields
   const requireLguDates = LGU_DATE_OWNERS.has(role ?? "")
 
@@ -550,7 +550,7 @@ export const userAccountFormSchema = z
     }
   })
   .transform((value) => {
-    if (value.role === "Super Admin" || value.role === "Province" || value.role === "PPDO") {
+    if (value.role === "Super Admin" || value.role === "Province") {
       return { ...value, municipality: "", barangay: "" }
     }
     if (value.role === "Municipality") {

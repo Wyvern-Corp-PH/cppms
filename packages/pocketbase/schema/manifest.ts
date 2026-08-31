@@ -32,7 +32,7 @@ export const FUND_TYPE = [
 ] as const
 
 export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const
-export const ROLE = ["Super Admin", "Province", "PPDO", "Municipality", "Barangay"] as const
+export const ROLE = ["Super Admin", "Province", "Municipality", "Barangay"] as const
 
 export const LGU_PHASE_STATUS = ["Not Started", "Ongoing", "Completed"] as const
 export const ACCOUNT_STATUS = ["Active", "Inactive"] as const

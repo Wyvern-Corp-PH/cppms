@@ -9,6 +9,7 @@ import {
   isProjectInUserScope,
   isSuperAdmin,
   mustChangePassword,
+  remapRetiredUserRole,
   ROLE_POLICIES,
   type PolicyKey,
   type PolicyUser,
@@ -294,34 +295,15 @@ describe("access control (V115-V121)", () => {
     ).toBe(true)
   })
 
-  it("grants PPDO encode-only project create and update", () => {
-    const policy = getRolePolicy("PPDO")
-
-    expect(policy).toEqual(["projects.create", "projects.update"])
-    expect(policy).not.toContain("projects.delete")
-    expect(policy).not.toContain("progress_updates.create")
-    expect(policy).not.toContain("budget_allocations.create")
-    expect(policy).not.toContain("budget_expenses.create")
-    expect(policy).not.toContain("approval_actions.create")
-    expect(policy).not.toContain("users.update")
-    expect(policy).not.toContain("locations.update")
-    expect(policy).not.toContain("reports.view")
-    expect(policy).not.toContain("reports.export")
-    expect(
-      canAccess({ id: "pp1", role: "PPDO", account_status: "Active" }, "projects.create")
-    ).toBe(true)
-    expect(
-      canAccess(
-        { id: "pp1", role: "PPDO", account_status: "Active" },
-        "progress_updates.create"
-      )
-    ).toBe(false)
+  it("should remap a stored PPDO role to Province and grant no live PPDO policy", () => {
+    expect(remapRetiredUserRole("PPDO")).toBe("Province")
+    expect(remapRetiredUserRole("Province")).toBe("Province")
+    expect(remapRetiredUserRole("Municipality")).toBe("Municipality")
+    expect(getRolePolicy("PPDO")).toEqual([])
+    expect(ROLE_POLICIES).not.toHaveProperty("PPDO")
     expect(isActiveUser({ id: "pp1", role: "PPDO", account_status: "Active" })).toBe(
-      true
+      false
     )
-    expect(
-      isProjectInUserScope({ role: "PPDO" }, { municipality: "Lasam", barangay: "Centro" })
-    ).toBe(true)
   })
 
   it("keeps stuck-progress repair on Super Admin and Province by role", () => {
@@ -331,9 +313,6 @@ describe("access control (V115-V121)", () => {
     expect(
       canRepairProjectProgress({ id: "p1", role: "Province", account_status: "Active" })
     ).toBe(true)
-    expect(
-      canRepairProjectProgress({ id: "pp1", role: "PPDO", account_status: "Active" })
-    ).toBe(false)
     expect(
       canRepairProjectProgress({
         id: "m1",
@@ -393,6 +372,5 @@ describe("access control (V115-V121)", () => {
     ).toEqual(["p1", "p2"])
     expect(isProjectInUserScope({ role: "Province" }, projects[2]!)).toBe(true)
     expect(isProjectInUserScope({ role: "Super Admin" }, projects[2]!)).toBe(true)
-    expect(isProjectInUserScope({ role: "PPDO" }, projects[2]!)).toBe(true)
   })
 })

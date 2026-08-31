@@ -223,6 +223,11 @@ const usersViewRuleAuthMigrationPath = resolve(
   "pb_migrations",
   "1740000039_users_view_rule_auth.js"
 )
+const remapPpdoToProvinceMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000040_remap_ppdo_to_province.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -275,7 +280,8 @@ describe("schema manifest (SPEC §I)", () => {
       "Others",
     ])
     expect(APPROVAL_ACTION).toEqual(["approve", "reject", "request_revision"])
-    expect(ROLE).toEqual(["Super Admin", "Province", "PPDO", "Municipality", "Barangay"])
+    expect(ROLE).toEqual(["Super Admin", "Province", "Municipality", "Barangay"])
+    expect(ROLE).not.toContain("PPDO")
     expect(LGU_PHASE_STATUS).toEqual(["Not Started", "Ongoing", "Completed"])
     expect(ACCOUNT_STATUS).toEqual(["Active", "Inactive"])
     expect(AUDIT_ACTION).toContain("request_revision")
@@ -1218,6 +1224,31 @@ describe("users view-by-id for authenticated expand", () => {
     expect(migrationSource).not.toMatch(/users\.deleteRule/)
     expect(migrationSource).not.toMatch(/users\.manageRule/)
     expect(migrationSource).not.toContain("activity_logs")
+  })
+})
+
+describe("remap PPDO users to Province then drop the role", () => {
+  const migrationSource = readFileSync(remapPpdoToProvinceMigrationPath, "utf8")
+
+  it("should remap stored PPDO roles to Province before dropping the select value", () => {
+    const remapAt = migrationSource.indexOf("remapPpdoUsers(app)")
+    const dropAt = migrationSource.indexOf("dropPpdoFromUserRoleSelect(app)")
+    expect(remapAt).toBeGreaterThan(-1)
+    expect(dropAt).toBeGreaterThan(remapAt)
+    expect(migrationSource).toContain('role === "PPDO" ? "Province"')
+    expect(migrationSource).toContain('role = "PPDO"')
+    expect(migrationSource).toContain(
+      'const ROLE_VALUES = ["Super Admin", "Province", "Municipality", "Barangay"]'
+    )
+    expect(migrationSource).toContain("deletePpdoRoleOption")
+    expect(migrationSource).not.toMatch(/activity_logs[\s\S]*set\("role"/)
+  })
+
+  it("should drop PPDO from project create rules without adding Super Admin or Province actions", () => {
+    expect(migrationSource).toContain("PROJECT_CREATE_RULE")
+    expect(migrationSource).toContain("PROVINCE_RULE")
+    expect(migrationSource).toContain("SUPER_ADMIN_RULE")
+    expect(migrationSource).not.toContain("PPDO_RULE")
   })
 })
 

@@ -8,7 +8,6 @@ const superAdmin = {
   account_status: "Active",
 } as const
 const province = { id: "p1", role: "Province", account_status: "Active" } as const
-const ppdo = { id: "pp1", role: "PPDO", account_status: "Active" } as const
 const municipality = {
   id: "m1",
   role: "Municipality",
@@ -34,21 +33,6 @@ const gatedPaths = [
 ] as const
 
 describe("admin nav path access", () => {
-  it("limits PPDO to Dashboard and Projects and fails closed elsewhere", () => {
-    expect(canAccessAdminPath(ppdo, "/dashboard")).toBe(true)
-    expect(canAccessAdminPath(ppdo, "/projects")).toBe(true)
-    expect(canAccessAdminPath(ppdo, "/budget")).toBe(false)
-    expect(canAccessAdminPath(ppdo, "/progress")).toBe(false)
-    expect(canAccessAdminPath(ppdo, "/approvals")).toBe(false)
-    expect(canAccessAdminPath(ppdo, "/reports")).toBe(false)
-    expect(canAccessAdminPath(ppdo, "/users")).toBe(false)
-    expect(canAccessAdminPath(ppdo, "/locations")).toBe(false)
-    expect(getVisibleAdminNavItems(ppdo).map((item) => item.href)).toEqual([
-      "/dashboard",
-      "/projects",
-    ])
-  })
-
   it("lets Super Admin open every path Province, Municipality, or Barangay can open", () => {
     for (const path of gatedPaths) {
       const lowerRoleCanOpen = [province, municipality, barangay].some((user) =>

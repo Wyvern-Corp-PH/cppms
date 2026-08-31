@@ -854,7 +854,7 @@ describe("ProjectsModule (J4)", () => {
     expect(createMock).not.toHaveBeenCalled()
   })
 
-  it("does not block municipality edit when PPDO-owned fields are empty", async () => {
+  it("does not block municipality edit when provincial-owned fields are empty", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -1371,11 +1371,11 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
-  it("locks LGU-owned fields for PPDO and keeps Period of Implementation with start/end dates read-only", async () => {
+  it("locks LGU-owned fields for Province and keeps Period of Implementation with start/end dates read-only", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
 
@@ -1409,7 +1409,6 @@ describe("ProjectsModule (J4)", () => {
         })
       )
     })
-    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("contractor")
     expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("total_budget")
   })
 
@@ -1526,11 +1525,11 @@ describe("ProjectsModule (J4)", () => {
     expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("main_account")
   })
 
-  it("locks status for PPDO after LGU encoding and keeps name editable", async () => {
+  it("locks status for Province after LGU encoding and keeps name editable", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
     store.projects = [
@@ -1629,12 +1628,12 @@ describe("ProjectsModule (J4)", () => {
   )
 
   it.each([50, 100])(
-    "lets PPDO save owned fields at %s%% completion",
+    "lets Province save owned fields at %s percent completion",
     async (progress_pct) => {
       const user = userEvent.setup()
       store.authRecord = {
         id: "pp1",
-        role: "PPDO",
+        role: "Province",
         account_status: "Active",
       }
       store.projects = [
@@ -1663,7 +1662,6 @@ describe("ProjectsModule (J4)", () => {
       })
       const payload = updateMock.mock.calls[0]?.[1] as Record<string, unknown>
       expect(payload).not.toHaveProperty("contractor")
-      expect(payload).not.toHaveProperty("progress_pct")
       expect(payload).not.toHaveProperty("start_date")
     }
   )
@@ -1752,11 +1750,11 @@ describe("ProjectsModule (J4)", () => {
     })
   })
 
-  it("lets PPDO edit student count after switching the form category to Scholarship", async () => {
+  it("lets Province edit student count after switching the form category to Scholarship", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
     store.projectCategoryOptions = [
@@ -1792,10 +1790,10 @@ describe("ProjectsModule (J4)", () => {
     expect(students).not.toBeDisabled()
   })
 
-  it("loads the PPDO catalog when progress_updates is denied", async () => {
+  it("loads the Province catalog when progress_updates is denied", async () => {
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
     store.denied.add("progress_updates")
@@ -1808,11 +1806,11 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
-  it("strips LGU-owned columns from PPDO Excel import", async () => {
+  it("imports provincial identity fields from Excel for Province", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
     xlsxState.rows = [
@@ -1845,12 +1843,10 @@ describe("ProjectsModule (J4)", () => {
       description: "Phase 1",
       location: "Tuguegarao City",
     })
-    expect(payload).not.toHaveProperty("contractor")
-    expect(payload).not.toHaveProperty("bid_price")
     expect(payload).not.toHaveProperty("total_budget")
   })
 
-  it.each(["PPDO", "Province", "Super Admin"] as const)(
+  it.each(["Province", "Super Admin"] as const)(
     "should keep MOA upload enabled for %s when project is For Revision",
     async (role) => {
       const user = userEvent.setup()
@@ -1881,7 +1877,7 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should list existing MOA files when Edit Project opens for %s",
     async (role) => {
       const user = userEvent.setup()
@@ -1960,7 +1956,7 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should list existing Project photos as download links when Edit Project opens for %s",
     async (role) => {
       const user = userEvent.setup()
@@ -2030,7 +2026,7 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should keep existing MOA filenames on save for %s when none are removed",
     async (role) => {
       const user = userEvent.setup()
@@ -2107,7 +2103,7 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should drop only the MOA file %s removes on save",
     async (role) => {
       const user = userEvent.setup()
@@ -2304,11 +2300,11 @@ describe("ProjectsModule (J4)", () => {
     expect(formData.getAll("resolution_file")).not.toContain("old-res.pdf")
   })
 
-  it("should submit retained MOA names plus new files when PPDO uploads on For Revision", async () => {
+  it("should submit retained MOA names plus new files when Province uploads on For Revision", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
-      role: "PPDO",
+      role: "Province",
       account_status: "Active",
     }
     store.projects = [
@@ -2490,7 +2486,7 @@ describe("ProjectsModule (J4)", () => {
       expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
       expect(screen.getByText("Project photos")).toBeInTheDocument()
       expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
-      expect(screen.getAllByText(/filled by ppdo/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/filled by Province/i).length).toBeGreaterThan(0)
     }
   )
 
@@ -2535,14 +2531,14 @@ describe("ProjectsModule (J4)", () => {
       expect(
         screen.getByTestId("document-upload-input-supporting-file")
       ).toBeDisabled()
-      expect(screen.getAllByText(/filled by ppdo/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/filled by Province/i).length).toBeGreaterThan(0)
       expect(
         screen.getByTestId("document-upload-input-project-photos")
       ).not.toBeDisabled()
     }
   )
 
-  it.each(["PPDO", "Province", "Super Admin"] as const)(
+  it.each(["Province", "Super Admin"] as const)(
     "should show all four project uploads as writable for %s on New Project",
     async (role) => {
       const user = userEvent.setup()
@@ -2571,7 +2567,7 @@ describe("ProjectsModule (J4)", () => {
     }
   )
 
-  it.each(["Super Admin", "Province", "PPDO"] as const)(
+  it.each(["Super Admin", "Province"] as const)(
     "should accept the same document types on Project photos as other slots when %s opens New Project",
     async (role) => {
       const user = userEvent.setup()

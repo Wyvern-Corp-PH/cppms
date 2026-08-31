@@ -19,7 +19,7 @@ export const TERMINAL_OR_REVIEW_STATUSES = [
   "Cancelled",
 ] as const
 
-export const PPDO_OWNED_FIELDS = [
+export const PROVINCIAL_OWNED_FIELDS = [
   "name",
   "description",
   "category",
@@ -54,8 +54,8 @@ export const LGU_OVERRIDE_LOCKED_FIELDS = [
 ] as const
 
 export function projectFieldFilledByLabel(field: string): string | null {
-  if ((PPDO_OWNED_FIELDS as readonly string[]).includes(field)) {
-    return "filled by PPDO"
+  if ((PROVINCIAL_OWNED_FIELDS as readonly string[]).includes(field)) {
+    return "filled by Province"
   }
   if (
     field === "status" ||
@@ -191,19 +191,11 @@ function isCreateDefaultAllowed(
 
 export function ownedProjectFieldsForActor(
   role: string | undefined,
-  original: ProjectFieldMap | null | undefined,
-  isCreate: boolean
+  _original: ProjectFieldMap | null | undefined,
+  _isCreate: boolean
 ): Set<string> {
   if (isProvincialOverride(role)) {
     return new Set(["*"])
-  }
-  if (role === "PPDO") {
-    const owned = new Set<string>(PPDO_OWNED_FIELDS)
-    owned.add("project_photos")
-    if (isCreate || !hasLguEncodedAt(original)) {
-      owned.add("status")
-    }
-    return owned
   }
   if (isLguRole(role)) {
     return new Set<string>([...LGU_OWNED_FIELDS, "status"])
@@ -245,9 +237,6 @@ export function isProjectFieldEditable(
     if (isTerminalOrReviewStatus(original?.status)) return false
     return isLguWritableStatus(original?.status)
   }
-  if (field === "number_of_students" && role === "PPDO") {
-    return isCreate || original?.category === "Scholarship"
-  }
   return true
 }
 
@@ -258,10 +247,6 @@ export function statusOptionsForActor(
   catalog: readonly string[]
 ): string[] {
   if (isProvincialOverride(role)) return [currentStatus]
-  if (role === "PPDO") {
-    if (hasLguEncodedAt(original)) return [currentStatus]
-    return [...catalog]
-  }
   if (isLguRole(role)) {
     if (isTerminalOrReviewStatus(currentStatus)) return [currentStatus]
     return LGU_WRITABLE_STATUSES.filter((status) => catalog.includes(status))
@@ -317,7 +302,7 @@ export function evaluateProjectFieldWrite(options: {
     return { ok: true, setLguEncodedAt: false }
   }
 
-  if (role !== "PPDO" && !isLguRole(role)) {
+  if (!isLguRole(role)) {
     return { ok: false, error: "You cannot update this project." }
   }
 
@@ -328,10 +313,6 @@ export function evaluateProjectFieldWrite(options: {
     if (field === "status") {
       const nextStatus = submitted.status
       const currentStatus = original?.status
-      if (role === "PPDO") {
-        if (!owned.has("status")) return reject("status")
-        continue
-      }
       if (valuesEqual(currentStatus, nextStatus)) continue
       if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
       if (nextStatus === "Cancelled") continue

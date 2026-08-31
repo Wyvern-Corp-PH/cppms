@@ -102,13 +102,13 @@ describe("dev seed fixtures (V70)", () => {
   })
 
   it("defines and upserts sample users for role simulation", () => {
-    expect(DEV_SEED_USERS).toHaveLength(4)
+    expect(DEV_SEED_USERS).toHaveLength(3)
     expect(DEV_SEED_USERS.map((user) => user.role)).toEqual([
       "Province",
-      "PPDO",
       "Barangay",
       "Municipality",
     ])
+    expect(DEV_SEED_USERS.map((user) => user.role)).not.toContain("PPDO")
     expect(DEV_SEED_USERS.some((user) => user.account_status === "Inactive")).toBe(
       true
     )

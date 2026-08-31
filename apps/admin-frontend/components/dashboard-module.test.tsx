@@ -392,12 +392,13 @@ describe("DashboardModule (V9, V24)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("still loads the dashboard when PPDO is denied budget collections", async () => {
+  it("still loads the dashboard when Municipality is denied budget collections", async () => {
     store.authRecord = {
-      id: "pp1",
-      email: "ppdo@cppms.local",
-      role: "PPDO",
+      id: "m1",
+      email: "lgu@cppms.local",
+      role: "Municipality",
       account_status: "Active",
+      municipality: "Lasam",
     }
     store.denied.add("budget_allocations")
     store.denied.add("budget_expenses")

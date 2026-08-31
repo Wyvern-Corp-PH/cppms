@@ -7,7 +7,7 @@ const TERMINAL_OR_REVIEW_STATUSES = [
   "Rejected",
   "Cancelled",
 ]
-const PPDO_OWNED_FIELDS = [
+const PROVINCIAL_OWNED_FIELDS = [
   "name",
   "description",
   "category",
@@ -39,7 +39,7 @@ const LGU_OVERRIDE_LOCKED_FIELDS = [
   "target_end_date",
 ]
 const PROJECT_FIELDS = [
-  ...PPDO_OWNED_FIELDS,
+  ...PROVINCIAL_OWNED_FIELDS,
   ...LGU_OWNED_FIELDS,
   "status",
   "lgu_level",
@@ -131,14 +131,8 @@ function isCreateDefaultAllowed(field, value, isCreate) {
   return isEmptyValue(value) || Number(value) === 0
 }
 
-function ownedProjectFieldsForActor(role, original, isCreate) {
+function ownedProjectFieldsForActor(role) {
   if (isProvincialOverride(role)) return new Set(["*"])
-  if (role === "PPDO") {
-    const owned = new Set(PPDO_OWNED_FIELDS)
-    owned.add("project_photos")
-    if (isCreate || !hasLguEncodedAt(original)) owned.add("status")
-    return owned
-  }
   if (isLguRole(role)) return new Set([...LGU_OWNED_FIELDS, "status"])
   return new Set()
 }
@@ -179,7 +173,7 @@ function evaluateProjectFieldWrite(options) {
     }
     return { ok: true, setLguEncodedAt: false }
   }
-  if (role !== "PPDO" && !isLguRole(role)) {
+  if (!isLguRole(role)) {
     return { ok: false, error: "You cannot update this project." }
   }
 
@@ -189,10 +183,6 @@ function evaluateProjectFieldWrite(options) {
     if (field === "status") {
       const nextStatus = submitted.status
       const currentStatus = original?.status
-      if (role === "PPDO") {
-        if (!owned.has("status")) return reject("status")
-        continue
-      }
       if (valuesEqual(currentStatus, nextStatus)) continue
       if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
       if (nextStatus === "Cancelled") continue
@@ -270,7 +260,7 @@ function applyProjectFieldOwnership(event, isCreate) {
 }
 
 module.exports = {
-  PPDO_OWNED_FIELDS,
+  PROVINCIAL_OWNED_FIELDS,
   LGU_OWNED_FIELDS,
   LGU_OVERRIDE_LOCKED_FIELDS,
   evaluateProjectFieldWrite,
