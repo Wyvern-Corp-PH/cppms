@@ -213,6 +213,11 @@ const budgetExpensesScopedBoundUpdateRuleMigrationPath = resolve(
   "pb_migrations",
   "1740000037_budget_expenses_scoped_bound_update_rule.js"
 )
+const photoDocumentMimeMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000038_photo_document_mime_types.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -1160,6 +1165,35 @@ describe("budget_expenses scoped bound update rule", () => {
     expect(migrationSource).toContain('progress_update = ""')
     expect(migrationSource).toContain("progress_update.project = project")
     expect(migrationSource).toContain("BOUND_EXPENSE_CREATE_SAME_PROJECT_RULE")
+  })
+})
+
+describe("photo fields use shared document MIME types", () => {
+  const migrationSource = readFileSync(photoDocumentMimeMigrationPath, "utf8")
+
+  it("should migrate project_photos and site_photo mimeTypes to the document list without webp", () => {
+    expect(migrationSource).toContain("project_photos")
+    expect(migrationSource).toContain("site_photo")
+    expect(migrationSource).toContain("DOCUMENT_MIME_TYPES")
+    expect(migrationSource).toContain("application/pdf")
+    expect(migrationSource).toContain("application/msword")
+    expect(migrationSource).toContain(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    expect(migrationSource).toContain("application/vnd.ms-excel")
+    expect(migrationSource).toContain(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    expect(migrationSource).toContain("image/jpeg")
+    expect(migrationSource).toContain("image/png")
+    expect(migrationSource).not.toContain("image/webp")
+  })
+
+  it("should not shrink other document attachment slots", () => {
+    expect(migrationSource).not.toContain("moa_file")
+    expect(migrationSource).not.toContain("resolution_file")
+    expect(migrationSource).not.toContain("supporting_docs")
+    expect(migrationSource).not.toContain("certification_completion")
   })
 })
 

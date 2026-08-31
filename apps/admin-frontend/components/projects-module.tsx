@@ -88,7 +88,7 @@ import { Textarea } from "@workspace/ui/components/textarea"
 
 import { PageHeaderBand } from "@/components/page-header-band"
 import { DateRangeFilter } from "@/components/date-range-filter"
-import { DocumentUploadField, IMAGE_UPLOAD_ACCEPT } from "@/components/document-upload-field"
+import { DocumentUploadField } from "@/components/document-upload-field"
 import { FundSourceFields } from "@/components/released-amount-fields"
 import { usePocketBaseRealtime } from "@/hooks/use-pocketbase-realtime"
 import { getPocketBase } from "@/lib/pocketbase"
@@ -1621,8 +1621,6 @@ export function ProjectsModule() {
                   <DocumentUploadField
                     id="project-photos"
                     label="Project photos"
-                    accept={IMAGE_UPLOAD_ACCEPT}
-                    helperText="JPG, PNG, WEBP"
                     files={projectPhotoFiles}
                     existingNames={retainedPhotoNames}
                     existingFileHref={

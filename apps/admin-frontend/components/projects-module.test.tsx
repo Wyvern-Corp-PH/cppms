@@ -2572,7 +2572,7 @@ describe("ProjectsModule (J4)", () => {
   )
 
   it.each(["Super Admin", "Province", "PPDO"] as const)(
-    "should accept image types on Project photos and document types on other slots when %s opens New Project",
+    "should accept the same document types on Project photos as other slots when %s opens New Project",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2587,8 +2587,7 @@ describe("ProjectsModule (J4)", () => {
 
       expect(
         screen.getByTestId("document-upload-input-project-photos")
-      ).toHaveAttribute("accept", "image/jpeg,image/png,image/webp")
-      expect(screen.getAllByText("JPG, PNG, WEBP").length).toBeGreaterThan(0)
+      ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
       expect(
         screen.getByTestId("document-upload-input-moa-file")
       ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
@@ -2601,6 +2600,7 @@ describe("ProjectsModule (J4)", () => {
       expect(screen.getAllByText("PDF, DOC, XLS, JPG, PNG").length).toBeGreaterThan(
         0
       )
+      expect(screen.queryByText("JPG, PNG, WEBP")).not.toBeInTheDocument()
     }
   )
 

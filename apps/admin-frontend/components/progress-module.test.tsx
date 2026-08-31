@@ -367,9 +367,43 @@ describe("ProgressModule (V81, V84)", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/click to upload or drag an image here/i)
+        screen.getByText(/click to upload or drag files here/i)
       ).toBeInTheDocument()
     })
+  })
+
+  it("should accept the shared document types on site photo and omit webp", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+    store.updates = []
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Bridge")).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /update progress/i }))
+
+    expect(
+      await screen.findByTestId("document-upload-input-site-photo")
+    ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
+    expect(screen.queryByText(/webp/i)).not.toBeInTheDocument()
   })
 
   it("shows four progress summary cards", async () => {

@@ -19,8 +19,6 @@ import { cn } from "@workspace/ui/lib/utils"
 export const DOCUMENT_UPLOAD_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
 
-export const IMAGE_UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp"
-
 export function fileIdentity(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`
 }

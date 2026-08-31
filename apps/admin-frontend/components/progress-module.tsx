@@ -77,10 +77,7 @@ import { Progress } from "@workspace/ui/components/progress"
 import { Slider } from "@workspace/ui/components/slider"
 import { Textarea } from "@workspace/ui/components/textarea"
 
-import {
-  DocumentUploadField,
-  IMAGE_UPLOAD_ACCEPT,
-} from "@/components/document-upload-field"
+import { DocumentUploadField } from "@/components/document-upload-field"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import {
   LocationFilterControls,
@@ -1797,9 +1794,6 @@ export function ProgressModule() {
                 <DocumentUploadField
                   id="site-photo"
                   label="Site photo (required)"
-                  accept={IMAGE_UPLOAD_ACCEPT}
-                  helperText="JPG, PNG, WebP"
-                  dropZoneText="Click to upload or drag an image here"
                   multiple
                   files={photos}
                   onChange={setPhotos}

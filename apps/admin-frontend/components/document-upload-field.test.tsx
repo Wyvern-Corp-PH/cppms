@@ -7,7 +7,11 @@ import {
   UPLOAD_SIZE_LIMIT_MESSAGE,
 } from "@workspace/pocketbase/domain/upload-size"
 
-import { DocumentUploadField, fileIdentity } from "./document-upload-field"
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  DocumentUploadField,
+  fileIdentity,
+} from "./document-upload-field"
 
 function makeFile(name: string, content = "content") {
   return new File([content], name, { type: "application/pdf" })
@@ -18,6 +22,26 @@ function makeDistinctFiles(name: string): [File, File] {
 }
 
 describe("DocumentUploadField", () => {
+  it("should use the shared document accept string by default and omit webp", () => {
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        files={[]}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(DOCUMENT_UPLOAD_ACCEPT).toBe(
+      ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+    )
+    expect(DOCUMENT_UPLOAD_ACCEPT).not.toMatch(/webp/i)
+    expect(screen.getByTestId("document-upload-input-moa")).toHaveAttribute(
+      "accept",
+      DOCUMENT_UPLOAD_ACCEPT
+    )
+  })
+
   it("renders label and drop zone copy", () => {
     render(
       <DocumentUploadField
