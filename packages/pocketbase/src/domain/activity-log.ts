@@ -1,3 +1,4 @@
+import { AUDIT_ACTION } from "../../schema/manifest"
 import type { AuditAction, Role } from "../schemas/enums"
 
 export type ActivityOutcome = "success" | "error" | "denied"
@@ -74,6 +75,73 @@ const ACTIVITY_RESOURCE_LABELS: Record<string, string> = {
   approval_actions: "Approvals",
   users: "Users",
   locations: "Locations",
+}
+
+const ACTIVITY_ACTION_LABELS: Record<AuditAction, string> = {
+  create: "Created",
+  update: "Edited",
+  delete: "Deleted",
+  deactivate: "Deactivated",
+  approve: "Approved",
+  reject: "Rejected",
+  request_revision: "Requested revision",
+  reset_password: "Reset password",
+}
+
+export type ActivityLogFilters = {
+  actor?: string
+  action?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+export function activityLogActionLabel(action: string): string {
+  return ACTIVITY_ACTION_LABELS[action as AuditAction] ?? action
+}
+
+export function activityLogActionOptions(): { value: AuditAction; label: string }[] {
+  return AUDIT_ACTION.map((value) => ({
+    value,
+    label: activityLogActionLabel(value),
+  }))
+}
+
+function isUnsetFilter(value: string | undefined): boolean {
+  return !value?.trim() || value === "all"
+}
+
+function activityLogDateKey(log: {
+  created?: string
+  created_at?: string
+}): string | null {
+  const raw = log.created_at ?? log.created
+  if (!raw?.trim()) return null
+  const ms = Date.parse(raw)
+  if (Number.isNaN(ms)) return null
+  return new Date(ms).toISOString().slice(0, 10)
+}
+
+export function filterActivityLogs<
+  T extends {
+    actor_user?: string
+    action: string
+    created?: string
+    created_at?: string
+  },
+>(logs: readonly T[], filters: ActivityLogFilters): T[] {
+  const actor = isUnsetFilter(filters.actor) ? undefined : filters.actor
+  const action = isUnsetFilter(filters.action) ? undefined : filters.action
+  const dateFrom = filters.dateFrom?.trim() || undefined
+  const dateTo = filters.dateTo?.trim() || undefined
+
+  return logs.filter((log) => {
+    if (actor && log.actor_user !== actor) return false
+    if (action && log.action !== action) return false
+    const when = activityLogDateKey(log)
+    if (dateFrom && (when === null || when < dateFrom)) return false
+    if (dateTo && (when === null || when > dateTo)) return false
+    return true
+  })
 }
 
 export function activityLogResourceLabel(

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { createActivityLogEvent } from "./activity-log"
+import {
+  activityLogActionLabel,
+  createActivityLogEvent,
+  filterActivityLogs,
+} from "./activity-log"
 
 describe("activity log wide events (V124-V128)", () => {
   it("creates one structured event with actor, policy, outcome, duration, and env", () => {
@@ -59,5 +63,52 @@ describe("activity log wide events (V124-V128)", () => {
     })
 
     expect(event.error).toBe("password=[redacted]")
+  })
+})
+
+describe("activity log filters", () => {
+  const logs = [
+    {
+      actor_user: "u-ana",
+      action: "create" as const,
+      created: "2026-06-20 00:00:00.000Z",
+    },
+    {
+      actor_user: "u-ana",
+      action: "approve" as const,
+      created: "2026-06-23 00:00:00.000Z",
+    },
+    {
+      actor_user: "u-ben",
+      action: "delete" as const,
+      created: "2026-06-25 00:00:00.000Z",
+    },
+  ]
+
+  it("should map stored audit actions to human-readable labels", () => {
+    expect(activityLogActionLabel("create")).toBe("Created")
+    expect(activityLogActionLabel("update")).toBe("Edited")
+    expect(activityLogActionLabel("delete")).toBe("Deleted")
+    expect(activityLogActionLabel("approve")).toBe("Approved")
+    expect(activityLogActionLabel("request_revision")).toBe("Requested revision")
+    expect(activityLogActionLabel("reset_password")).toBe("Reset password")
+  })
+
+  it("should AND actor, action, and date filters and treat unset as all", () => {
+    expect(filterActivityLogs(logs, {})).toHaveLength(3)
+    expect(filterActivityLogs(logs, { actor: "all", action: "all" })).toHaveLength(3)
+    expect(filterActivityLogs(logs, { actor: "u-ana" })).toHaveLength(2)
+    expect(filterActivityLogs(logs, { action: "delete" })).toHaveLength(1)
+    expect(
+      filterActivityLogs(logs, { dateFrom: "2026-06-22", dateTo: "2026-06-24" })
+    ).toEqual([logs[1]])
+    expect(
+      filterActivityLogs(logs, {
+        actor: "u-ana",
+        action: "approve",
+        dateFrom: "2026-06-22",
+        dateTo: "2026-06-24",
+      })
+    ).toEqual([logs[1]])
   })
 })

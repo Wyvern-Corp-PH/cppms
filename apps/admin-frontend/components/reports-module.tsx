@@ -6,7 +6,13 @@ import * as XLSX from "xlsx"
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
-import { activityLogResourceLabel } from "@workspace/pocketbase/domain/activity-log"
+import {
+  activityLogActionLabel,
+  activityLogActionOptions,
+  activityLogResourceLabel,
+  filterActivityLogs,
+  type ActivityLogFilters,
+} from "@workspace/pocketbase/domain/activity-log"
 import {
   reportApprovalRow,
   reportBudgetRow,
@@ -89,6 +95,11 @@ const EMPTY_FILTERS: ReportFilters = {
   barangay: "all",
 }
 
+const EMPTY_LOG_FILTERS: ActivityLogFilters = {
+  actor: "all",
+  action: "all",
+}
+
 export function ReportsModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
@@ -102,6 +113,7 @@ export function ReportsModule() {
     ...PROJECT_CATEGORY,
   ])
   const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS)
+  const [logFilters, setLogFilters] = useState<ActivityLogFilters>(EMPTY_LOG_FILTERS)
   const [activeTab, setActiveTab] = useState<ReportTab>("projects")
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
@@ -214,6 +226,24 @@ export function ReportsModule() {
     [updates, filteredProjectIds]
   )
   const approvalsCount = countApprovedProjects(filteredProjects)
+  const filteredActivityLogs = useMemo(
+    () => filterActivityLogs(activityLogs, logFilters),
+    [activityLogs, logFilters]
+  )
+  const activityLogActors = useMemo(() => {
+    const seen = new Set<string>()
+    const actors: { id: string; label: string }[] = []
+    for (const log of activityLogs) {
+      const id = log.actor_user
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      actors.push({
+        id,
+        label: displayUserRef(id, userDisplay, log.actor_role),
+      })
+    }
+    return actors
+  }, [activityLogs, userDisplay])
 
   const locationFilterValue: LocationFilterValue = {
     municipality:
@@ -516,7 +546,11 @@ export function ReportsModule() {
       cell: ({ row }) =>
         displayUserRef(row.original.actor_user, userDisplay, row.original.actor_role),
     },
-    { accessorKey: "action", header: "Action" },
+    {
+      accessorKey: "action",
+      header: "Action",
+      cell: ({ row }) => activityLogActionLabel(row.original.action),
+    },
     {
       accessorKey: "resource",
       header: "Resource",
@@ -711,9 +745,64 @@ export function ReportsModule() {
               Super Admin audit trail for project, budget, progress, approval, and user actions.
             </p>
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Select
+              value={logFilters.actor ?? "all"}
+              onValueChange={(value) =>
+                setLogFilters((prev) => ({ ...prev, actor: value }))
+              }
+            >
+              <SelectTrigger aria-label="Filter by actor">
+                <SelectValue placeholder="Actor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actors</SelectItem>
+                {activityLogActors.map((actor) => (
+                  <SelectItem key={actor.id} value={actor.id}>
+                    {actor.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={logFilters.action ?? "all"}
+              onValueChange={(value) =>
+                setLogFilters((prev) => ({ ...prev, action: value }))
+              }
+            >
+              <SelectTrigger aria-label="Filter by action type">
+                <SelectValue placeholder="Action type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All actions</SelectItem>
+                {activityLogActionOptions().map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangeFilter
+              id="activity-logs-date-range"
+              from={logFilters.dateFrom ?? ""}
+              to={logFilters.dateTo ?? ""}
+              onFromChange={(value) =>
+                setLogFilters((prev) => ({
+                  ...prev,
+                  dateFrom: value || undefined,
+                }))
+              }
+              onToChange={(value) =>
+                setLogFilters((prev) => ({
+                  ...prev,
+                  dateTo: value || undefined,
+                }))
+              }
+            />
+          </div>
           <DataTable
             columns={activityLogColumns}
-            data={activityLogs}
+            data={filteredActivityLogs}
             getRowId={(log) => log.id}
             className="rounded-md"
           />

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
@@ -78,6 +78,58 @@ vi.mock("@/hooks/use-pocketbase-realtime", () => ({
 }))
 
 import { ReportsModule } from "./reports-module"
+
+function asSuperAdmin() {
+  authState.user = {
+    id: "u1",
+    name: "Current Admin",
+    email: "current@example.test",
+    role: "Super Admin",
+    account_status: "Active",
+  }
+}
+
+function seedActivityLogs() {
+  store.users = [
+    { id: "u-ana", name: "Ana Santos", email: "ana@example.test" },
+    { id: "u-ben", name: "Ben Cruz", email: "ben@example.test" },
+  ]
+  store.logs = [
+    {
+      ...DEFAULT_ACTIVITY_LOG,
+      id: "log-ana-create",
+      actor_user: "u-ana",
+      action: "create",
+      resource: "projects",
+      created: "2026-06-20 00:00:00.000Z",
+    },
+    {
+      ...DEFAULT_ACTIVITY_LOG,
+      id: "log-ana-approve",
+      actor_user: "u-ana",
+      action: "approve",
+      resource: "approval_actions",
+      created: "2026-06-23 00:00:00.000Z",
+    },
+    {
+      ...DEFAULT_ACTIVITY_LOG,
+      id: "log-ben-delete",
+      actor_user: "u-ben",
+      action: "delete",
+      resource: "users",
+      created: "2026-06-25 00:00:00.000Z",
+    },
+  ]
+}
+
+async function activityLogsSection() {
+  await waitFor(() => {
+    expect(screen.getByText("Activity Logs")).toBeInTheDocument()
+  })
+  const section = screen.getByText("Activity Logs").closest("section")
+  expect(section).toBeTruthy()
+  return within(section as HTMLElement)
+}
 
 describe("ReportsModule (V12)", () => {
   beforeAll(() => {
@@ -539,6 +591,117 @@ describe("ReportsModule (V12)", () => {
       expect(screen.getByText("Activity Logs")).toBeInTheDocument()
     })
     expect(screen.queryByText(/^projects$/)).not.toBeInTheDocument()
+  })
+
+  it("should show Actor, Action type, and Date range filters to Super Admin", async () => {
+    asSuperAdmin()
+    seedActivityLogs()
+
+    render(<ReportsModule />)
+
+    const logs = await activityLogsSection()
+    expect(logs.getByLabelText(/filter by actor/i)).toBeInTheDocument()
+    expect(logs.getByLabelText(/filter by action type/i)).toBeInTheDocument()
+    expect(logs.getByRole("button", { name: /pick date range/i })).toBeInTheDocument()
+  })
+
+  it("should hide Activity Logs from Province, Municipality, and Barangay", async () => {
+    for (const role of ["Province", "Municipality", "Barangay"] as const) {
+      authState.user = {
+        id: "u1",
+        name: "Current Admin",
+        email: "current@example.test",
+        role,
+        account_status: "Active",
+      }
+      seedActivityLogs()
+      const { unmount } = render(<ReportsModule />)
+
+      await waitFor(() => {
+        expect(screen.getByText("Generate and export reports as Excel files")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("Activity Logs")).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/filter by actor/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/filter by action type/i)).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it("should narrow Activity Logs when Actor, Action type, or Date range changes", async () => {
+    const user = userEvent.setup()
+    asSuperAdmin()
+    seedActivityLogs()
+
+    render(<ReportsModule />)
+    const logs = await activityLogsSection()
+
+    expect(logs.getByText("Projects")).toBeInTheDocument()
+    expect(logs.getByText("Approvals")).toBeInTheDocument()
+    expect(logs.getByText("Users")).toBeInTheDocument()
+
+    await user.click(logs.getByLabelText(/filter by actor/i))
+    await user.click(await screen.findByRole("option", { name: "Ana Santos" }))
+    expect(logs.getByText("Projects")).toBeInTheDocument()
+    expect(logs.getByText("Approvals")).toBeInTheDocument()
+    expect(logs.queryByText("Users")).not.toBeInTheDocument()
+
+    await user.click(logs.getByLabelText(/filter by actor/i))
+    await user.click(await screen.findByRole("option", { name: /all actors/i }))
+    await user.click(logs.getByLabelText(/filter by action type/i))
+    await user.click(await screen.findByRole("option", { name: "Deleted" }))
+    expect(logs.getByText("Users")).toBeInTheDocument()
+    expect(logs.queryByText("Projects")).not.toBeInTheDocument()
+    expect(logs.queryByText("Approvals")).not.toBeInTheDocument()
+
+    await user.click(logs.getByLabelText(/filter by action type/i))
+    await user.click(await screen.findByRole("option", { name: /all actions/i }))
+    await user.click(logs.getByRole("button", { name: /pick date range/i }))
+    fireEvent.change(screen.getByLabelText("From date"), {
+      target: { value: "2026-06-22" },
+    })
+    fireEvent.change(screen.getByLabelText("To date"), {
+      target: { value: "2026-06-24" },
+    })
+    expect(logs.getByText("Approvals")).toBeInTheDocument()
+    expect(logs.queryByText("Projects")).not.toBeInTheDocument()
+    expect(logs.queryByText("Users")).not.toBeInTheDocument()
+  })
+
+  it("should AND Activity Log filters and restore the full list when cleared", async () => {
+    const user = userEvent.setup()
+    asSuperAdmin()
+    seedActivityLogs()
+
+    render(<ReportsModule />)
+    const logs = await activityLogsSection()
+
+    await user.click(logs.getByLabelText(/filter by actor/i))
+    await user.click(await screen.findByRole("option", { name: "Ana Santos" }))
+    await user.click(logs.getByLabelText(/filter by action type/i))
+    await user.click(await screen.findByRole("option", { name: "Approved" }))
+    await user.click(logs.getByRole("button", { name: /pick date range/i }))
+    fireEvent.change(screen.getByLabelText("From date"), {
+      target: { value: "2026-06-22" },
+    })
+    fireEvent.change(screen.getByLabelText("To date"), {
+      target: { value: "2026-06-24" },
+    })
+
+    expect(logs.getByText("Approvals")).toBeInTheDocument()
+    expect(logs.queryByText("Projects")).not.toBeInTheDocument()
+    expect(logs.queryByText("Users")).not.toBeInTheDocument()
+
+    await user.click(logs.getByLabelText(/filter by actor/i))
+    await user.click(await screen.findByRole("option", { name: /all actors/i }))
+    await user.click(logs.getByLabelText(/filter by action type/i))
+    await user.click(await screen.findByRole("option", { name: /all actions/i }))
+    await user.click(logs.getByRole("button", { name: /jun 22, 2026/i }))
+    fireEvent.change(screen.getByLabelText("From date"), { target: { value: "" } })
+    fireEvent.change(screen.getByLabelText("To date"), { target: { value: "" } })
+
+    expect(logs.getByText("Projects")).toBeInTheDocument()
+    expect(logs.getByText("Approvals")).toBeInTheDocument()
+    expect(logs.getByText("Users")).toBeInTheDocument()
   })
 
   it("should show a human-readable activity log resource when Super Admin views logs", async () => {

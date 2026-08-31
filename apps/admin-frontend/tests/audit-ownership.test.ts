@@ -8,6 +8,7 @@ const clientFiles = [
   "components/budget-module.tsx",
   "components/approvals-module.tsx",
   "components/user-management-module.tsx",
+  "components/reports-module.tsx",
   "lib/activity-log.ts",
 ]
 
