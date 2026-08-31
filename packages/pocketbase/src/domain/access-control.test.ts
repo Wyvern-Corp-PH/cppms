@@ -9,7 +9,6 @@ import {
   isProjectInUserScope,
   isSuperAdmin,
   mustChangePassword,
-  remapRetiredUserRole,
   ROLE_POLICIES,
   type PolicyKey,
   type PolicyUser,
@@ -295,10 +294,7 @@ describe("access control (V115-V121)", () => {
     ).toBe(true)
   })
 
-  it("should remap a stored PPDO role to Province and grant no live PPDO policy", () => {
-    expect(remapRetiredUserRole("PPDO")).toBe("Province")
-    expect(remapRetiredUserRole("Province")).toBe("Province")
-    expect(remapRetiredUserRole("Municipality")).toBe("Municipality")
+  it("should grant no live PPDO policy after the role is retired", () => {
     expect(getRolePolicy("PPDO")).toEqual([])
     expect(ROLE_POLICIES).not.toHaveProperty("PPDO")
     expect(isActiveUser({ id: "pp1", role: "PPDO", account_status: "Active" })).toBe(

@@ -102,11 +102,6 @@ export const ROLE_POLICIES: Record<Role, readonly PolicyKey[]> = {
   Barangay: BARANGAY_POLICIES,
 }
 
-/** Stored leftover only. Live ROLE no longer includes PPDO. */
-export function remapRetiredUserRole(role: string): string {
-  return role === "PPDO" ? "Province" : role
-}
-
 export function getRolePolicy(role: Role | string | undefined): readonly PolicyKey[] {
   if (!role) return []
   return ROLE_POLICIES[role as Role] ?? []

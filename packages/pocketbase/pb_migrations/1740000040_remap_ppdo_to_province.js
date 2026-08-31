@@ -14,6 +14,7 @@ const PROJECT_SCOPE_RULE = `(${PROJECT_CREATE_RULE}) || (${MUNICIPALITY_PROJECT_
 const PROJECT_LIST_VIEW_RULE = `@request.auth.id = "" || (${PROJECT_SCOPE_RULE})`
 
 const ROLE_VALUES = ["Super Admin", "Province", "Municipality", "Barangay"]
+const PAGE_SIZE = 500
 
 function findCollectionIfExists(app, name) {
   try {
@@ -41,10 +42,32 @@ function remapPpdoUsers(app) {
   const users = findCollectionIfExists(app, "users")
   if (!users) return
 
-  const records = app.findRecordsByFilter("users", 'role = "PPDO"', "", 500, 0)
+  const records = []
+  let offset = 0
+  while (true) {
+    const batch = app.findRecordsByFilter(
+      "users",
+      'role = "PPDO"',
+      "",
+      PAGE_SIZE,
+      offset
+    )
+    records.push(...batch)
+    if (batch.length < PAGE_SIZE) break
+    offset += batch.length
+  }
+
   for (const record of records) {
     record.set("role", remapRetiredUserRole(record.get("role")))
     app.save(record)
+  }
+}
+
+function assertNoPpdoUsersRemain(app) {
+  if (!findCollectionIfExists(app, "users")) return
+  const leftover = app.findRecordsByFilter("users", 'role = "PPDO"', "", 1, 0)
+  if (leftover.length > 0) {
+    throw new Error("PPDO users remain; refuse dropping PPDO from role select")
   }
 }
 
@@ -83,6 +106,7 @@ function dropPpdoFromProjectRules(app) {
 migrate(
   (app) => {
     remapPpdoUsers(app)
+    assertNoPpdoUsersRemain(app)
     dropPpdoFromUserRoleSelect(app)
     deletePpdoRoleOption(app)
     dropPpdoFromProjectRules(app)

@@ -1244,6 +1244,22 @@ describe("remap PPDO users to Province then drop the role", () => {
     expect(migrationSource).not.toMatch(/activity_logs[\s\S]*set\("role"/)
   })
 
+  it("should page all PPDO users and refuse the select drop if any PPDO row remains", () => {
+    expect(migrationSource).toContain("PAGE_SIZE")
+    expect(migrationSource).toContain("offset")
+    expect(migrationSource).toMatch(/while\s*\(/)
+    expect(migrationSource).toContain("assertNoPpdoUsersRemain")
+    expect(migrationSource).toContain("leftover")
+    expect(migrationSource).toContain("throw new Error")
+    const leftoverAt = migrationSource.indexOf("assertNoPpdoUsersRemain(app)")
+    const dropAt = migrationSource.indexOf("dropPpdoFromUserRoleSelect(app)")
+    expect(leftoverAt).toBeGreaterThan(-1)
+    expect(dropAt).toBeGreaterThan(leftoverAt)
+    expect(migrationSource).not.toMatch(
+      /findRecordsByFilter\([^)]*,\s*500,\s*0/
+    )
+  })
+
   it("should drop PPDO from project create rules without adding Super Admin or Province actions", () => {
     expect(migrationSource).toContain("PROJECT_CREATE_RULE")
     expect(migrationSource).toContain("PROVINCE_RULE")
