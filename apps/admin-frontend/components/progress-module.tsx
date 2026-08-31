@@ -1157,13 +1157,11 @@ export function ProgressModule() {
       progressRecordId = progressRecord.id
     }
 
-    if (includeReleasedAmount) {
+    if (options.parsed.releasedAmount) {
       await syncReleasedAmountExpense({
         pb,
         projectId: options.parsed.projectId,
-        releasedAmount:
-          options.parsed.releasedAmount ??
-          toReleasedAmountInput(releasedAmount),
+        releasedAmount: options.parsed.releasedAmount,
         latestExpense: options.latestExpense,
         latestUpdate: options.latestUpdate,
         progressRecordId,

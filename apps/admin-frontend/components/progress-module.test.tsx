@@ -3335,10 +3335,13 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          receipt_number: "007",
-          description: "Bridge materials",
+          year: 2026,
           main_account: "General Fund",
           sub_account: "GF - Proper",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          receipt_number: "007",
+          description: "Bridge materials",
+          progress_update: "pu-new",
         })
       )
     })
@@ -3555,10 +3558,13 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          receipt_number: "OR-1500",
-          description: "Release for progress",
+          year: 2026,
           main_account: "General Fund",
           sub_account: "GF - Proper",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          receipt_number: "OR-1500",
+          description: "Release for progress",
+          progress_update: "pu-new",
         })
       )
     })
@@ -3647,6 +3653,60 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
+
+  it("saves Super Admin progress updates with embedded released amount sync", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
+    })
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          year: 2026,
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          receipt_number: "OR-1500",
+          description: "Release for progress",
+          progress_update: "pu-new",
+        })
+      )
+    })
+    expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
+      expenseCreateMock.mock.invocationCallOrder[0]!
+    )
+  }, 20_000)
 
   it("should show FieldError when Municipality submits Released Amount without receipt_number", async () => {
     const user = userEvent.setup()
@@ -3783,8 +3843,13 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
+          year: 2026,
           main_account: "General Fund",
           sub_account: "GF - Proper",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          receipt_number: "OR-1500",
+          description: "Release for progress",
+          progress_update: "pu-new",
         })
       )
     })

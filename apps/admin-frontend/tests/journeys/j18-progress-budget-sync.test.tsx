@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -186,49 +186,156 @@ describe("J18 progress update syncs released amount to budget module", () => {
     }
   })
 
-  it("shows synced released amount in the Budget module after a progress update save", async () => {
-    const user = userEvent.setup()
+  function useActor(
+    role: "Barangay" | "Municipality" | "Province" | "Super Admin"
+  ) {
+    if (role === "Barangay") {
+      store.authRecord = {
+        id: "barangay-user",
+        email: "barangay@example.test",
+        name: "Current Barangay User",
+        role: "Barangay",
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      }
+      return
+    }
+    if (role === "Municipality") {
+      store.authRecord = {
+        id: "municipality-user",
+        email: "municipality@example.test",
+        name: "Current Municipality User",
+        role: "Municipality",
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+      }
+      return
+    }
+    if (role === "Province") {
+      store.authRecord = {
+        id: "province-user",
+        email: "province@example.test",
+        name: "Current Province User",
+        role: "Province",
+        account_status: "Active",
+      }
+      return
+    }
+    store.authRecord = {
+      id: "super-admin-user",
+      email: "super@example.test",
+      name: "Current Super Admin User",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+  }
 
-    render(<ProgressModule />)
-
-    await user.click(await screen.findByRole("button", { name: /update progress/i }))
-    await user.upload(
-      screen.getByTestId("document-upload-input-site-photo"),
-      makeFile("site.jpg", "image/jpeg")
-    )
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "RCPT-18")
-    await user.type(screen.getByLabelText(/^description$/i), "J18 release")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
-    await user.click(screen.getByRole("button", { name: /save update/i }))
-
-    await waitFor(() => {
-      expect(store.expenses).toHaveLength(1)
-      expect(store.expenses[0]).toMatchObject({
-        project: "p1",
-        amount: "2500",
-        receipt_number: "RCPT-18",
-        main_account: "General Fund",
-        sub_account: "GF - Proper",
+  it.each([
+    { role: "Barangay" as const, seesOutOfScope: false },
+    { role: "Municipality" as const, seesOutOfScope: false },
+    { role: "Province" as const, seesOutOfScope: true },
+    { role: "Super Admin" as const, seesOutOfScope: true },
+  ])(
+    "shows synced released amount in Budget after a $role progress save",
+    async ({ role, seesOutOfScope }) => {
+      useActor(role)
+      store.projects.push({
+        id: "p-out",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 100_000,
+        progress_pct: 10,
+        municipality: "Lasam",
+        barangay: "Centro",
       })
-    })
+      store.expenses.push({
+        id: "e-out",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        created: "2026-06-01T00:00:00.000Z",
+        updated: "2026-06-01T00:00:00.000Z",
+        project: "p-out",
+        amount: "10000",
+        year: "2026",
+        main_account: "Special Education Fund",
+        sub_account: "School supplies",
+        date: "2026-06-01",
+        receipt_number: "OUT-1",
+        description: "Out of scope release",
+      })
 
-    cleanup()
-    render(<BudgetModule />)
+      const user = userEvent.setup()
 
-    await waitFor(() => {
-      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱2,500")
-    })
+      render(<ProgressModule />)
 
-    await user.click(screen.getByRole("tab", { name: /released amount/i }))
+      const projectRow = await screen.findByTestId("progress-row-p1")
+      await user.click(
+        within(projectRow).getByRole("button", { name: /update progress/i })
+      )
+      await user.upload(
+        screen.getByTestId("document-upload-input-site-photo"),
+        makeFile("site.jpg", "image/jpeg")
+      )
+      await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
+      await user.type(screen.getByLabelText(/^receipt number$/i), "RCPT-18")
+      await user.type(screen.getByLabelText(/^description$/i), "J18 release")
+      await user.click(screen.getByLabelText(/^main account$/i))
+      await user.click(screen.getByRole("option", { name: "General Fund" }))
+      await user.click(screen.getByLabelText(/^sub account$/i))
+      await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+      await user.click(screen.getByRole("button", { name: /save update/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText("-2,500")).toBeInTheDocument()
-      expect(screen.getByText("RCPT-18")).toBeInTheDocument()
-      expect(screen.getAllByText("Barangay Bridge").length).toBeGreaterThan(0)
-    })
-  })
+      await waitFor(() => {
+        const synced = store.expenses.find((row) => row.receipt_number === "RCPT-18")
+        expect(synced).toMatchObject({
+          project: "p1",
+          amount: "2500",
+          year: "2026",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          receipt_number: "RCPT-18",
+          description: "J18 release",
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
+          progress_update: "pu-sync",
+        })
+      })
+      expect(
+        store.expenses.filter((row) => row.receipt_number === "RCPT-18")
+      ).toHaveLength(1)
+
+      cleanup()
+      render(<BudgetModule />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId("budget-spent")).toHaveTextContent(
+          seesOutOfScope ? "₱12,500" : "₱2,500"
+        )
+      })
+
+      await user.click(screen.getByRole("tab", { name: /released amount/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText("-2,500")).toBeInTheDocument()
+        expect(screen.getByText("RCPT-18")).toBeInTheDocument()
+        expect(screen.getByText("J18 release")).toBeInTheDocument()
+        expect(screen.getAllByText("Barangay Bridge").length).toBeGreaterThan(0)
+      })
+
+      if (seesOutOfScope) {
+        expect(screen.getByText("Lasam School")).toBeInTheDocument()
+        expect(screen.getByText("OUT-1")).toBeInTheDocument()
+      } else {
+        expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
+        expect(screen.queryByText("OUT-1")).not.toBeInTheDocument()
+      }
+    },
+    20_000
+  )
 })
