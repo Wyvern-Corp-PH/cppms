@@ -93,4 +93,33 @@ describe("user display helpers (V149)", () => {
     expect(displayUserRef("actor-user", displayMap)).toBe("Actor Name")
     expect(displayUserRef("proj-1", displayMap)).toBe("proj-1")
   })
+
+  it("should fall back to email then id from expanded allocated_by, updated_by, and approved_by", () => {
+    const harvested = usersFromExpandedRows([
+      {
+        id: "row-1",
+        expand: {
+          allocated_by: {
+            id: "allocator-user",
+            email: "allocator@example.test",
+          },
+          updated_by: { id: "updater-user" },
+          approved_by: {
+            id: "approver-user",
+            name: "  ",
+            email: "approver@example.test",
+          },
+        },
+      },
+    ])
+
+    const displayMap = buildUserDisplayMap(harvested)
+    expect(displayUserRef("allocator-user", displayMap)).toBe(
+      "allocator@example.test"
+    )
+    expect(displayUserRef("updater-user", displayMap)).toBe("updater-user")
+    expect(displayUserRef("approver-user", displayMap)).toBe(
+      "approver@example.test"
+    )
+  })
 })

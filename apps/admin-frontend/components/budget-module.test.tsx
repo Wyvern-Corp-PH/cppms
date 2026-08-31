@@ -1137,6 +1137,154 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it.each(["Municipality", "Barangay"] as const)(
+    "should show Allocated By name from expand for %s when users list is forbidden",
+    async (role) => {
+      store.authRecord = {
+        id: "current-user",
+        email: "current@example.test",
+        name: "Current Local Officer",
+        role,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        account_status: "Active",
+      }
+      store.deniedCollections = ["users"]
+      store.projects = [
+        {
+          id: "p1",
+          collectionId: "p",
+          collectionName: "projects",
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "Ongoing",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+          budget_year: 2026,
+          bid_price: 200_000,
+        },
+      ]
+      store.allocations = [
+        {
+          id: "a1",
+          collectionId: "a",
+          collectionName: "budget_allocations",
+          project: "p1",
+          amount: 100_000,
+          year: 2026,
+          date: "2026-06-17",
+          allocated_by: "other-allocator",
+          expand: {
+            allocated_by: {
+              id: "other-allocator",
+              name: "Other Allocator",
+            },
+          },
+        },
+      ]
+
+      render(<BudgetModule />)
+
+      await waitFor(() => {
+        expect(screen.getByText("Other Allocator")).toBeInTheDocument()
+        expect(screen.queryByText("other-allocator")).not.toBeInTheDocument()
+      })
+    }
+  )
+
+  it("should show Allocated By email from expand when name is empty", async () => {
+    store.deniedCollections = ["users"]
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+        allocated_by: "other-allocator",
+        expand: {
+          allocated_by: {
+            id: "other-allocator",
+            email: "allocator@example.test",
+          },
+        },
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("allocator@example.test")).toBeInTheDocument()
+      expect(screen.queryByText("other-allocator")).not.toBeInTheDocument()
+    })
+  })
+
+  it("should keep Super Admin Allocated By names when the users list succeeds", async () => {
+    store.authRecord = {
+      id: "current-user",
+      email: "current@example.test",
+      name: "Current Super Admin",
+      role: "Super Admin",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+        allocated_by: "u1",
+      },
+    ]
+    store.users = [
+      {
+        id: "u1",
+        collectionId: "users",
+        collectionName: "users",
+        email: "ana@example.test",
+        name: "Ana Santos",
+        role: "Province",
+        account_status: "Active",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Ana Santos")).toBeInTheDocument()
+      expect(screen.queryByText("u1")).not.toBeInTheDocument()
+    })
+  })
+
   it("renders the current auth user name when user list is unavailable", async () => {
     store.projects = [
       {

@@ -651,6 +651,146 @@ describe("ReportsModule (V12)", () => {
     expect(screen.queryByText("officer-user")).not.toBeInTheDocument()
   })
 
+  it.each(["Municipality", "Barangay"] as const)(
+    "should show Approved By and Updated By names from expand for %s when users list is forbidden",
+    async (role) => {
+      const user = userEvent.setup()
+      authState.user = {
+        id: "u1",
+        name: "Current Local Officer",
+        email: "current@example.test",
+        role,
+        account_status: "Active",
+      }
+      store.deniedCollections = ["users"]
+      store.users = []
+      store.projects = [
+        {
+          id: "p-approved",
+          collectionId: "p",
+          collectionName: "projects",
+          name: "Approved Bridge",
+          category: "Infrastructure",
+          status: "Completed",
+          budget_year: 2026,
+          progress_pct: 100,
+          approval_status: "approved",
+          approved_at: "2026-08-19",
+          approved_by: "province-user",
+          expand: {
+            approved_by: {
+              id: "province-user",
+              name: "Province Reviewer",
+            },
+          },
+        },
+      ]
+      store.updates = [
+        {
+          id: "upd1",
+          collectionId: "updates",
+          collectionName: "progress_updates",
+          created: "2026-06-23 00:00:00.000Z",
+          project: "p-approved",
+          from_pct: 25,
+          to_pct: 100,
+          site_photo: [],
+          updated_by: "officer-user",
+          expand: {
+            updated_by: {
+              id: "officer-user",
+              name: "Barangay Officer",
+            },
+          },
+        },
+      ]
+
+      render(<ReportsModule />)
+
+      await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+      await waitFor(() => {
+        expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole("tab", { name: /^progress/i }))
+      await waitFor(() => {
+        expect(screen.getByText("Barangay Officer")).toBeInTheDocument()
+      })
+      expect(screen.queryByText("officer-user")).not.toBeInTheDocument()
+    }
+  )
+
+  it("should show Approved By email from expand when name is empty", async () => {
+    const user = userEvent.setup()
+    store.deniedCollections = ["users"]
+    store.users = []
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+        expand: {
+          approved_by: {
+            id: "province-user",
+            email: "approver@example.test",
+          },
+        },
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("approver@example.test")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+  })
+
+  it("should keep Super Admin Approved By names when the users list succeeds", async () => {
+    const user = userEvent.setup()
+    asSuperAdmin()
+    store.users = [
+      {
+        id: "province-user",
+        name: "Province Reviewer",
+        email: "province@example.test",
+      },
+    ]
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+  })
+
   it("shows activity logs only to Super Admin", async () => {
     authState.user = {
       id: "u1",

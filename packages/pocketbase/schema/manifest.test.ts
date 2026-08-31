@@ -218,6 +218,11 @@ const photoDocumentMimeMigrationPath = resolve(
   "pb_migrations",
   "1740000038_photo_document_mime_types.js"
 )
+const usersViewRuleAuthMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000039_users_view_rule_auth.js"
+)
 const projectStatusReviewRepairMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -1194,6 +1199,25 @@ describe("photo fields use shared document MIME types", () => {
     expect(migrationSource).not.toContain("resolution_file")
     expect(migrationSource).not.toContain("supporting_docs")
     expect(migrationSource).not.toContain("certification_completion")
+  })
+})
+
+describe("users view-by-id for authenticated expand", () => {
+  const migrationSource = readFileSync(usersViewRuleAuthMigrationPath, "utf8")
+
+  it("should allow authenticated whole-row view-by-id and keep list Super Admin-only", () => {
+    expect(migrationSource).toContain("users.viewRule")
+    expect(migrationSource).toContain("AUTH_RULE")
+    expect(migrationSource).toContain('@request.auth.id != ""')
+    expect(migrationSource).toContain("SUPER_ADMIN_RULE")
+    expect(migrationSource).toContain("users.listRule")
+    expect(migrationSource).toContain('role = "Super Admin"')
+    expect(migrationSource).not.toMatch(/users\.listRule\s*=\s*AUTH_RULE/)
+    expect(migrationSource).not.toMatch(/users\.createRule/)
+    expect(migrationSource).not.toMatch(/users\.updateRule/)
+    expect(migrationSource).not.toMatch(/users\.deleteRule/)
+    expect(migrationSource).not.toMatch(/users\.manageRule/)
+    expect(migrationSource).not.toContain("activity_logs")
   })
 })
 
