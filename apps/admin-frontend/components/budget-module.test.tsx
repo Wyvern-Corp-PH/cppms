@@ -162,6 +162,54 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
   }
 
+  it("should show allocator full name after allocate when users list includes the actor", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.users = [
+      {
+        id: "current-user",
+        collectionId: "users",
+        collectionName: "users",
+        email: "current@example.test",
+        name: "Current Province User",
+        role: "Province",
+        account_status: "Active",
+      },
+    ]
+    createMock.mockImplementation(async (payload: Record<string, unknown>) => {
+      store.allocations.push({
+        id: "a-new",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        ...payload,
+      })
+    })
+
+    render(<BudgetModule />)
+
+    await fillAllocationForm(user)
+    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({ allocated_by: "current-user" })
+      )
+      expect(screen.getByText("Current Province User")).toBeInTheDocument()
+      expect(screen.queryByText("current-user")).not.toBeInTheDocument()
+    })
+  })
+
   it("creates allocation payloads with the current auth user", async () => {
     const user = userEvent.setup()
     store.projects = [
