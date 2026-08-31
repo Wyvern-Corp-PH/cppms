@@ -113,6 +113,7 @@ describe("canShowUpdateProgress", () => {
       "Ongoing",
       "For Revision",
       "For Completion",
+      "Completed",
     ] as const) {
       expect(
         canShowUpdateProgress({
@@ -123,10 +124,18 @@ describe("canShowUpdateProgress", () => {
     }
   })
 
-  it("should hide Update Progress for For Approval, Completed, Rejected, and Cancelled", () => {
+  it("should show Update Progress when project is Completed", () => {
+    expect(
+      canShowUpdateProgress({
+        status: "Completed",
+        canCreateProgressUpdates: true,
+      })
+    ).toBe(true)
+  })
+
+  it("should hide Update Progress for For Approval, Rejected, and Cancelled", () => {
     for (const status of [
       "For Approval",
-      "Completed",
       "Rejected",
       "Cancelled",
     ] as const) {

@@ -57,6 +57,7 @@ export const EDITABLE_PROGRESS_STATUSES = [
   "Ongoing",
   "For Revision",
   "For Completion",
+  "Completed",
 ] as const satisfies readonly ProjectRecord["status"][]
 
 /** Stuck rows eligible for SA/Province heal + repair migration (⊥ For Revision). */
@@ -68,7 +69,7 @@ export const STUCK_AT_100_PROGRESS_STATUSES = [
 
 /**
  * Shared Update Progress CTA gate (list + detail + openUpdateModal).
- * Status-only: editable while ∈ EDITABLE_PROGRESS_STATUSES; Completed|Rejected blocked.
+ * Status-only: editable while ∈ EDITABLE_PROGRESS_STATUSES; Rejected|For Approval|Cancelled blocked.
  * 100% completion-doc gate is orthogonal (save path, not this CTA).
  */
 export function canShowUpdateProgress(options: {

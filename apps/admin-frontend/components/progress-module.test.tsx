@@ -1943,7 +1943,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(payload.getAll("liquidation_documents")).toHaveLength(2)
   }, 20_000)
 
-  it("keeps final Completed projects read-only for Barangay progress users", async () => {
+  it("should show Update Progress when project is Completed for Barangay progress users", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1966,8 +1966,8 @@ describe("ProgressModule (V81, V84)", () => {
 
     const row = await screen.findByTestId("progress-row-1")
     expect(
-      within(row).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      within(row).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
     expect(
       within(row).getByRole("button", { name: /view details/i })
     ).toBeInTheDocument()
@@ -1975,14 +1975,14 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(within(row).getByRole("button", { name: /view details/i }))
     const mobileDetail = await screen.findByRole("dialog")
     expect(
-      within(mobileDetail).queryByRole("button", { name: /update progress/i })
-    ).not.toBeInTheDocument()
+      within(mobileDetail).getByRole("button", { name: /update progress/i })
+    ).toBeInTheDocument()
     expect(
-      within(screen.getByTestId("progress-detail-panel")).queryByRole("button", {
+      within(screen.getByTestId("progress-detail-panel")).getByRole("button", {
         name: /update progress/i,
         hidden: true,
       })
-    ).not.toBeInTheDocument()
+    ).toBeInTheDocument()
   })
 
   it("hides Update Progress for Rejected projects", async () => {
@@ -3123,24 +3123,42 @@ describe("ProgressModule (V81, V84)", () => {
     )
   })
 
-  it("should hide Edit when project is Completed or Rejected", async () => {
+  it("should allow progress range edit when project is Completed", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject()
+    store.projects[0] = { ...store.projects[0], status: "Completed" }
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "done band")
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Corrected after Completed")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ]
+    expect(updateId).toBe("u-latest")
+    expect(payload).toEqual(
+      expect.objectContaining({ notes: "Corrected after Completed" })
+    )
+  })
+
+  it("should hide Edit when project is Rejected", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     store.projects = [
-      {
-        id: "done",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Done Bridge",
-        category: "Infrastructure",
-        status: "Completed",
-        budget_year: 2026,
-        progress_pct: 100,
-        municipality: "Tuguegarao City",
-        barangay: "Centro 01 (Bagumbayan)",
-      },
       {
         id: "rejected",
         collectionId: "p",
@@ -3158,10 +3176,6 @@ describe("ProgressModule (V81, V84)", () => {
     ]
     store.updates = [
       {
-        ...historyUpdateAt("u-done", 100, "done band", "2026-08-12 00:00:00.000Z"),
-        project: "done",
-      },
-      {
         ...historyUpdateAt(
           "u-rejected",
           40,
@@ -3173,20 +3187,6 @@ describe("ProgressModule (V81, V84)", () => {
     ]
 
     render(<ProgressModule />)
-
-    await user.click(
-      within(await screen.findByTestId("progress-row-done")).getByRole(
-        "button",
-        { name: /view details/i }
-      )
-    )
-    const doneDetail = await screen.findByRole("dialog", {
-      name: /project detail/i,
-    })
-    expect(
-      within(doneDetail).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument()
-    await user.keyboard("{Escape}")
 
     await user.click(
       within(await screen.findByTestId("progress-row-rejected")).getByRole(
