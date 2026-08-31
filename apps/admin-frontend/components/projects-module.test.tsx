@@ -2378,8 +2378,79 @@ describe("ProjectsModule (J4)", () => {
     expect(formData.getAll("moa_file+")).toEqual([])
   })
 
+  it("should keep all four empty upload slots visible on New Project", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    expect(screen.getByText("Memorandum of Agreement")).toBeInTheDocument()
+    expect(screen.getByText("Project photos")).toBeInTheDocument()
+    expect(screen.getByText("Resolution")).toBeInTheDocument()
+    expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/click to upload or drag files here/i).length
+    ).toBeGreaterThanOrEqual(4)
+    expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
+  })
+
+  it("should keep all four empty upload slots visible when Super Admin edits a project with no files", async () => {
+    const user = userEvent.setup()
+    store.projects = [catalogProject()]
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByTestId("document-upload-input-moa-file")).toBeInTheDocument()
+    expect(
+      screen.getByTestId("document-upload-input-project-photos")
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId("document-upload-input-resolution-file")
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId("document-upload-input-supporting-file")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
+    expect(
+      screen.getAllByText(/click to upload or drag files here/i).length
+    ).toBeGreaterThanOrEqual(4)
+  })
+
+  it("should keep the upload slot visible after Super Admin removes the last on-record file", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      catalogProject({
+        supporting_docs: ["old-sup.pdf"],
+      }),
+    ]
+
+    render(<ProjectsModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /actions for bridge/i })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByText(/on record: old-sup\.pdf/i)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /remove old-sup\.pdf/i }))
+
+    expect(screen.queryByText(/on record: old-sup\.pdf/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId("document-upload-input-supporting-file")
+    ).toBeInTheDocument()
+    expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/click to upload or drag files here/i).length
+    ).toBeGreaterThanOrEqual(4)
+  })
+
   it.each(["Municipality", "Barangay"] as const)(
-    "should show only the Project photos upload when %s edits a project with no provincial files",
+    "should keep all four upload slots visible when %s edits a project with no provincial files",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2407,22 +2478,19 @@ describe("ProjectsModule (J4)", () => {
       expect(
         screen.getByTestId("document-upload-input-project-photos")
       ).not.toBeDisabled()
+      expect(screen.getByTestId("document-upload-input-moa-file")).toBeDisabled()
       expect(
-        screen.queryByTestId("document-upload-input-moa-file")
-      ).not.toBeInTheDocument()
+        screen.getByTestId("document-upload-input-resolution-file")
+      ).toBeDisabled()
       expect(
-        screen.queryByTestId("document-upload-input-resolution-file")
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByTestId("document-upload-input-supporting-file")
-      ).not.toBeInTheDocument()
-      expect(screen.queryByText("Resolution")).not.toBeInTheDocument()
-      expect(
-        screen.queryByText("Memorandum of Agreement")
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByText("Supporting project documents")
-      ).not.toBeInTheDocument()
+        screen.getByTestId("document-upload-input-supporting-file")
+      ).toBeDisabled()
+      expect(screen.getByText("Resolution")).toBeInTheDocument()
+      expect(screen.getByText("Memorandum of Agreement")).toBeInTheDocument()
+      expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
+      expect(screen.getByText("Project photos")).toBeInTheDocument()
+      expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
+      expect(screen.getAllByText(/filled by ppdo/i).length).toBeGreaterThan(0)
     }
   )
 
