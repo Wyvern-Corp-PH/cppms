@@ -5,12 +5,21 @@ import * as XLSX from "xlsx"
 
 import { loadOptionRecordNames, loadSelectFieldOptions } from "@workspace/pocketbase"
 import { canAccess } from "@workspace/pocketbase/domain/access-control"
-import { formatDisplayDate, formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
-import { projectLocationDisplayParts } from "@workspace/pocketbase/domain/project-filters"
+import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import { activityLogResourceLabel } from "@workspace/pocketbase/domain/activity-log"
+import {
+  reportApprovalRow,
+  reportBudgetRow,
+  reportLgu,
+  reportLocation,
+  reportProgressRow,
+  reportProjectRow,
+  projectSpentAmount,
+} from "@workspace/pocketbase/domain/reports-display"
 import {
   buildUserDisplayMap,
   displayUserRef,
+  usersFromExpandedRows,
   type UserDisplayRecord,
 } from "@workspace/pocketbase/domain/user-display"
 import {
@@ -112,13 +121,13 @@ export function ReportsModule() {
       nextStatusOptions,
       nextCategoryOptions,
     ] = await Promise.all([
-      pb.collection("projects").getFullList(),
+      pb.collection("projects").getFullList({ expand: "approved_by" }),
       pb.collection("budget_allocations").getFullList(),
       pb.collection("budget_expenses").getFullList(),
-      pb.collection("progress_updates").getFullList(),
+      pb.collection("progress_updates").getFullList({ expand: "updated_by" }),
       pb.collection("locations").getFullList().catch(() => []),
       canViewActivityLogs
-        ? pb.collection("activity_logs").getFullList()
+        ? pb.collection("activity_logs").getFullList({ expand: "actor_user" })
         : Promise.resolve([]),
       pb.collection("users").getFullList().catch(() => []),
       loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
@@ -140,7 +149,12 @@ export function ReportsModule() {
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
     setLocations(parseRecordList(locationRecordSchema, locationRows))
     setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
-    setUsers(userRows as UserDisplayRecord[])
+    setUsers([
+      ...(userRows as UserDisplayRecord[]),
+      ...usersFromExpandedRows(projectRows),
+      ...usersFromExpandedRows(updateRows),
+      ...usersFromExpandedRows(logRows),
+    ])
     setStatusOptions(nextStatusOptions)
     setCategoryOptions(nextCategoryOptions)
     setLoading(false)
@@ -215,6 +229,15 @@ export function ReportsModule() {
     }))
   }
 
+  function progressDisplay(update: ProgressUpdateRecord) {
+    return reportProgressRow(
+      update,
+      filteredProjects.find((project) => project.id === update.project),
+      userDisplay,
+      sitePhotoNames(update.site_photo).length > 0
+    )
+  }
+
   function exportWorkbook(mode: "all" | "current") {
     const book = XLSX.utils.book_new()
     const tabs: ReportTab[] =
@@ -223,76 +246,22 @@ export function ReportsModule() {
     for (const tab of tabs) {
       let rows: Record<string, unknown>[] = []
       if (tab === "projects") {
-        rows = filteredProjects.map((project) => ({
-          name: project.name,
-          category: project.category,
-          status: project.status,
-          deadline: resolveDeadlineStatus(project.target_end_date, project.progress_pct ?? 0),
-          lgu: project.lgu_level,
-          location: projectLocationDisplayParts(project).join(" · "),
-          budget: project.bid_price,
-          progress: project.progress_pct,
-        }))
+        rows = filteredProjects.map((project) => reportProjectRow(project))
       } else if (tab === "budget") {
         rows = breakdown.map((row) => {
           const project = filteredProjects.find((item) => item.id === row.projectId)
-          const projectExpenses = filteredExpenses.filter(
-            (expense) => expense.project === row.projectId
-          )
-          const mainAccounts = Array.from(
-            new Set(projectExpenses.map((expense) => expense.main_account).filter(Boolean))
-          )
-          const subAccounts = Array.from(
-            new Set(projectExpenses.map((expense) => expense.sub_account).filter(Boolean))
-          )
-
-          return {
-            ...row,
-            category: project?.category,
-            lgu: project?.lgu_level,
-            main_accounts: mainAccounts.join(", "),
-            sub_accounts: subAccounts.join(", "),
-          }
+          return reportBudgetRow(row, project, filteredExpenses)
         })
       } else if (tab === "progress") {
-        rows = filteredUpdates.map((update) => {
-          const project = filteredProjects.find((p) => p.id === update.project)
-          return {
-            project: project?.name,
-            category: project?.category,
-            lgu: project?.lgu_level,
-            location: project
-              ? projectLocationDisplayParts(project).join(" · ")
-              : undefined,
-            from: update.from_pct,
-            to: update.to_pct,
-            change: update.to_pct - update.from_pct,
-            photo:
-              sitePhotoNames(update.site_photo).length > 0 ? "Yes" : "No",
-            updated_at: formatDisplayDateTime(update.updated_at ?? update.created),
-            updated_by: displayUserRef(update.updated_by, userDisplay),
-          }
-        })
+        rows = filteredUpdates.map((update) => progressDisplay(update))
       } else {
-        rows = filteredProjects.map((project) => {
-          const spent = filteredExpenses
-            .filter((expense) => expense.project === project.id)
-            .reduce((sum, expense) => sum + expense.amount, 0)
-          return {
-            name: project.name,
-            category: project.category,
-            lgu: project.lgu_level,
-            location: projectLocationDisplayParts(project).join(" · "),
-            status: project.status,
-            budget: project.bid_price,
-            spent,
-            savings: Math.max(0, (project.bid_price ?? 0) - spent),
-            approved_at: project.approved_at
-              ? formatDisplayDate(project.approved_at)
-              : "Pending",
-            approved_by: displayUserRef(project.approved_by, userDisplay, "Pending"),
-          }
-        })
+        rows = filteredProjects.map((project) =>
+          reportApprovalRow(
+            project,
+            projectSpentAmount(filteredExpenses, project.id),
+            userDisplay
+          )
+        )
       }
       XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), tab)
     }
@@ -332,23 +301,22 @@ export function ReportsModule() {
     {
       accessorKey: "lgu_level",
       header: "LGU",
-      cell: ({ row }) => row.original.lgu_level ?? "—",
+      cell: ({ row }) => reportLgu(row.original),
     },
     {
       id: "location",
       header: "Location",
-      cell: ({ row }) =>
-        projectLocationDisplayParts(row.original).join(" · ") || "—",
+      cell: ({ row }) => reportLocation(row.original),
     },
     {
       accessorKey: "bid_price",
       header: "Budget",
-      cell: ({ row }) => formatPhp(row.original.bid_price ?? 0),
+      cell: ({ row }) => reportProjectRow(row.original).budget,
     },
     {
       accessorKey: "progress_pct",
       header: "Progress",
-      cell: ({ row }) => `${row.original.progress_pct ?? 0}%`,
+      cell: ({ row }) => reportProjectRow(row.original).progress,
     },
   ]
 
@@ -365,18 +333,17 @@ export function ReportsModule() {
       id: "lgu",
       header: "LGU",
       cell: ({ row }) =>
-        filteredProjects.find((project) => project.id === row.original.projectId)
-          ?.lgu_level ?? "—",
+        reportLgu(
+          filteredProjects.find((project) => project.id === row.original.projectId)
+        ),
     },
     {
       id: "location",
       header: "Location",
-      cell: ({ row }) => {
-        const project = filteredProjects.find(
-          (item) => item.id === row.original.projectId
-        )
-        return project ? projectLocationDisplayParts(project).join(" · ") || "—" : "—"
-      },
+      cell: ({ row }) =>
+        reportLocation(
+          filteredProjects.find((item) => item.id === row.original.projectId)
+        ),
     },
     {
       accessorKey: "totalBudget",
@@ -424,18 +391,17 @@ export function ReportsModule() {
       id: "lgu",
       header: "LGU",
       cell: ({ row }) =>
-        filteredProjects.find((project) => project.id === row.original.project)
-          ?.lgu_level ?? "—",
+        reportLgu(
+          filteredProjects.find((project) => project.id === row.original.project)
+        ),
     },
     {
       id: "location",
       header: "Location",
-      cell: ({ row }) => {
-        const project = filteredProjects.find(
-          (item) => item.id === row.original.project
-        )
-        return project ? projectLocationDisplayParts(project).join(" · ") || "—" : "—"
-      },
+      cell: ({ row }) =>
+        reportLocation(
+          filteredProjects.find((item) => item.id === row.original.project)
+        ),
     },
     {
       accessorKey: "from_pct",
@@ -477,13 +443,12 @@ export function ReportsModule() {
     {
       id: "updated_at",
       header: "Updated at",
-      cell: ({ row }) =>
-        formatDisplayDateTime(row.original.updated_at ?? row.original.created),
+      cell: ({ row }) => progressDisplay(row.original).updated_at,
     },
     {
       accessorKey: "updated_by",
       header: "Updated by",
-      cell: ({ row }) => displayUserRef(row.original.updated_by, userDisplay),
+      cell: ({ row }) => progressDisplay(row.original).updated_by,
     },
   ]
 
@@ -493,54 +458,54 @@ export function ReportsModule() {
     {
       accessorKey: "lgu_level",
       header: "LGU",
-      cell: ({ row }) => row.original.lgu_level ?? "—",
+      cell: ({ row }) => reportLgu(row.original),
     },
     {
       id: "location",
       header: "Location",
-      cell: ({ row }) =>
-        projectLocationDisplayParts(row.original).join(" · ") || "—",
+      cell: ({ row }) => reportLocation(row.original),
     },
     { accessorKey: "status", header: "Status" },
     {
       accessorKey: "bid_price",
       header: "Budget",
-      cell: ({ row }) => formatPhp(row.original.bid_price ?? 0),
+      cell: ({ row }) => reportApprovalRow(row.original, 0, userDisplay).budget,
     },
     {
       id: "spent",
       header: "Spent",
       cell: ({ row }) => {
-        const spent = expenses
-          .filter((expense) => expense.project === row.original.id)
-          .reduce((sum, expense) => sum + expense.amount, 0)
-        return <span className="text-destructive">{formatPhp(spent)}</span>
+        const display = reportApprovalRow(
+          row.original,
+          projectSpentAmount(expenses, row.original.id),
+          userDisplay
+        )
+        return <span className="text-destructive">{display.spent}</span>
       },
     },
     {
       id: "savings",
       header: "Savings",
       cell: ({ row }) => {
-        const spent = expenses
-          .filter((expense) => expense.project === row.original.id)
-          .reduce((sum, expense) => sum + expense.amount, 0)
-        const savings = Math.max(0, (row.original.bid_price ?? 0) - spent)
-        return <span className="text-success">{formatPhp(savings)}</span>
+        const display = reportApprovalRow(
+          row.original,
+          projectSpentAmount(expenses, row.original.id),
+          userDisplay
+        )
+        return <span className="text-success">{display.savings}</span>
       },
     },
     {
       accessorKey: "approved_at",
       header: "Approved at",
       cell: ({ row }) =>
-        row.original.approved_at
-          ? formatDisplayDate(row.original.approved_at)
-          : "Pending",
+        reportApprovalRow(row.original, 0, userDisplay).approved_at,
     },
     {
       accessorKey: "approved_by",
       header: "Approved by",
       cell: ({ row }) =>
-        displayUserRef(row.original.approved_by, userDisplay, "Pending"),
+        reportApprovalRow(row.original, 0, userDisplay).approved_by,
     },
   ]
 

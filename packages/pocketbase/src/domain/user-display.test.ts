@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildUserDisplayMap, displayUserRef } from "./user-display"
+import {
+  buildUserDisplayMap,
+  displayUserRef,
+  usersFromExpandedRows,
+} from "./user-display"
 import type { UserRecord } from "../types"
 
 const users: UserRecord[] = [
@@ -43,5 +47,28 @@ describe("user display helpers (V149)", () => {
     ])
 
     expect(displayUserRef("current-user", displayMap)).toBe("Current Admin")
+  })
+
+  it("should collect user rows from PocketBase expand payloads", () => {
+    const harvested = usersFromExpandedRows([
+      {
+        id: "p1",
+        approved_by: "province-user",
+        expand: {
+          approved_by: { id: "province-user", name: "Province Reviewer" },
+        },
+      },
+      {
+        id: "u1",
+        updated_by: "officer-user",
+        expand: {
+          updated_by: { id: "officer-user", name: "Barangay Officer" },
+        },
+      },
+    ])
+
+    const displayMap = buildUserDisplayMap(harvested)
+    expect(displayUserRef("province-user", displayMap)).toBe("Province Reviewer")
+    expect(displayUserRef("officer-user", displayMap)).toBe("Barangay Officer")
   })
 })

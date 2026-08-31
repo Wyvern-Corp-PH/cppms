@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 
 const authState = {
   user: {
@@ -243,6 +244,198 @@ describe("ReportsModule (V12)", () => {
     expect(screen.queryByLabelText(/^filter to date$/i)).not.toBeInTheDocument()
   })
 
+  it("should show Updated By as the submitter full name on the Progress tab", async () => {
+    const user = userEvent.setup()
+    store.users = [
+      {
+        id: "officer-user",
+        name: "Barangay Officer",
+        email: "officer@example.test",
+      },
+    ]
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 75,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+        updated_by: "officer-user",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^progress/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Barangay Officer")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("officer-user")).not.toBeInTheDocument()
+  })
+
+  it("should export the same Approved By and Updated By names as the table", async () => {
+    const user = userEvent.setup()
+    store.users = [
+      {
+        id: "province-user",
+        name: "Province Reviewer",
+        email: "province@example.test",
+      },
+      {
+        id: "officer-user",
+        name: "Barangay Officer",
+        email: "officer@example.test",
+      },
+    ]
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+      },
+    ]
+    store.updates = [
+      {
+        id: "upd1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p-approved",
+        from_pct: 25,
+        to_pct: 100,
+        site_photo: [],
+        updated_by: "officer-user",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    const approvalRows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(approvalRows[0]?.approved_by).toBe("Province Reviewer")
+    expect(approvalRows[0]?.approved_by).not.toBe("province-user")
+
+    vi.mocked(XLSX.utils.json_to_sheet).mockClear()
+    await user.click(screen.getByRole("tab", { name: /^progress/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Barangay Officer")).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    const progressRows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(progressRows[0]?.updated_by).toBe("Barangay Officer")
+    expect(progressRows[0]?.updated_by).not.toBe("officer-user")
+  })
+
+  it("should hide known relation ids in table and excel when the user row exists", async () => {
+    const user = userEvent.setup()
+    const approverId = "rel-user-aaaa-bbbb-ccccdddd"
+    const submitterId = "rel-user-eeee-ffff-gggghhhh"
+    store.users = [
+      { id: approverId, name: "Ana Santos", email: "ana@example.test" },
+      { id: submitterId, name: "Ben Cruz", email: "ben@example.test" },
+    ]
+    store.projects = [
+      {
+        id: "p-audit",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Audit Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        lgu_level: "Barangay",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+        target_end_date: "2026-12-31",
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: approverId,
+      },
+    ]
+    store.updates = [
+      {
+        id: "upd-audit",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        updated_at: "2026-06-23 00:00:00.000Z",
+        project: "p-audit",
+        from_pct: 25,
+        to_pct: 100,
+        site_photo: [],
+        updated_by: submitterId,
+      },
+    ]
+
+    render(<ReportsModule />)
+    await waitFor(() => {
+      expect(screen.getByText("Audit Bridge")).toBeInTheDocument()
+    })
+    expect(screen.queryByText(approverId)).not.toBeInTheDocument()
+    expect(screen.queryByText(submitterId)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /^approvals/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Ana Santos")).toBeInTheDocument()
+    })
+    expect(screen.queryByText(approverId)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /^progress/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Ben Cruz")).toBeInTheDocument()
+    })
+    expect(screen.queryByText(submitterId)).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId("export-all-sheets"))
+    const sheets = vi.mocked(XLSX.utils.json_to_sheet).mock.calls.map(
+      (call) => call[0] as Array<Record<string, unknown>>
+    )
+    const exported = JSON.stringify(sheets)
+    expect(exported).not.toContain(approverId)
+    expect(exported).not.toContain(submitterId)
+    expect(exported).not.toContain("p-audit")
+    expect(sheets[2]?.[0]?.updated_by).toBe("Ben Cruz")
+    expect(sheets[3]?.[0]?.approved_by).toBe("Ana Santos")
+  })
+
   it("should show Approved By as the approving admin name and Pending when unapproved", async () => {
     const user = userEvent.setup()
     store.users = [
@@ -289,6 +482,46 @@ describe("ReportsModule (V12)", () => {
       expect(screen.getAllByText("Pending").length).toBeGreaterThan(0)
     })
     expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+  })
+
+  it("should resolve Approved By from expanded user when the users list is empty", async () => {
+    const user = userEvent.setup()
+    store.users = []
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+        expand: {
+          approved_by: {
+            id: "province-user",
+            name: "Province Reviewer",
+          },
+        },
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId("export-current-tab"))
+    const rows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(rows[0]?.approved_by).toBe("Province Reviewer")
   })
 
   it("shows activity logs only to Super Admin", async () => {
@@ -426,10 +659,10 @@ describe("ReportsModule (V12)", () => {
         category: "Infrastructure",
         lgu: "Barangay",
         location: "Tuguegarao City / Centro 01 (Bagumbayan)",
-        totalBudget: 200_000,
-        allocated: 100_000,
-        spent: 25_000,
-        remaining: 175_000,
+        totalBudget: formatPhp(200_000),
+        allocated: formatPhp(100_000),
+        spent: formatPhp(25_000),
+        remaining: formatPhp(175_000),
         main_accounts: "General Fund",
         sub_accounts: "20% DF",
       }),
@@ -438,6 +671,7 @@ describe("ReportsModule (V12)", () => {
     const rows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
       Record<string, unknown>
     >
+    expect(rows[0]).not.toHaveProperty("projectId")
     expect(rows[0]).not.toHaveProperty("category_material")
     expect(rows[0]).not.toHaveProperty("fund_type")
     expect(rows[0]).not.toHaveProperty("funding_years")
@@ -484,9 +718,9 @@ describe("ReportsModule (V12)", () => {
         category: "Infrastructure",
         lgu: "Barangay",
         location: "Tuguegarao City / Centro 01 (Bagumbayan)",
-        from: 25,
-        to: 75,
-        change: 50,
+        from: "25%",
+        to: "75%",
+        change: "+50%",
       }),
     ])
   })
@@ -535,8 +769,8 @@ describe("ReportsModule (V12)", () => {
         category: "Infrastructure",
         lgu: "Barangay",
         location: "Tuguegarao City / Centro 01 (Bagumbayan)",
-        spent: 25_000,
-        savings: 175_000,
+        spent: formatPhp(25_000),
+        savings: formatPhp(175_000),
       }),
     ])
   })
@@ -574,8 +808,8 @@ describe("ReportsModule (V12)", () => {
         status: "Ongoing",
         lgu: "Barangay",
         location: "Tuguegarao City / Centro 01 (Bagumbayan)",
-        budget: 200_000,
-        progress: 75,
+        budget: formatPhp(200_000),
+        progress: "75%",
       }),
     ])
   })
