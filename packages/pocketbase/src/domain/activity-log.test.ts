@@ -111,4 +111,23 @@ describe("activity log filters", () => {
       })
     ).toEqual([logs[1]])
   })
+
+  it("should match DateRangeFilter using the local calendar day", () => {
+    const localMorning = new Date(2026, 5, 23, 0, 30, 0)
+    const iso = localMorning.toISOString()
+    const localKey = [
+      localMorning.getFullYear(),
+      String(localMorning.getMonth() + 1).padStart(2, "0"),
+      String(localMorning.getDate()).padStart(2, "0"),
+    ].join("-")
+    const morningLog = {
+      actor_user: "u-ana",
+      action: "create" as const,
+      created: iso,
+    }
+
+    expect(
+      filterActivityLogs([morningLog], { dateFrom: localKey, dateTo: localKey })
+    ).toEqual([morningLog])
+  })
 })

@@ -21,6 +21,7 @@ import {
 import {
   buildUserDisplayMap,
   displayUserRef,
+  usersFromExpandedRows,
   type UserDisplayRecord,
 } from "@workspace/pocketbase/domain/user-display"
 import { formatDisplayDate } from "@workspace/pocketbase/domain/format-display-date"
@@ -217,13 +218,19 @@ export function BudgetModule() {
       userRows,
     ] = await Promise.all([
       pb.collection("projects").getFullList(),
-      pb.collection("budget_allocations").getFullList(),
+      pb.collection("budget_allocations").getFullList({ expand: "allocated_by" }),
       pb.collection("budget_expenses").getFullList(),
       pb.collection("locations").getFullList().catch(() => []),
       pb.collection("budget_funding_years").getFullList().catch(() => []),
       pb.collection("budget_fund_main_accounts").getFullList().catch(() => []),
       pb.collection("budget_fund_sub_accounts").getFullList().catch(() => []),
-      pb.collection("users").getFullList().catch(() => []),
+      pb
+        .collection("users")
+        .getFullList()
+        .then(
+          (rows) => ({ ok: true as const, rows }),
+          () => ({ ok: false as const })
+        ),
     ])
     setProjects(parseRecordList(projectRecordSchema, projectRows))
     setAllocations(parseRecordList(budgetAllocationRecordSchema, allocationRows))
@@ -232,7 +239,12 @@ export function BudgetModule() {
     setFundingYearOptions(parseRecordList(budgetFundOptionRecordSchema, fundingYearRows))
     setFundMainAccountOptions(parseRecordList(budgetFundOptionRecordSchema, fundMainAccountRows))
     setFundSubAccountOptions(parseRecordList(budgetFundOptionRecordSchema, fundSubAccountRows))
-    setUsers(userRows as UserDisplayRecord[])
+    const expandedUsers = usersFromExpandedRows(allocationRows)
+    setUsers((prev) =>
+      userRows.ok
+        ? [...(userRows.rows as UserDisplayRecord[]), ...expandedUsers]
+        : [...prev, ...expandedUsers]
+    )
     setLoading(false)
   }, [])
 

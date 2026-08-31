@@ -1,5 +1,6 @@
 import { AUDIT_ACTION } from "../../schema/manifest"
 import type { AuditAction, Role } from "../schemas/enums"
+import { localCalendarDateKey } from "./format-display-date"
 
 export type ActivityOutcome = "success" | "error" | "denied"
 
@@ -116,9 +117,7 @@ function activityLogDateKey(log: {
 }): string | null {
   const raw = log.created_at ?? log.created
   if (!raw?.trim()) return null
-  const ms = Date.parse(raw)
-  if (Number.isNaN(ms)) return null
-  return new Date(ms).toISOString().slice(0, 10)
+  return localCalendarDateKey(raw)
 }
 
 export function filterActivityLogs<

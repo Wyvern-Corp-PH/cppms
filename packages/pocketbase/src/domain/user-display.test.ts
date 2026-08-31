@@ -71,4 +71,26 @@ describe("user display helpers (V149)", () => {
     expect(displayUserRef("province-user", displayMap)).toBe("Province Reviewer")
     expect(displayUserRef("officer-user", displayMap)).toBe("Barangay Officer")
   })
+
+  it("should harvest only known user relations from expand payloads", () => {
+    const harvested = usersFromExpandedRows([
+      {
+        id: "p1",
+        expand: {
+          project: { id: "proj-1", name: "Bridge Project" },
+          allocated_by: { id: "allocator-user", name: "Allocator Name" },
+          approved_by: { id: "approver-user", name: "Approver Name" },
+          updated_by: { id: "updater-user", name: "Updater Name" },
+          actor_user: { id: "actor-user", name: "Actor Name" },
+        },
+      },
+    ])
+
+    const displayMap = buildUserDisplayMap(harvested)
+    expect(displayUserRef("allocator-user", displayMap)).toBe("Allocator Name")
+    expect(displayUserRef("approver-user", displayMap)).toBe("Approver Name")
+    expect(displayUserRef("updater-user", displayMap)).toBe("Updater Name")
+    expect(displayUserRef("actor-user", displayMap)).toBe("Actor Name")
+    expect(displayUserRef("proj-1", displayMap)).toBe("proj-1")
+  })
 })

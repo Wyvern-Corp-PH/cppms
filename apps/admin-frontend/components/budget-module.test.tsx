@@ -13,6 +13,7 @@ const store = {
   fundSubAccounts: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
   deniedCollections: [] as string[],
+  listOptions: {} as Record<string, unknown>,
   authRecord: {
     id: "current-user",
     email: "current@example.test",
@@ -30,7 +31,8 @@ vi.mock("@/lib/pocketbase", () => ({
       record: store.authRecord,
     },
     collection: (name: string) => ({
-      getFullList: vi.fn(async () => {
+      getFullList: vi.fn(async (options?: unknown) => {
+        store.listOptions[name] = options
         if (store.deniedCollections.includes(name)) {
           throw new Error("Only superusers can perform this action.")
         }
@@ -144,6 +146,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     store.fundSubAccounts = []
     store.users = []
     store.deniedCollections = []
+    store.listOptions = {}
     store.authRecord = {
       id: "current-user",
       email: "current@example.test",
@@ -1087,6 +1090,50 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await waitFor(() => {
       expect(screen.getByText("Ana Santos")).toBeInTheDocument()
       expect(screen.queryByText("u1")).not.toBeInTheDocument()
+    })
+  })
+
+  it("should resolve Allocated By from expanded user when the users list is forbidden", async () => {
+    store.deniedCollections = ["users"]
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+        allocated_by: "other-allocator",
+        expand: {
+          allocated_by: {
+            id: "other-allocator",
+            name: "Other Allocator",
+          },
+        },
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(store.listOptions.budget_allocations).toEqual({
+        expand: "allocated_by",
+      })
+      expect(screen.getByText("Other Allocator")).toBeInTheDocument()
+      expect(screen.queryByText("other-allocator")).not.toBeInTheDocument()
     })
   })
 

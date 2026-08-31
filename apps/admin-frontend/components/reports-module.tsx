@@ -141,7 +141,13 @@ export function ReportsModule() {
       canViewActivityLogs
         ? pb.collection("activity_logs").getFullList({ expand: "actor_user" })
         : Promise.resolve([]),
-      pb.collection("users").getFullList().catch(() => []),
+      pb
+        .collection("users")
+        .getFullList()
+        .then(
+          (rows) => ({ ok: true as const, rows }),
+          () => ({ ok: false as const })
+        ),
       loadOptionRecordNames(pb, "project_status_options", PROJECT_STATUS).then(
         (options) =>
           options.length > 0
@@ -161,12 +167,16 @@ export function ReportsModule() {
     setUpdates(parseRecordList(progressUpdateRecordSchema, updateRows))
     setLocations(parseRecordList(locationRecordSchema, locationRows))
     setActivityLogs(parseRecordList(activityLogRecordSchema, logRows))
-    setUsers([
-      ...(userRows as UserDisplayRecord[]),
+    const expandedUsers = [
       ...usersFromExpandedRows(projectRows),
       ...usersFromExpandedRows(updateRows),
       ...usersFromExpandedRows(logRows),
-    ])
+    ]
+    setUsers((prev) =>
+      userRows.ok
+        ? [...(userRows.rows as UserDisplayRecord[]), ...expandedUsers]
+        : [...prev, ...expandedUsers]
+    )
     setStatusOptions(nextStatusOptions)
     setCategoryOptions(nextCategoryOptions)
     setLoading(false)

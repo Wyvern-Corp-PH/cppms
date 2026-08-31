@@ -31,6 +31,13 @@ export function displayUserRef(
   return users.get(userId) ?? userId
 }
 
+const USER_EXPAND_KEYS = [
+  "approved_by",
+  "updated_by",
+  "actor_user",
+  "allocated_by",
+] as const
+
 export function usersFromExpandedRows(
   rows: readonly unknown[]
 ): UserDisplayRecord[] {
@@ -39,7 +46,10 @@ export function usersFromExpandedRows(
     if (!row || typeof row !== "object") continue
     const expand = (row as { expand?: unknown }).expand
     if (!expand || typeof expand !== "object") continue
-    for (const value of Object.values(expand as Record<string, unknown>)) {
+    const expandRecord = expand as Record<string, unknown>
+    for (const key of USER_EXPAND_KEYS) {
+      const value = expandRecord[key]
+      if (value === undefined) continue
       const records = Array.isArray(value) ? value : [value]
       for (const record of records) {
         if (!record || typeof record !== "object") continue

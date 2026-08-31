@@ -18,6 +18,7 @@ import {
 import {
   buildUserDisplayMap,
   displayUserRef,
+  usersFromExpandedRows,
   type UserDisplayRecord,
 } from "@workspace/pocketbase/domain/user-display"
 import {
@@ -587,7 +588,7 @@ export function ProgressModule() {
         userRows,
       ] = await Promise.all([
           pb.collection("projects").getFullList(),
-          pb.collection("progress_updates").getFullList(),
+          pb.collection("progress_updates").getFullList({ expand: "updated_by" }),
           pb
             .collection("budget_expenses")
             .getFullList()
@@ -603,7 +604,13 @@ export function ProgressModule() {
               (error: unknown) => ({ ok: false as const, error })
             ),
           pb.collection("locations").getFullList().catch(() => []),
-          pb.collection("users").getFullList().catch(() => []),
+          pb
+            .collection("users")
+            .getFullList()
+            .then(
+              (rows) => ({ ok: true as const, rows }),
+              () => ({ ok: false as const })
+            ),
         ])
       const parsedUpdates = parseRecordList(
         progressUpdateRecordSchema,
@@ -618,7 +625,12 @@ export function ProgressModule() {
       setProjects(parsedProjects)
       setLocations(parseRecordList(locationRecordSchema, locationRows))
       setUpdates(parsedUpdates)
-      setUsers(userRows as UserDisplayRecord[])
+      const expandedUsers = usersFromExpandedRows(updateRows)
+      setUsers((prev) =>
+        userRows.ok
+          ? [...(userRows.rows as UserDisplayRecord[]), ...expandedUsers]
+          : [...prev, ...expandedUsers]
+      )
 
       if (expenseResult.ok) {
         const parsedExpenses = parseRecordList(
@@ -990,7 +1002,8 @@ export function ProgressModule() {
 
     if (
       !options.releasedAmount ||
-      releasedAmountEqualsLatest(options.releasedAmount, options.latestExpense)
+      (options.latestExpense?.progress_update === options.progressRecordId &&
+        releasedAmountEqualsLatest(options.releasedAmount, options.latestExpense))
     ) {
       return
     }
@@ -1020,15 +1033,33 @@ export function ProgressModule() {
       })
     } catch (error) {
       if (options.progressRecordId && isProgressUpdateUniqueConflict(error)) {
-        const existing = await options.pb
-          .collection("budget_expenses")
-          .getFirstListItem(
-            `progress_update="${options.progressRecordId}"`
-          )
-        await options.pb
-          .collection("budget_expenses")
-          .update(existing.id, options.releasedAmount)
-        return
+        try {
+          const existing = await options.pb
+            .collection("budget_expenses")
+            .getFirstListItem(
+              `progress_update="${options.progressRecordId}"`
+            )
+          if (
+            existing.progress_update !== options.progressRecordId ||
+            existing.project !== options.projectId
+          ) {
+            throw new Error(
+              "Released amount is bound to another project and cannot be updated."
+            )
+          }
+          await options.pb
+            .collection("budget_expenses")
+            .update(existing.id, options.releasedAmount)
+          return
+        } catch (conflictError) {
+          if (!options.latestUpdate && options.progressRecordId) {
+            await rollbackCreatedProgressUpdate(
+              options.pb,
+              options.progressRecordId
+            )
+          }
+          throw conflictError
+        }
       }
       console.warn("Released amount sync failed after progress save.", {
         projectId: options.projectId,
@@ -1114,9 +1145,6 @@ export function ProgressModule() {
         : buildProgressUpdateScalarPayload(options.parsed, {
             omitPercents: true,
           })
-      await pb
-        .collection("progress_updates")
-        .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
       await syncReleasedAmountExpense({
         pb,
         projectId: options.parsed.projectId,
@@ -1125,6 +1153,9 @@ export function ProgressModule() {
         latestUpdate: historyTarget,
         progressRecordId: historyTarget.id,
       })
+      await pb
+        .collection("progress_updates")
+        .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
       resetProgressDialogState()
       await load()
       return
@@ -1137,13 +1168,23 @@ export function ProgressModule() {
     let progressRecordId: string | undefined
 
     if (options.latestUpdate) {
+      progressRecordId = options.latestUpdate.id
+      if (options.parsed.releasedAmount) {
+        await syncReleasedAmountExpense({
+          pb,
+          projectId: options.parsed.projectId,
+          releasedAmount: options.parsed.releasedAmount,
+          latestExpense: options.latestExpense,
+          latestUpdate: options.latestUpdate,
+          progressRecordId,
+        })
+      }
       const payload = replaceFiles
         ? buildProgressUpdateFormData(options.parsed, options.latestUpdate)
         : buildProgressUpdateScalarPayload(options.parsed)
       await pb
         .collection("progress_updates")
         .update(options.latestUpdate.id, payload)
-      progressRecordId = options.latestUpdate.id
     } else {
       const formData = buildProgressUpdateFormData(
         options.parsed,
@@ -1157,17 +1198,16 @@ export function ProgressModule() {
         .collection("progress_updates")
         .create(formData)
       progressRecordId = progressRecord.id
-    }
-
-    if (options.parsed.releasedAmount) {
-      await syncReleasedAmountExpense({
-        pb,
-        projectId: options.parsed.projectId,
-        releasedAmount: options.parsed.releasedAmount,
-        latestExpense: options.latestExpense,
-        latestUpdate: options.latestUpdate,
-        progressRecordId,
-      })
+      if (options.parsed.releasedAmount) {
+        await syncReleasedAmountExpense({
+          pb,
+          projectId: options.parsed.projectId,
+          releasedAmount: options.parsed.releasedAmount,
+          latestExpense: options.latestExpense,
+          latestUpdate: options.latestUpdate,
+          progressRecordId,
+        })
+      }
     }
 
     await patchProjectAfterProgressSave({
@@ -1274,7 +1314,10 @@ export function ProgressModule() {
         : undefined
       const wouldCreateExpense =
         !boundExpenseForLatest &&
-        !releasedAmountEqualsLatest(nextReleasedAmount, latestExpense)
+        !(
+          latestExpense?.progress_update === latestUpdate?.id &&
+          releasedAmountEqualsLatest(nextReleasedAmount, latestExpense)
+        )
       if (wouldCreateExpense) {
         const releaseCap = validateReleasedAmountCreate({
           newAmount: nextReleasedAmount.amount,

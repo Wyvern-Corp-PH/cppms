@@ -10,6 +10,8 @@ const store = {
   allocations: null as Array<Record<string, unknown>> | null,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
+  deniedCollections: [] as string[],
+  listOptions: {} as Record<string, unknown>,
   fundingYears: [] as Array<Record<string, unknown>>,
   mainAccounts: [] as Array<Record<string, unknown>>,
   subAccounts: [] as Array<Record<string, unknown>>,
@@ -42,7 +44,11 @@ vi.mock("@/lib/pocketbase", () => ({
         }
         return Promise.reject(new Error(`Missing getFirstListItem for ${name}`))
       },
-      getFullList: vi.fn(async () => {
+      getFullList: vi.fn(async (options?: unknown) => {
+        store.listOptions[name] = options
+        if (store.deniedCollections.includes(name)) {
+          throw new Error("Only superusers can perform this action.")
+        }
         if (name === "projects") return store.projects
         if (name === "progress_updates") return store.updates
         if (name === "budget_expenses") return store.expenses
@@ -183,6 +189,8 @@ describe("ProgressModule (V81, V84)", () => {
       },
     ]
     store.users = []
+    store.deniedCollections = []
+    store.listOptions = {}
     store.fundingYears = [
       {
         id: "fy1",
@@ -1080,6 +1088,56 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(screen.getAllByText(/Ana Santos/)).not.toHaveLength(0)
       expect(screen.queryByText(/user1/)).not.toBeInTheDocument()
+    })
+  })
+
+  it("should resolve Updated By from expanded user when the users list is forbidden", async () => {
+    const user = userEvent.setup()
+    store.deniedCollections = ["users"]
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-22 00:00:00.000Z",
+        project: "1",
+        from_pct: 25,
+        to_pct: 75,
+        site_photo: [],
+        updated_by: "officer-user",
+        expand: {
+          updated_by: {
+            id: "officer-user",
+            name: "Barangay Officer",
+          },
+        },
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(await screen.findByRole("button", { name: /view details/i }))
+
+    await waitFor(() => {
+      expect(store.listOptions.progress_updates).toEqual({
+        expand: "updated_by",
+      })
+      expect(screen.getAllByText(/Barangay Officer/)).not.toHaveLength(0)
+      expect(screen.queryByText(/officer-user/)).not.toBeInTheDocument()
     })
   })
 
@@ -3001,6 +3059,36 @@ describe("ProgressModule (V81, V84)", () => {
     expect(saved?.liquidation_documents).toEqual(["liq.pdf"])
   })
 
+  it("should send FormData with new completion uploads when history-edit at 100% saves", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    hundredPercentHistoryProject()
+
+    render(<ProgressModule />)
+    const editor = await openHistoryEditByNotes(user, "done band")
+    await user.upload(
+      within(editor).getByTestId(
+        "document-upload-input-completion-certification_completion"
+      ),
+      makeFile("new-cert.pdf")
+    )
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    const [updateId, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      FormData,
+    ]
+    expect(updateId).toBe("u-latest")
+    expect(payload).toBeInstanceOf(FormData)
+    expect(payload.get("certification_completion")).toBeInstanceOf(File)
+    expect((payload.get("certification_completion") as File).name).toBe(
+      "new-cert.pdf"
+    )
+  })
+
   it("should hide Edit when project is Completed or Rejected", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
@@ -4374,7 +4462,7 @@ describe("ProgressModule (V81, V84)", () => {
     useBarangayActor()
     store.projects = [revisionProject()]
     store.updates = [latestProgressUpdate()]
-    store.expenses = [latestExpense()]
+    store.expenses = [latestExpense({ progress_update: "pu-latest" })]
 
     render(<ProgressModule />)
 
@@ -4412,6 +4500,7 @@ describe("ProgressModule (V81, V84)", () => {
     store.updates = [latestProgressUpdate()]
     store.expenses = [
       latestExpense({
+        progress_update: "pu-latest",
         receipt_number: "",
         description: "",
       }),
@@ -4484,7 +4573,10 @@ describe("ProgressModule (V81, V84)", () => {
     store.projects = [revisionProject()]
     store.updates = [latestProgressUpdate()]
     store.expenses = [
-      latestExpense({ date: "2026-07-20 00:00:00.000Z" }),
+      latestExpense({
+        progress_update: "pu-latest",
+        date: "2026-07-20 00:00:00.000Z",
+      }),
     ]
 
     render(<ProgressModule />)
@@ -4519,6 +4611,7 @@ describe("ProgressModule (V81, V84)", () => {
     store.updates = [latestProgressUpdate()]
     store.expenses = [
       latestExpense({
+        progress_update: "pu-latest",
         main_account: "Other",
         sub_account: "Legacy other purpose",
       }),
@@ -4772,12 +4865,105 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
-      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
       expect(screen.getByRole("dialog")).toBeInTheDocument()
       expect(screen.getByText(/released amount sync failed/i)).toBeInTheDocument()
     })
+    expect(progressUpdateMock).not.toHaveBeenCalled()
     expect(deleteMock).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it("should create a bind when latest expense is not this progress even if amounts match", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = [
+      latestExpense({
+        progress_update: "pu-older",
+        amount: 1500,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
+        receipt_number: "OR-1500",
+        description: "Release for progress",
+      }),
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          project: "1",
+          amount: 1500,
+          progress_update: "pu-latest",
+        })
+      )
+    })
+    expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it("should refuse unique-conflict expense update when existing project differs", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+    expenseCreateMock.mockRejectedValueOnce({
+      data: {
+        data: {
+          progress_update: {
+            code: "validation_not_unique",
+            message: "Value must be unique.",
+          },
+        },
+      },
+      message: "Failed to create record.",
+    })
+    expenseGetFirstListItemMock.mockResolvedValueOnce({
+      id: "be-other",
+      collectionId: "budget_expenses",
+      collectionName: "budget_expenses",
+      project: "other-project",
+      amount: 1500,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "GF - Proper",
+      date: "2026-07-20",
+      receipt_number: "OR-1500",
+      description: "Release for progress",
+      progress_update: "pu-latest",
+    })
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+      expect(expenseGetFirstListItemMock).toHaveBeenCalled()
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(
+        screen.getByText(/bound to another project/i)
+      ).toBeInTheDocument()
+    })
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
   }, 20_000)
 
   it("keeps blank open and create save path for non–For Revision projects (T4/V6)", async () => {

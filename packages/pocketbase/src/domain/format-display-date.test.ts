@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { formatDisplayDate, formatDisplayDateTime } from "./format-display-date"
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  localCalendarDateKey,
+} from "./format-display-date"
 
 describe("formatDisplayDate", () => {
   it("formats YYYY-MM-DD as MMM D, YYYY", () => {
@@ -25,5 +29,13 @@ describe("formatDisplayDateTime", () => {
 
   it("falls back to date-only format without time component", () => {
     expect(formatDisplayDateTime("2026-04-10")).toBe("Apr 10, 2026")
+  })
+})
+
+describe("localCalendarDateKey", () => {
+  it("should use the local calendar day for timestamps", () => {
+    const localMorning = new Date(2026, 5, 23, 0, 30, 0)
+    expect(localCalendarDateKey(localMorning.toISOString())).toBe("2026-06-23")
+    expect(localCalendarDateKey("2026-06-23")).toBe("2026-06-23")
   })
 })

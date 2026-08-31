@@ -23,6 +23,8 @@ const store = {
   projectStatusOptions: [] as Array<Record<string, unknown>>,
   projectCategoryOptions: [] as Array<Record<string, unknown>>,
   logs: [] as Array<Record<string, unknown>>,
+  deniedCollections: [] as string[],
+  listOptions: {} as Record<string, unknown>,
 }
 
 const DEFAULT_ACTIVITY_LOG = {
@@ -53,7 +55,11 @@ import * as XLSX from "xlsx"
 vi.mock("@/lib/pocketbase", () => ({
   getPocketBase: () => ({
     collection: (name: string) => ({
-      getFullList: vi.fn(async () => {
+      getFullList: vi.fn(async (options?: unknown) => {
+        store.listOptions[name] = options
+        if (store.deniedCollections.includes(name)) {
+          throw new Error("Only superusers can perform this action.")
+        }
         if (name === "projects") return store.projects
         if (name === "budget_allocations") return store.allocations
         if (name === "budget_expenses") return store.expenses
@@ -240,6 +246,8 @@ describe("ReportsModule (V12)", () => {
       },
     ]
     store.users = []
+    store.deniedCollections = []
+    store.listOptions = {}
     store.logs = [{ ...DEFAULT_ACTIVITY_LOG }]
     vi.mocked(XLSX.utils.json_to_sheet).mockClear()
     vi.mocked(XLSX.utils.book_append_sheet).mockClear()
@@ -574,6 +582,73 @@ describe("ReportsModule (V12)", () => {
       Record<string, unknown>
     >
     expect(rows[0]?.approved_by).toBe("Province Reviewer")
+  })
+
+  it("should request user expands and resolve names when the users list is forbidden", async () => {
+    const user = userEvent.setup()
+    store.deniedCollections = ["users"]
+    store.users = []
+    store.projects = [
+      {
+        id: "p-approved",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Approved Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+        approved_at: "2026-08-19",
+        approved_by: "province-user",
+        expand: {
+          approved_by: {
+            id: "province-user",
+            name: "Province Reviewer",
+          },
+        },
+      },
+    ]
+    store.updates = [
+      {
+        id: "upd1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-06-23 00:00:00.000Z",
+        project: "p-approved",
+        from_pct: 25,
+        to_pct: 100,
+        site_photo: [],
+        updated_by: "officer-user",
+        expand: {
+          updated_by: {
+            id: "officer-user",
+            name: "Barangay Officer",
+          },
+        },
+      },
+    ]
+
+    render(<ReportsModule />)
+
+    await waitFor(() => {
+      expect(store.listOptions.projects).toEqual({ expand: "approved_by" })
+      expect(store.listOptions.progress_updates).toEqual({
+        expand: "updated_by",
+      })
+    })
+
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Province Reviewer")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("province-user")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /^progress/i }))
+    await waitFor(() => {
+      expect(screen.getByText("Barangay Officer")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("officer-user")).not.toBeInTheDocument()
   })
 
   it("shows activity logs only to Super Admin", async () => {
