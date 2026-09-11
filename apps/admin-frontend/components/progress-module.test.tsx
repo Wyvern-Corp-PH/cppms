@@ -1075,6 +1075,94 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(row).queryByText(/^25%$/)).not.toBeInTheDocument()
   })
 
+  it("should show 100 percent on the list after save when project status patch is rejected", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 50,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      {
+        id: "u-50",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-08-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 50,
+        notes: "Halfway",
+        site_photo: ["site-50.jpg"],
+      },
+    ]
+    createMock.mockImplementation(async (payload: unknown) => {
+      const toPct =
+        payload instanceof FormData
+          ? Number(payload.get("to_pct"))
+          : Number((payload as { to_pct?: number }).to_pct)
+      const row = {
+        id: "pu-new",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-09-11 12:00:00.000Z",
+        project: "1",
+        from_pct: 50,
+        to_pct: toPct,
+        notes: "",
+        site_photo: [],
+      }
+      store.updates = [row, ...store.updates]
+      return row
+    })
+    projectUpdateMock.mockImplementation(async (_id, payload) => {
+      if (payload && typeof payload === "object" && "status" in payload) {
+        throw Object.assign(new Error("You cannot update field 'status'"), {
+          status: 400,
+        })
+      }
+    })
+
+    render(<ProgressModule />)
+    const row = await screen.findByTestId("progress-row-1")
+    expect(within(row).getByText(/^50%$/)).toBeInTheDocument()
+
+    await user.click(within(row).getByRole("button", { name: /update progress/i }))
+    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
+    const slider = within(dialog).getByRole("slider")
+    expect(slider).toHaveAttribute("aria-valuenow", "50")
+    slider.focus()
+    await user.keyboard("{End}")
+    expect(slider).toHaveAttribute("aria-valuenow", "100")
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await uploadRequiredCompletionDocs(user)
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    expect(projectUpdateMock).toHaveBeenCalledWith("1", { progress_pct: 100 })
+    expect(projectUpdateMock.mock.calls[0]?.[1]).not.toHaveProperty("status")
+    expect(store.projects[0]?.progress_pct).toBe(50)
+    expect(
+      within(await screen.findByTestId("progress-row-1")).getByText(/^100%$/)
+    ).toBeInTheDocument()
+  }, 20_000)
+
   it("renders progress updater user ids as user names", async () => {
     const user = userEvent.setup()
     store.projects = [
