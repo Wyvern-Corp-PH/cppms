@@ -1012,10 +1012,10 @@ describe("ProgressModule (V81, V84)", () => {
       2
     )
     expect(
-      within(panel).getByText("early band")
+      within(panel).getByText("early band", { hidden: true })
     ).toBeInTheDocument()
     expect(
-      within(panel).queryByText("late band")
+      within(panel).queryByText("late band", { hidden: true })
     ).not.toBeInTheDocument()
 
     await user.clear(dialogFrom)
