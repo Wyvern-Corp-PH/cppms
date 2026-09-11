@@ -968,8 +968,14 @@ describe("ProgressModule (V81, V84)", () => {
     const panel = screen.getByTestId("progress-detail-panel")
     const dialogFrom = within(dialog).getByLabelText(/^from %$/i)
     const dialogTo = within(dialog).getByLabelText(/^to %$/i)
-    const panelFrom = within(panel).getByLabelText(/^from %$/i)
-    const panelTo = within(panel).getByLabelText(/^to %$/i)
+    const panelFrom = within(panel).getByRole("spinbutton", {
+      name: /^from %$/i,
+      hidden: true,
+    })
+    const panelTo = within(panel).getByRole("spinbutton", {
+      name: /^to %$/i,
+      hidden: true,
+    })
 
     expect(dialogFrom).toBeInTheDocument()
     expect(dialogTo).toBeInTheDocument()
@@ -1034,7 +1040,10 @@ describe("ProgressModule (V81, V84)", () => {
 
     expect(screen.getByTestId("progress-row-1")).toBeInTheDocument()
     expect(
-      screen.getByLabelText(/filter by municipality/i)
+      screen.getByRole("combobox", {
+        name: /filter by municipality/i,
+        hidden: true,
+      })
     ).toBeInTheDocument()
   })
 
