@@ -973,6 +973,21 @@ export function ProgressModule() {
     )
   }
 
+  function releasedAmountCap(
+    projectId: string,
+    newAmount: number,
+    replaceOldAmount?: number
+  ) {
+    return validateReleasedAmountCreate({
+      newAmount,
+      existingReleasedAmounts: expenses.filter(
+        (row) => row.project === projectId
+      ),
+      allocations: allocations.filter((row) => row.project === projectId),
+      ...(replaceOldAmount !== undefined ? { replaceOldAmount } : {}),
+    })
+  }
+
   async function syncReleasedAmountExpense(options: {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
@@ -991,6 +1006,14 @@ export function ProgressModule() {
       ) {
         return
       }
+      const releaseCap = releasedAmountCap(
+        options.projectId,
+        options.releasedAmount.amount,
+        boundExpense.amount
+      )
+      if (!releaseCap.ok) {
+        throw new Error(releaseCap.message)
+      }
       await options.pb
         .collection("budget_expenses")
         .update(boundExpense.id, options.releasedAmount)
@@ -1005,13 +1028,10 @@ export function ProgressModule() {
       return
     }
 
-    const releaseCap = validateReleasedAmountCreate({
-      newAmount: options.releasedAmount.amount,
-      existingReleasedAmounts: expenses.filter(
-        (row) => row.project === options.projectId
-      ),
-      allocations: allocations.filter((row) => row.project === options.projectId),
-    })
+    const releaseCap = releasedAmountCap(
+      options.projectId,
+      options.releasedAmount.amount
+    )
     if (!releaseCap.ok) {
       if (!options.latestUpdate && options.progressRecordId) {
         await rollbackCreatedProgressUpdate(
@@ -1043,6 +1063,14 @@ export function ProgressModule() {
             throw new Error(
               "Released amount is bound to another project and cannot be updated."
             )
+          }
+          const conflictCap = releasedAmountCap(
+            options.projectId,
+            options.releasedAmount.amount,
+            Number(existing.amount)
+          )
+          if (!conflictCap.ok) {
+            throw new Error(conflictCap.message)
           }
           await options.pb
             .collection("budget_expenses")
@@ -1316,13 +1344,10 @@ export function ProgressModule() {
           releasedAmountEqualsLatest(nextReleasedAmount, latestExpense)
         )
       if (wouldCreateExpense) {
-        const releaseCap = validateReleasedAmountCreate({
-          newAmount: nextReleasedAmount.amount,
-          existingReleasedAmounts: expenses.filter(
-            (row) => row.project === project.id
-          ),
-          allocations: allocations.filter((row) => row.project === project.id),
-        })
+        const releaseCap = releasedAmountCap(
+          project.id,
+          nextReleasedAmount.amount
+        )
         if (!releaseCap.ok) {
           setReleasedAmountErrors({ amount: releaseCap.message })
           setFormError(releaseCap.message)

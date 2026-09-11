@@ -3469,7 +3469,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseUpdateMock).not.toHaveBeenCalled()
   }, 20_000)
 
-  it("should allow history-edit PATCH when bound amount would exceed create-cap", async () => {
+  it("should block history-edit PATCH when bound amount would exceed allocated", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     twoIsolatedRanges()
@@ -3495,16 +3495,13 @@ describe("ProgressModule (V81, V84)", () => {
     await user.type(amount, "2000")
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
-    await waitFor(() => {
-      expect(expenseUpdateMock).toHaveBeenCalledWith(
-        "be-a",
-        expect.objectContaining({ amount: 2000 })
-      )
-    })
-    expect(expenseCreateMock).not.toHaveBeenCalled()
     expect(
-      screen.queryByText("Released amount exceeds the project's allocated budget.")
-    ).not.toBeInTheDocument()
+      await screen.findAllByText(
+        "Released amount exceeds the project's allocated budget."
+      )
+    ).not.toHaveLength(0)
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
   }, 20_000)
 
   it.each([
