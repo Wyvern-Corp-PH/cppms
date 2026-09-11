@@ -2,7 +2,7 @@ import type { ProjectRecord } from "../types"
 
 /** Exact copy for release-vs-allocated create failures (all wired paths). */
 export const RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE =
-  "Released amount cannot exceed the allocated budget."
+  "Released amount exceeds the project's allocated budget."
 
 /** Distinct copy when newAmount is not a finite number (not a cap breach). */
 export const RELEASED_AMOUNT_INVALID_MESSAGE =

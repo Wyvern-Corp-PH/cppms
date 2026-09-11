@@ -96,7 +96,7 @@ describe("validateReleasedAmountCreate", () => {
 
   it("should export the exact exceed error string", () => {
     expect(RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE).toBe(
-      "Released amount cannot exceed the allocated budget."
+      "Released amount exceeds the project's allocated budget."
     )
   })
 })

@@ -128,7 +128,7 @@ describe("ReleasedAmountDialog (release cap)", () => {
 
     expect(
       await screen.findByText(
-        "Released amount cannot exceed the allocated budget."
+        "Released amount exceeds the project's allocated budget."
       )
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()

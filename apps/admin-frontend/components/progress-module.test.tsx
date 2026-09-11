@@ -3462,7 +3462,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     expect(
       await screen.findAllByText(
-        "Released amount cannot exceed the allocated budget."
+        "Released amount exceeds the project's allocated budget."
       )
     ).not.toHaveLength(0)
     expect(expenseCreateMock).not.toHaveBeenCalled()
@@ -3503,7 +3503,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(expenseCreateMock).not.toHaveBeenCalled()
     expect(
-      screen.queryByText("Released amount cannot exceed the allocated budget.")
+      screen.queryByText("Released amount exceeds the project's allocated budget.")
     ).not.toBeInTheDocument()
   }, 20_000)
 
@@ -3728,7 +3728,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     expect(
       await screen.findAllByText(
-        "Released amount cannot exceed the allocated budget."
+        "Released amount exceeds the project's allocated budget."
       )
     ).not.toHaveLength(0)
     expect(createMock).not.toHaveBeenCalled()

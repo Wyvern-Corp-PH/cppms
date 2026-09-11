@@ -1508,7 +1508,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     expect(
       await screen.findByText(
-        "Released amount cannot exceed the allocated budget."
+        "Released amount exceeds the project's allocated budget."
       )
     ).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
