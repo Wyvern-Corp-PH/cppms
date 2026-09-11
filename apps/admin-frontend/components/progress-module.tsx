@@ -969,16 +969,18 @@ export function ProgressModule() {
 
   function releasedAmountCap(
     projectId: string,
-    newAmount: number,
+    newAmount: number | string,
     replaceOldAmount?: number
   ) {
     return validateReleasedAmountCreate({
-      newAmount,
+      newAmount: Number(newAmount),
       existingReleasedAmounts: expenses.filter(
         (row) => row.project === projectId
       ),
       allocations: allocations.filter((row) => row.project === projectId),
-      ...(replaceOldAmount !== undefined ? { replaceOldAmount } : {}),
+      ...(replaceOldAmount !== undefined
+        ? { replaceOldAmount: Number(replaceOldAmount) }
+        : {}),
     })
   }
 
@@ -1067,8 +1069,10 @@ export function ProgressModule() {
             ? projectExpenses
             : [...projectExpenses, existing]
           const conflictCap = validateReleasedAmountCreate({
-            newAmount: options.releasedAmount.amount,
-            existingReleasedAmounts: withExisting,
+            newAmount: Number(options.releasedAmount.amount),
+            existingReleasedAmounts: withExisting.map((row) => ({
+              amount: Number(row.amount),
+            })),
             allocations: allocations.filter(
               (row) => row.project === options.projectId
             ),

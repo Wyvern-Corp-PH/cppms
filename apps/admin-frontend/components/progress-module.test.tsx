@@ -968,10 +968,8 @@ describe("ProgressModule (V81, V84)", () => {
     const panel = screen.getByTestId("progress-detail-panel")
     const dialogFrom = within(dialog).getByLabelText(/^from %$/i)
     const dialogTo = within(dialog).getByLabelText(/^to %$/i)
-    const panelFrom = within(panel).getByLabelText(/^from %$/i, {
-      hidden: true,
-    })
-    const panelTo = within(panel).getByLabelText(/^to %$/i, { hidden: true })
+    const panelFrom = within(panel).getByLabelText(/^from %$/i)
+    const panelTo = within(panel).getByLabelText(/^to %$/i)
 
     expect(dialogFrom).toBeInTheDocument()
     expect(dialogTo).toBeInTheDocument()
@@ -1008,10 +1006,10 @@ describe("ProgressModule (V81, V84)", () => {
       2
     )
     expect(
-      within(panel).getByText("early band", { hidden: true })
+      within(panel).getByText("early band")
     ).toBeInTheDocument()
     expect(
-      within(panel).queryByText("late band", { hidden: true })
+      within(panel).queryByText("late band")
     ).not.toBeInTheDocument()
 
     await user.clear(dialogFrom)
@@ -1036,7 +1034,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     expect(screen.getByTestId("progress-row-1")).toBeInTheDocument()
     expect(
-      screen.getByLabelText(/filter by municipality/i, { hidden: true })
+      screen.getByLabelText(/filter by municipality/i)
     ).toBeInTheDocument()
   })
 

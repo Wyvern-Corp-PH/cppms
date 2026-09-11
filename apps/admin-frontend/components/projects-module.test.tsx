@@ -2423,7 +2423,7 @@ describe("ProjectsModule (J4)", () => {
     })
     const payload = createMock.mock.calls[0]?.[0]
     expect(payload).toBeInstanceOf(FormData)
-    const formData = payload as FormData
+    const formData = payload as unknown as FormData
     expect(
       formData
         .getAll("moa_file")

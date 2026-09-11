@@ -42,6 +42,7 @@ const project: ProjectRecord = {
   moa_file: [],
   project_photos: [],
   resolution_file: [],
+  supporting_docs: [],
 }
 
 describe("ReleasedAmountDialog (release cap)", () => {
