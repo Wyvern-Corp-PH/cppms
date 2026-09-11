@@ -99,6 +99,56 @@ describe("validateReleasedAmountCreate", () => {
       "Released amount exceeds the project's allocated budget."
     )
   })
+
+  it("should succeed a replace-old patch when others plus new equals allocated", () => {
+    const result = validateReleasedAmountCreate({
+      newAmount: 60_000,
+      existingReleasedAmounts: [{ amount: 50_000 }, { amount: 40_000 }],
+      allocations: [{ amount: 100_000 }],
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should fail a replace-old patch when others plus new exceeds allocated", () => {
+    const result = validateReleasedAmountCreate({
+      newAmount: 70_000,
+      existingReleasedAmounts: [{ amount: 50_000 }, { amount: 40_000 }],
+      allocations: [{ amount: 100_000 }],
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE,
+    })
+  })
+
+  it("should allow a replace-old increase that would fail a create-style sum", () => {
+    const result = validateReleasedAmountCreate({
+      newAmount: 55_000,
+      existingReleasedAmounts: [{ amount: 50_000 }, { amount: 45_000 }],
+      allocations: [{ amount: 100_000 }],
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject a non-finite replace-old amount", () => {
+    const result = validateReleasedAmountCreate({
+      newAmount: 10_000,
+      existingReleasedAmounts: [{ amount: 50_000 }],
+      allocations: [{ amount: 100_000 }],
+      replaceOldAmount: Number.NaN,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: RELEASED_AMOUNT_INVALID_MESSAGE,
+    })
+  })
 })
 
 describe("filterProjectsForBudgetAllocation", () => {

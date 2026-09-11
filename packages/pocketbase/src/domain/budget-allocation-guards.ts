@@ -26,25 +26,30 @@ function sumAmounts(rows: readonly { amount: number }[]): number {
 }
 
 /**
- * Append-create cap: existing released expenses + newAmount ≤ Σ allocation amounts.
+ * Create cap: existing + newAmount ≤ Σ allocations.
+ * PATCH: pass replaceOldAmount (bound row) so Σ others + new ≤ Σ allocations.
  * Uses allocation amounts only — not projects.total_budget.
  */
 export function validateReleasedAmountCreate(input: {
   newAmount: number | string
   existingReleasedAmounts: readonly { amount: number }[]
   allocations: readonly { amount: number }[]
+  replaceOldAmount?: number
 }): ReleasedAmountCreateValidation {
   const allocatedTotal = sumAmounts(input.allocations)
   const existingTotal = sumAmounts(input.existingReleasedAmounts)
   const newAmount = Number(input.newAmount)
+  const replaceOld =
+    input.replaceOldAmount === undefined ? 0 : Number(input.replaceOldAmount)
   if (
     !Number.isFinite(newAmount) ||
     !Number.isFinite(existingTotal) ||
-    !Number.isFinite(allocatedTotal)
+    !Number.isFinite(allocatedTotal) ||
+    (input.replaceOldAmount !== undefined && !Number.isFinite(replaceOld))
   ) {
     return { ok: false, message: RELEASED_AMOUNT_INVALID_MESSAGE }
   }
-  if (existingTotal + newAmount > allocatedTotal) {
+  if (existingTotal - replaceOld + newAmount > allocatedTotal) {
     return { ok: false, message: RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE }
   }
   return { ok: true }
