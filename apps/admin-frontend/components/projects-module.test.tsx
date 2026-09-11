@@ -1371,6 +1371,64 @@ describe("ProjectsModule (J4)", () => {
     ).toBeInTheDocument()
   })
 
+  it("should show latest 100 percent on the card when stored progress is stale", async () => {
+    store.projects = [
+      {
+        id: "card-100",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Road Repair",
+        description: "Barangay road",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Abulug",
+        barangay: "Alinunu",
+        location: "Abulug",
+        lgu_level: "Barangay",
+        contractor: "Local crew",
+        start_date: "2026-07-12",
+        target_end_date: "2026-07-16",
+        budget_year: 2026,
+        bid_price: 100_000,
+        progress_pct: 50,
+      },
+    ]
+    store.progressUpdates = [
+      {
+        id: "older-50",
+        collectionId: "pu",
+        collectionName: "progress_updates",
+        created: "2026-07-10 02:56:07.875Z",
+        updated: "2026-07-10 02:56:07.875Z",
+        project: "card-100",
+        from_pct: 0,
+        to_pct: 50,
+        notes: "Halfway",
+        updated_at: "2026-07-10 02:56:07.875Z",
+      },
+      {
+        id: "newer-100",
+        collectionId: "pu",
+        collectionName: "progress_updates",
+        created: "2026-07-16 02:56:07.875Z",
+        updated: "2026-07-16 02:56:07.875Z",
+        project: "card-100",
+        from_pct: 50,
+        to_pct: 100,
+        notes: "Complete",
+        updated_at: "2026-07-16 02:56:07.875Z",
+      },
+    ]
+
+    render(<ProjectsModule />)
+
+    const card = await screen.findByTestId("project-card-card-100")
+    expect(card).toHaveTextContent("100%")
+    expect(card).not.toHaveTextContent("50%")
+  })
+
   it("locks LGU-owned fields for Province and keeps Period of Implementation with start/end dates read-only", async () => {
     const user = userEvent.setup()
     store.authRecord = {
