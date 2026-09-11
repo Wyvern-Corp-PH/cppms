@@ -925,14 +925,11 @@ export function ProgressModule() {
       notes?: string
       sitePhoto: File[]
     },
-    latestUpdate: ProgressUpdateRecord | undefined,
-    options?: { omitPercents?: boolean }
+    latestUpdate: ProgressUpdateRecord | undefined
   ) {
     const formData = new FormData()
     formData.append("project", parsed.projectId)
-    if (!options?.omitPercents) {
-      formData.append("to_pct", String(parsed.toPct))
-    }
+    formData.append("to_pct", String(parsed.toPct))
     if (latestUpdate) {
       formData.append("notes", parsed.notes ?? "")
     } else if (parsed.notes) {
@@ -947,17 +944,14 @@ export function ProgressModule() {
     return formData
   }
 
-  function buildProgressUpdateScalarPayload(
-    parsed: {
-      projectId: string
-      toPct: number
-      notes?: string
-    },
-    options?: { omitPercents?: boolean }
-  ) {
+  function buildProgressUpdateScalarPayload(parsed: {
+    projectId: string
+    toPct: number
+    notes?: string
+  }) {
     return {
       project: parsed.projectId,
-      ...(options?.omitPercents ? {} : { to_pct: parsed.toPct }),
+      to_pct: parsed.toPct,
       notes: parsed.notes ?? "",
     }
   }
@@ -1164,12 +1158,8 @@ export function ProgressModule() {
         options.parsed.toPct
       )
       const payload = replaceFiles
-        ? buildProgressUpdateFormData(options.parsed, historyTarget, {
-            omitPercents: true,
-          })
-        : buildProgressUpdateScalarPayload(options.parsed, {
-            omitPercents: true,
-          })
+        ? buildProgressUpdateFormData(options.parsed, historyTarget)
+        : buildProgressUpdateScalarPayload(options.parsed)
       await syncReleasedAmountExpense({
         pb,
         projectId: options.parsed.projectId,
@@ -1762,7 +1752,7 @@ export function ProgressModule() {
               </DialogTitle>
               <DialogDescription>
                 {dialogMode === "history-edit"
-                  ? "Correct this submitted range without changing overall progress."
+                  ? "Correct this submitted range. Overall progress follows the newest saved range."
                   : "Add a site update, progress percentage, and required completion documents."}
               </DialogDescription>
             </DialogHeader>
@@ -1774,28 +1764,26 @@ export function ProgressModule() {
                 {dialogProject?.name} — current {dialogProgress}%
               </p>
               <FieldSet>
-                {dialogMode === "history-edit" ? (
-                  <Field>
-                    <FieldLabel htmlFor="saved-progress-range">
-                      Saved progress range
-                    </FieldLabel>
-                    <p
-                      id="saved-progress-range"
-                      aria-label="Saved progress range"
-                    >
-                      {updates.find((row) => row.id === historyEditId)
-                        ?.from_pct ?? 0}
-                      % → {toPct}%
-                    </p>
-                  </Field>
-                ) : (
                 <Field data-invalid={Boolean(fieldErrors.toPct)}>
-                  <FieldLabel>Progress: {toPct}%</FieldLabel>
+                  <FieldLabel htmlFor="saved-progress-range">
+                    {dialogMode === "history-edit"
+                      ? `Saved progress range: ${
+                          updates.find((row) => row.id === historyEditId)
+                            ?.from_pct ?? 0
+                        }% → ${toPct}%`
+                      : `Progress: ${toPct}%`}
+                  </FieldLabel>
                   <Slider
+                    id="saved-progress-range"
                     value={[toPct]}
                     onValueChange={(value) => setToPct(value[0] ?? 0)}
                     max={100}
                     step={1}
+                    aria-label={
+                      dialogMode === "history-edit"
+                        ? "Saved progress range"
+                        : "Progress"
+                    }
                     aria-invalid={Boolean(fieldErrors.toPct)}
                   />
                   <div className="mt-1 flex justify-between text-xs text-muted-foreground">
@@ -1805,7 +1793,6 @@ export function ProgressModule() {
                   </div>
                   <FieldError>{fieldErrors.toPct}</FieldError>
                 </Field>
-                )}
                 <Field data-invalid={Boolean(fieldErrors.notes)}>
                   <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
                   <Textarea

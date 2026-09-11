@@ -2546,7 +2546,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(detailAfter).getByText("mid band")).toBeInTheDocument()
   })
 
-  it("should show saved from to as read-only and omit percents when history-edit saves", async () => {
+  it("should persist to percent from the saved-range slider when history-edit saves", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     store.projects = [
@@ -2590,10 +2590,17 @@ describe("ProgressModule (V81, V84)", () => {
     const editor = await screen.findByRole("dialog", {
       name: /edit progress range/i,
     })
-    expect(within(editor).getByLabelText(/saved progress range/i)).toHaveTextContent(
-      "0% → 90%"
-    )
-    expect(within(editor).queryByRole("slider")).not.toBeInTheDocument()
+    expect(within(editor).getByText(/0%\s*→\s*90%/)).toBeInTheDocument()
+    const slider = within(editor).getByRole("slider")
+    expect(slider).toHaveAttribute("aria-valuenow", "90")
+    expect(slider).toHaveAttribute("aria-valuemin", "0")
+    expect(slider).toHaveAttribute("aria-valuemax", "100")
+    slider.focus()
+    for (let step = 0; step < 10; step += 1) {
+      await user.keyboard("{ArrowLeft}")
+    }
+    expect(slider).toHaveAttribute("aria-valuenow", "80")
+    expect(within(editor).getByText(/0%\s*→\s*80%/)).toBeInTheDocument()
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -2604,7 +2611,9 @@ describe("ProgressModule (V81, V84)", () => {
       Record<string, unknown>,
       unknown,
     ]
-    expect(payload).not.toHaveProperty("to_pct")
+    expect(payload).toEqual(
+      expect.objectContaining({ to_pct: 80 })
+    )
     expect(payload).not.toHaveProperty("from_pct")
     expect(options).toEqual(
       expect.objectContaining({
@@ -2612,12 +2621,12 @@ describe("ProgressModule (V81, V84)", () => {
       })
     )
     expect(projectUpdateMock).not.toHaveBeenCalled()
-    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(90)
+    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(80)
+    expect(store.updates.find((row) => row.id === "u-latest")?.from_pct).toBe(0)
     expect(store.projects[0]?.progress_pct).toBe(90)
 
     const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
-    expect(within(detailAfter).getByText(/overall progress:\s*90%/i)).toBeInTheDocument()
-    expect(within(screen.getByTestId("progress-row-1")).getByText(/^90%$/)).toBeInTheDocument()
+    expect(within(detailAfter).getByText(/0%\s*→\s*80%/)).toBeInTheDocument()
   })
 
   it("cancels a history edit without changing records or overall progress", async () => {
