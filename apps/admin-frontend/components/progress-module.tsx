@@ -1275,12 +1275,12 @@ export function ProgressModule() {
       !boundExpense &&
       !releasedAmountHasInput(releasedAmount)
 
-    if (!isHistoryEdit && requiresReleasedAmount && expensesLoadError) {
+    if (includeReleasedAmount && !skipReleasedAmount && expensesLoadError) {
       setFormError(expensesLoadError)
       return
     }
 
-    if (!isHistoryEdit && requiresReleasedAmount && allocationsLoadError) {
+    if (includeReleasedAmount && !skipReleasedAmount && allocationsLoadError) {
       setFormError(allocationsLoadError)
       return
     }

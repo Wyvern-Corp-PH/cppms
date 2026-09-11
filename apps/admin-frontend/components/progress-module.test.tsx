@@ -3707,6 +3707,29 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseCreateMock).not.toHaveBeenCalled()
   }, 20_000)
 
+  it("should show allocations load error and skip persist when history-edit will cap", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    store.deniedCollections = ["budget_allocations"]
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    const notes = within(editor).getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "corrected with stale allocations")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    expect(
+      await within(editor).findByText(
+        "Unable to load budget allocations. Refresh before saving a progress update."
+      )
+    ).toBeInTheDocument()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  }, 20_000)
+
   it.each([
     { role: "Municipality" as const, pct: 50 },
     { role: "Municipality" as const, pct: 100 },
