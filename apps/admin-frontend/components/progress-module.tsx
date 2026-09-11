@@ -1448,7 +1448,10 @@ export function ProgressModule() {
             const projectUpdates = updates.filter(
               (u) => u.project === project.id
             )
-            const displayProgress = project.progress_pct ?? 0
+            const displayProgress = effectiveProgressPct(
+              project,
+              projectUpdates
+            )
             const recent = projectUpdates.slice(0, 3)
             return (
               <li

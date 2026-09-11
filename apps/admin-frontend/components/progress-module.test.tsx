@@ -1040,7 +1040,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("uses stored project progress_pct for the visible project meter", async () => {
+  it("should show newest update percent on the list when stored progress is stale", async () => {
     store.projects = [
       {
         id: "1",
@@ -1071,7 +1071,8 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
 
     const row = await screen.findByTestId("progress-row-1")
-    expect(within(row).getByText(/^25%$/)).toBeInTheDocument()
+    expect(within(row).getByText(/^75%$/)).toBeInTheDocument()
+    expect(within(row).queryByText(/^25%$/)).not.toBeInTheDocument()
   })
 
   it("renders progress updater user ids as user names", async () => {
@@ -1803,7 +1804,7 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
 
     const row = await screen.findByTestId("progress-row-stuck")
-    expect(within(row).getByText(/^90%$/)).toBeInTheDocument()
+    expect(within(row).getByText(/^100%$/)).toBeInTheDocument()
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
