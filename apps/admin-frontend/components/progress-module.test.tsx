@@ -2722,6 +2722,73 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
+  it("should persist to percent when View dialog Edit opens history-edit", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 90,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+    store.updates = [
+      historyUpdateAt("u-latest", 90, "late band", "2026-07-12 00:00:00.000Z"),
+      historyUpdateAt("u-mid", 78, "mid band", "2026-06-12 00:00:00.000Z"),
+    ]
+    progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
+      const row = store.updates.find((update) => update.id === id)
+      if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
+        Object.assign(row, payload)
+      }
+    })
+
+    render(<ProgressModule />)
+    const detail = await openProjectHistoryDialog(user)
+    const lateRow = within(detail).getByText("late band").closest("li")
+    expect(lateRow).not.toBeNull()
+    await user.click(within(lateRow!).getByRole("button", { name: /^view$/i }))
+
+    const viewer = await screen.findByRole("dialog", { name: /progress update/i })
+    expect(within(viewer).getByText(/0%\s*→\s*90%/)).toBeInTheDocument()
+    await user.click(within(viewer).getByRole("button", { name: /^edit$/i }))
+
+    const editor = await screen.findByRole("dialog", {
+      name: /edit progress range/i,
+    })
+    const slider = within(editor).getByRole("slider")
+    expect(slider).toHaveAttribute("aria-valuenow", "90")
+    expect(slider).toHaveAttribute("aria-valuemin", "0")
+    expect(slider).toHaveAttribute("aria-valuemax", "100")
+    slider.focus()
+    for (let step = 0; step < 10; step += 1) {
+      await user.keyboard("{ArrowLeft}")
+    }
+    expect(slider).toHaveAttribute("aria-valuenow", "80")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    const [, payload] = progressUpdateMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ]
+    expect(payload).toEqual(expect.objectContaining({ to_pct: 80 }))
+    expect(payload).not.toHaveProperty("from_pct")
+    expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(80)
+    expect(store.updates.find((row) => row.id === "u-latest")?.from_pct).toBe(0)
+  })
+
   it("cancels a history edit without changing records or overall progress", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
@@ -3602,6 +3669,40 @@ describe("ProgressModule (V81, V84)", () => {
         "Released amount exceeds the project's allocated budget."
       )
     ).not.toHaveLength(0)
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    expect(expenseCreateMock).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it("should show over-cap copy on the amount field before history-edit persist", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "1",
+        amount: 3_600,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    const amount = within(editor).getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "2000")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findAllByText(
+        "Released amount exceeds the project's allocated budget."
+      )
+    ).not.toHaveLength(0)
+    expect(amount).toHaveAttribute("aria-invalid", "true")
+    expect(progressUpdateMock).not.toHaveBeenCalled()
     expect(expenseUpdateMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
   }, 20_000)

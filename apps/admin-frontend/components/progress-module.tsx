@@ -1323,21 +1323,28 @@ export function ProgressModule() {
       }
     }
 
-    if (!isHistoryEdit && includeReleasedAmount) {
+    if (includeReleasedAmount && !skipReleasedAmount) {
       const nextReleasedAmount = toReleasedAmountInput(releasedAmount)
-      const boundExpenseForLatest = latestUpdate
-        ? expenseBoundToProgressUpdate(expenses, latestUpdate.id)
-        : undefined
+      const capUpdate = isHistoryEdit ? historyUpdate : latestUpdate
+      const capBoundExpense = isHistoryEdit
+        ? boundExpense
+        : capUpdate
+          ? expenseBoundToProgressUpdate(expenses, capUpdate.id)
+          : undefined
+      const amountUnchanged =
+        Boolean(capBoundExpense) &&
+        releasedAmountEqualsLatest(nextReleasedAmount, capBoundExpense)
       const wouldCreateExpense =
-        !boundExpenseForLatest &&
+        !capBoundExpense &&
         !(
-          latestExpense?.progress_update === latestUpdate?.id &&
+          latestExpense?.progress_update === capUpdate?.id &&
           releasedAmountEqualsLatest(nextReleasedAmount, latestExpense)
         )
-      if (wouldCreateExpense) {
+      if (!amountUnchanged && (capBoundExpense || wouldCreateExpense)) {
         const releaseCap = releasedAmountCap(
           project.id,
-          nextReleasedAmount.amount
+          nextReleasedAmount.amount,
+          capBoundExpense?.amount
         )
         if (!releaseCap.ok) {
           setReleasedAmountErrors({ amount: releaseCap.message })
@@ -1718,6 +1725,18 @@ export function ProgressModule() {
             </div>
           ) : null}
           <DialogFooter>
+            {canEditSelectedHistory && selected && viewingUpdate ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  const update = viewingUpdate
+                  setViewingUpdate(null)
+                  openHistoryEdit(selected, update)
+                }}
+              >
+                Edit
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
