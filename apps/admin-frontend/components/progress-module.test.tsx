@@ -2716,6 +2716,10 @@ describe("ProgressModule (V81, V84)", () => {
 
     const detailAfter = await screen.findByRole("dialog", { name: /project detail/i })
     expect(within(detailAfter).getByText(/0%\s*→\s*80%/)).toBeInTheDocument()
+    expect(within(detailAfter).getByText(/overall progress:\s*80%/i)).toBeInTheDocument()
+    expect(
+      within(await screen.findByTestId("progress-row-1")).getByText(/^80%$/)
+    ).toBeInTheDocument()
   })
 
   it("cancels a history edit without changing records or overall progress", async () => {
@@ -5095,6 +5099,68 @@ describe("ProgressModule (V81, V84)", () => {
         screen.getByText(/bound to another project/i)
       ).toBeInTheDocument()
     })
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it("should block unique-conflict same-project PATCH when amount exceeds allocated", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject()]
+    store.updates = [latestProgressUpdate()]
+    store.expenses = []
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "1",
+        amount: 1_000,
+        year: 2026,
+        date: "2026-01-01",
+      },
+    ]
+    expenseCreateMock.mockRejectedValueOnce({
+      data: {
+        data: {
+          progress_update: {
+            code: "validation_not_unique",
+            message: "Value must be unique.",
+          },
+        },
+      },
+      message: "Failed to create record.",
+    })
+    expenseGetFirstListItemMock.mockResolvedValueOnce({
+      id: "be-raced",
+      collectionId: "budget_expenses",
+      collectionName: "budget_expenses",
+      project: "1",
+      amount: 800,
+      year: 2026,
+      main_account: "General Fund",
+      sub_account: "GF - Proper",
+      date: "2026-07-20",
+      receipt_number: "OR-800",
+      description: "Release for progress",
+      progress_update: "pu-latest",
+    })
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findAllByText(
+        "Released amount exceeds the project's allocated budget."
+      )
+    ).not.toHaveLength(0)
     expect(expenseUpdateMock).not.toHaveBeenCalled()
     expect(progressUpdateMock).not.toHaveBeenCalled()
   }, 20_000)

@@ -1058,11 +1058,22 @@ export function ProgressModule() {
               "Released amount is bound to another project and cannot be updated."
             )
           }
-          const conflictCap = releasedAmountCap(
-            options.projectId,
-            options.releasedAmount.amount,
-            Number(existing.amount)
+          const projectExpenses = expenses.filter(
+            (row) => row.project === options.projectId
           )
+          const withExisting = projectExpenses.some(
+            (row) => row.id === existing.id
+          )
+            ? projectExpenses
+            : [...projectExpenses, existing]
+          const conflictCap = validateReleasedAmountCreate({
+            newAmount: options.releasedAmount.amount,
+            existingReleasedAmounts: withExisting,
+            allocations: allocations.filter(
+              (row) => row.project === options.projectId
+            ),
+            replaceOldAmount: Number(existing.amount),
+          })
           if (!conflictCap.ok) {
             throw new Error(conflictCap.message)
           }
@@ -1106,16 +1117,9 @@ export function ProgressModule() {
     if (!canPatchProjects) {
       return
     }
-    try {
-      await options.pb.collection("projects").update(options.projectId, {
-        progress_pct: options.toPct,
-      })
-    } catch (error) {
-      console.warn(
-        "Progress update saved, but project summary did not update.",
-        error
-      )
-    }
+    await options.pb.collection("projects").update(options.projectId, {
+      progress_pct: options.toPct,
+    })
   }
 
   function resetProgressDialogState() {
@@ -1363,8 +1367,15 @@ export function ProgressModule() {
   }
 
   const dialogProject = projects.find((p) => p.id === dialogProjectId)
-  const dialogProgress = dialogProject?.progress_pct ?? 0
-  const selectedProgress = selected?.progress_pct ?? 0
+  const dialogProgress = dialogProject
+    ? effectiveProgressPct(
+        dialogProject,
+        updates.filter((update) => update.project === dialogProject.id)
+      )
+    : 0
+  const selectedProgress = selected
+    ? effectiveProgressPct(selected, selectedUpdates)
+    : 0
   const canEditSelectedHistory = selected
     ? canEditProgressHistoryEntry(actor, selected)
     : false
