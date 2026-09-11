@@ -3908,6 +3908,10 @@ describe("ProgressModule (V81, V84)", () => {
     expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
       expenseCreateMock.mock.invocationCallOrder[0]!
     )
+    expect(projectUpdateMock).toHaveBeenCalledWith("1", {
+      progress_pct: 25,
+    })
+    expect(projectUpdateMock.mock.calls[0]?.[1]).not.toHaveProperty("status")
   }, 20_000)
 
   it("should bind Released Amount to the new progress row when Update Progress creates an expense", async () => {

@@ -1100,7 +1100,6 @@ export function ProgressModule() {
     pb: ReturnType<typeof getPocketBase>
     projectId: string
     toPct: number
-    currentStatus: ProjectRecord["status"]
   }) {
     // Primary For Completion path is sync-project-progress hook.
     // Optional belt: Super Admin and Province by role, not projects.update.
@@ -1108,10 +1107,9 @@ export function ProgressModule() {
       return
     }
     try {
-      await options.pb.collection("projects").update(
-        options.projectId,
-        projectProgressPatchFromUpdate(options.toPct, options.currentStatus)
-      )
+      await options.pb.collection("projects").update(options.projectId, {
+        progress_pct: options.toPct,
+      })
     } catch (error) {
       console.warn(
         "Progress update saved, but project summary did not update.",
@@ -1229,7 +1227,6 @@ export function ProgressModule() {
       pb,
       projectId: options.parsed.projectId,
       toPct: options.parsed.toPct,
-      currentStatus: options.project.status,
     })
 
     resetProgressDialogState()
