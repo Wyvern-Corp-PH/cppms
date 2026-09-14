@@ -41,6 +41,23 @@ describe("computeBudgetSummary", () => {
       remaining: 0,
     })
   })
+
+  it("should omit status when remaining funds reach zero", () => {
+    const summary = computeBudgetSummary(
+      [{ bid_price: 100_000 }],
+      [{ amount: 100_000 }],
+      [{ amount: 100_000 }]
+    )
+
+    expect(summary.remaining).toBe(0)
+    expect(summary).not.toHaveProperty("status")
+    expect(Object.keys(summary)).toEqual([
+      "totalBudget",
+      "totalAllocated",
+      "totalSpent",
+      "remaining",
+    ])
+  })
 })
 
 describe("computeProjectBudgetBreakdown", () => {
@@ -71,6 +88,43 @@ describe("computeProjectBudgetBreakdown", () => {
         spendPct: 25,
       },
     ])
+  })
+
+  it("should omit status when remaining is zero or released meets allocated", () => {
+    const remainingZero = computeProjectBudgetBreakdown(
+      [
+        {
+          id: "p1",
+          name: "Bridge",
+          bid_price: 100_000,
+        },
+      ],
+      [{ project: "p1", amount: 80_000 }],
+      [{ project: "p1", amount: 100_000 }]
+    )
+    const releasedMeetsAllocated = computeProjectBudgetBreakdown(
+      [
+        {
+          id: "p2",
+          name: "Road",
+          bid_price: 1_000_000,
+        },
+      ],
+      [{ project: "p2", amount: 400_000 }],
+      [{ project: "p2", amount: 400_000 }]
+    )
+
+    expect(remainingZero[0]).toMatchObject({
+      remaining: 0,
+      spent: 100_000,
+      allocated: 80_000,
+    })
+    expect(remainingZero[0]).not.toHaveProperty("status")
+    expect(releasedMeetsAllocated[0]).toMatchObject({
+      spent: 400_000,
+      allocated: 400_000,
+    })
+    expect(releasedMeetsAllocated[0]).not.toHaveProperty("status")
   })
 })
 

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
@@ -1656,5 +1658,14 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(
       spentCard?.querySelector("[data-slot=progress-indicator]")
     ).toHaveStyle({ transform: "translateX(-75%)" })
+  })
+})
+
+describe("budget remaining and released amount writers", () => {
+  it("should not write project status from remaining or released amount", () => {
+    const source = readFileSync(resolve(__dirname, "budget-module.tsx"), "utf8")
+
+    expect(source).not.toMatch(/collection\(["']projects["']\)\.(update|create)/)
+    expect(source).not.toMatch(/\bstatus\s*:/)
   })
 })

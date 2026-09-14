@@ -42,6 +42,7 @@ export function computeBudgetSummary(
     totalBudget,
     totalAllocated,
     totalSpent,
+    // remaining is display-only (bid_price − spent); consumption does not write projects.status
     remaining: totalBudget - totalSpent,
   }
 }

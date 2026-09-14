@@ -62,6 +62,7 @@ const FOR_COMPLETION_FROM_STATUSES = [
 
 const ONGOING_FROM_STATUSES = ["Planning", "Procurement"] as const
 
+/** Progress % drives this patch. Remaining/released funds are not inputs. */
 export function projectProgressPatchFromUpdate(
   toPct: number,
   currentStatus: string

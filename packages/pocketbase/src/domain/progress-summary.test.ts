@@ -108,6 +108,16 @@ describe("projectProgressPatchFromUpdate", () => {
       status: "Cancelled",
     })
   })
+
+  it("should ignore remaining and released funds when patching status", () => {
+    const source = projectProgressPatchFromUpdate.toString()
+    expect(source).not.toMatch(/remaining|released|allocated|spent/)
+    expect(projectProgressPatchFromUpdate.length).toBe(2)
+    expect(projectProgressPatchFromUpdate(40, "Ongoing")).toEqual({
+      progress_pct: 40,
+      status: "Ongoing",
+    })
+  })
 })
 
 describe("canShowUpdateProgress", () => {

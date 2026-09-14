@@ -66,6 +66,21 @@ describe("sync-project-progress hook patch", () => {
       status: "For Approval",
     })
   })
+
+  it("should set For Completion from progress percent, not remaining or released funds", () => {
+    const source = readFileSync(
+      resolve(hooksDir, "sync-project-progress.js"),
+      "utf8"
+    )
+
+    expect(source).not.toMatch(/\bremaining\b/)
+    expect(source).not.toMatch(/\breleased\b/)
+    expect(source).toContain('source.get("to_pct")')
+    expect(progressHook.projectProgressPatch(100, "Ongoing")).toEqual({
+      progress_pct: 100,
+      status: "For Completion",
+    })
+  })
 })
 
 describe("sync-project-progress skip header", () => {
