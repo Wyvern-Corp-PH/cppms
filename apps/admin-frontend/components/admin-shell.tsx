@@ -41,6 +41,13 @@ export function AdminShell({ children }: AdminShellProps) {
   const { user, logout } = useAuth()
   const router = useRouter()
   const visibleNavItems = getVisibleAdminNavItems(user)
+  const roleLabels = {
+    Municipality: "Municipal Admin",
+    Barangay: "Barangay Admin",
+    Province: "Provincial Admin",
+  } as const
+  const roleLabel =
+    roleLabels[user?.role as keyof typeof roleLabels] ?? "Provincial Admin"
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -52,7 +59,7 @@ export function AdminShell({ children }: AdminShellProps) {
               Cagayan PPMS
             </span>
             <span className="text-muted-foreground text-xs">
-              Provincial Admin
+              {roleLabel}
             </span>
           </div>
         </SidebarHeader>

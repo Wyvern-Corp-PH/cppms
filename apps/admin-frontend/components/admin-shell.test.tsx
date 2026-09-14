@@ -147,6 +147,50 @@ describe("AdminShell", () => {
     expect(screen.getByText("Super Admin")).toBeInTheDocument()
   })
 
+  it("should show Municipal Admin subtitle when session role is Municipality", () => {
+    authState.user = {
+      id: "1",
+      role: "Municipality",
+      account_status: "Active",
+    }
+
+    render(
+      <AdminShell>
+        <p>Page content</p>
+      </AdminShell>
+    )
+
+    expect(screen.getByText("Municipal Admin")).toBeInTheDocument()
+    expect(screen.queryByText("Provincial Admin")).not.toBeInTheDocument()
+  })
+
+  it("should show Barangay Admin subtitle when session role is Barangay", () => {
+    authState.user = {
+      id: "1",
+      role: "Barangay",
+      account_status: "Active",
+    }
+
+    render(
+      <AdminShell>
+        <p>Page content</p>
+      </AdminShell>
+    )
+
+    expect(screen.getByText("Barangay Admin")).toBeInTheDocument()
+    expect(screen.queryByText("Provincial Admin")).not.toBeInTheDocument()
+  })
+
+  it("should show Provincial Admin subtitle when session role is Province", () => {
+    render(
+      <AdminShell>
+        <p>Page content</p>
+      </AdminShell>
+    )
+
+    expect(screen.getByText("Provincial Admin")).toBeInTheDocument()
+  })
+
   it("renders top bar with sidebar toggle and page content", () => {
     render(
       <AdminShell>
