@@ -27,6 +27,7 @@ import {
   EDITABLE_PROGRESS_STATUSES,
   effectiveProgressPct,
   filterProgressUpdatesByToPctRange,
+  filterProjectsForProgressList,
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "@workspace/pocketbase/domain/progress-summary"
@@ -701,7 +702,7 @@ export function ProgressModule() {
     () => (actor?.role ? filterProjectsForUser(actor, projects) : projects),
     [actor, projects]
   )
-  const filteredProjects = useMemo(
+  const scopedFilteredProjects = useMemo(
     () =>
       filterProjects(scopedProjects, { query }).filter(
         (project) =>
@@ -716,20 +717,31 @@ export function ProgressModule() {
       scopedProjects,
     ]
   )
-  const filteredProjectIds = useMemo(
-    () => new Set(filteredProjects.map((project) => project.id)),
-    [filteredProjects]
+  const filteredProjects = useMemo(
+    () => filterProjectsForProgressList(scopedFilteredProjects),
+    [scopedFilteredProjects]
+  )
+  const scopedFilteredProjectIds = useMemo(
+    () => new Set(scopedFilteredProjects.map((project) => project.id)),
+    [scopedFilteredProjects]
   )
   const filteredUpdates = useMemo(
-    () => dateFilteredUpdates.filter((update) => filteredProjectIds.has(update.project)),
-    [dateFilteredUpdates, filteredProjectIds]
+    () =>
+      dateFilteredUpdates.filter((update) =>
+        scopedFilteredProjectIds.has(update.project)
+      ),
+    [dateFilteredUpdates, scopedFilteredProjectIds]
   )
-  const summary = buildProgressSummaryCards(filteredProjects, filteredUpdates)
+  const summary = buildProgressSummaryCards(
+    scopedFilteredProjects,
+    filteredUpdates
+  )
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, actor ? [actor] : []),
     [actor, users]
   )
-  const selected = projects.find((project) => project.id === selectedId) ?? null
+  const selected =
+    filteredProjects.find((project) => project.id === selectedId) ?? null
   const selectedUpdates = useMemo(
     () =>
       selected
@@ -1248,7 +1260,7 @@ export function ProgressModule() {
     }
 
     setFormError(null)
-    const project = scopedProjects.find((row) => row.id === dialogProjectId)
+    const project = filteredProjects.find((row) => row.id === dialogProjectId)
     if (!project) {
       setFormError("Project is required.")
       return
@@ -1377,7 +1389,7 @@ export function ProgressModule() {
     }
   }
 
-  const dialogProject = projects.find((p) => p.id === dialogProjectId)
+  const dialogProject = filteredProjects.find((p) => p.id === dialogProjectId)
   const dialogProgress = dialogProject
     ? effectiveProgressPct(
         dialogProject,

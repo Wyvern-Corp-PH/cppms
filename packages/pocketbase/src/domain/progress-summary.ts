@@ -1,4 +1,42 @@
+import { PROJECT_STATUS } from "../../schema/manifest"
 import type { ProgressUpdateRecord, ProjectRecord } from "../types"
+
+type ProjectStatus = (typeof PROJECT_STATUS)[number]
+
+const READY_FOR_REVIEW_ALIAS = "Ready for Review"
+
+/** Progress `/progress` list rows — exclude Planning, Procurement, Cancelled. */
+export const PROGRESS_LIST_STATUSES = [
+  "Ongoing",
+  "For Completion",
+  "For Approval",
+  "For Revision",
+  "Completed",
+  "Rejected",
+] as const satisfies readonly ProjectStatus[]
+
+export const PROGRESS_LIST_EXCLUDED_STATUSES = [
+  "Planning",
+  "Procurement",
+  "Cancelled",
+] as const satisfies readonly ProjectStatus[]
+
+/** Old stored alias → For Completion for list membership only. */
+export function progressListMembershipStatus(status: string): string {
+  return status === READY_FOR_REVIEW_ALIAS ? "For Completion" : status
+}
+
+export function isProgressListStatus(status: string): boolean {
+  return (PROGRESS_LIST_STATUSES as readonly string[]).includes(
+    progressListMembershipStatus(status)
+  )
+}
+
+export function filterProjectsForProgressList<T extends { status: string }>(
+  projects: readonly T[]
+): T[] {
+  return projects.filter((project) => isProgressListStatus(project.status))
+}
 
 export type ProgressBuckets = {
   needsAttention: number

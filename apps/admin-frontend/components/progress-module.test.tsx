@@ -444,6 +444,107 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
+  it("hides Planning, Procurement, and Cancelled from the list while Planning still counts as active", async () => {
+    store.projects = [
+      {
+        id: "plan",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Hidden Plan",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 10,
+      },
+      {
+        id: "buy",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Hidden Buy",
+        category: "Infrastructure",
+        status: "Procurement",
+        budget_year: 2026,
+        progress_pct: 20,
+      },
+      {
+        id: "stop",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Hidden Stop",
+        category: "Infrastructure",
+        status: "Cancelled",
+        budget_year: 2026,
+        progress_pct: 40,
+      },
+      {
+        id: "live",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Visible Live",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 60,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-row-live")).toBeInTheDocument()
+      expect(screen.getByText("Visible Live")).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId("progress-row-plan")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("progress-row-buy")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("progress-row-stop")).not.toBeInTheDocument()
+    expect(screen.queryByText("Hidden Plan")).not.toBeInTheDocument()
+    expect(screen.queryByText("Hidden Buy")).not.toBeInTheDocument()
+    expect(screen.queryByText("Hidden Stop")).not.toBeInTheDocument()
+    expect(screen.getByTestId("progress-active")).toHaveTextContent("3")
+  })
+
+  it("does not open leftover Planning detail or update dialog when only excluded statuses are loaded", async () => {
+    store.projects = [
+      {
+        id: "plan",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Leftover Plan",
+        category: "Infrastructure",
+        status: "Planning",
+        budget_year: 2026,
+        progress_pct: 10,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-active")).toHaveTextContent("1")
+    })
+    expect(screen.queryByTestId("progress-row-plan")).not.toBeInTheDocument()
+    expect(screen.queryByText("Leftover Plan")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("dialog", { name: /update progress/i })
+    ).not.toBeInTheDocument()
+    expect(screen.getByTestId("progress-detail-panel")).toHaveTextContent(
+      "Select a project to view history."
+    )
+  })
+
   it("filters progress rows by municipality and scoped barangay", async () => {
     const user = userEvent.setup()
     store.projects = [
@@ -1607,7 +1708,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows Update Progress at 100% for Planning, For Completion, and For Revision", async () => {
+  it("shows Update Progress at 100% for For Completion and For Revision", async () => {
     useBarangayActor()
     store.projects = [
       {
@@ -1653,10 +1754,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
 
-    const stuckRow = await screen.findByTestId("progress-row-stuck")
-    expect(
-      within(stuckRow).getByRole("button", { name: /update progress/i })
-    ).toBeInTheDocument()
+    expect(screen.queryByTestId("progress-row-stuck")).not.toBeInTheDocument()
 
     const readyRow = await screen.findByTestId("progress-row-ready")
     expect(
@@ -1669,7 +1767,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
   })
 
-  it("shows Update Progress in detail panel at 100% for Planning and For Revision", async () => {
+  it("shows Update Progress in detail panel at 100% for For Revision", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1703,22 +1801,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
 
-    const stuckRow = await screen.findByTestId("progress-row-stuck")
-    await user.click(
-      within(stuckRow).getByRole("button", { name: /view details/i })
-    )
-
-    const stuckDetail = await screen.findByRole("dialog")
-    expect(
-      within(stuckDetail).getByRole("button", { name: /update progress/i })
-    ).toBeInTheDocument()
-    expect(
-      within(screen.getByTestId("progress-detail-panel")).getByRole("button", {
-        name: /update progress/i,
-        hidden: true,
-      })
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /close/i }))
+    expect(screen.queryByTestId("progress-row-stuck")).not.toBeInTheDocument()
 
     const revisionRow = await screen.findByTestId("progress-row-revision")
     await user.click(
@@ -1735,9 +1818,10 @@ describe("ProgressModule (V81, V84)", () => {
         hidden: true,
       })
     ).toBeInTheDocument()
+    expect(screen.queryByText("Try")).not.toBeInTheDocument()
   })
 
-  it("opens Update Progress modal for Planning at 100%", async () => {
+  it("opens Update Progress modal for For Revision at 100%", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1774,16 +1858,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(
       screen.queryByRole("dialog", { name: /update progress/i })
     ).not.toBeInTheDocument()
-
-    const stuckRow = await screen.findByTestId("progress-row-stuck")
-    await user.click(
-      within(stuckRow).getByRole("button", { name: /update progress/i })
-    )
-
-    expect(
-      await screen.findByRole("dialog", { name: /update progress/i })
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /cancel/i }))
+    expect(screen.queryByTestId("progress-row-stuck")).not.toBeInTheDocument()
 
     const revisionRow = await screen.findByTestId("progress-row-revision")
     await user.click(
@@ -1835,7 +1910,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeEnabled()
   })
 
-  it("heals stuck 100% projects on load for Province (V6)", async () => {
+  it("heals stuck 100% Planning projects on load for Province", async () => {
     store.projects = [
       {
         id: "stuck",
@@ -1903,7 +1978,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 
-  it("does not heal stuck 100% projects on load for Barangay (V6)", async () => {
+  it("does not heal stuck 100% Planning projects on load for Barangay and hides the row", async () => {
     useBarangayActor()
     store.projects = [
       {
@@ -1923,7 +1998,10 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
 
-    await screen.findByTestId("progress-row-stuck")
+    await waitFor(() => {
+      expect(screen.getByTestId("progress-active")).toHaveTextContent("1")
+    })
+    expect(screen.queryByTestId("progress-row-stuck")).not.toBeInTheDocument()
     expect(projectUpdateMock).not.toHaveBeenCalled()
   })
 

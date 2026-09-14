@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { PROJECT_STATUS } from "../../schema/manifest"
 import {
   buildProgressSummaryCards,
   canShowUpdateProgress,
@@ -8,7 +9,11 @@ import {
   countUpdatesToday,
   effectiveProgressPct,
   filterProgressUpdatesByToPctRange,
+  filterProjectsForProgressList,
+  isProgressListStatus,
   isStuckAt100NeedingReadyForReview,
+  PROGRESS_LIST_EXCLUDED_STATUSES,
+  PROGRESS_LIST_STATUSES,
   projectProgressPatchFromUpdate,
   projectStatusAfterAllocation,
 } from "./progress-summary"
@@ -258,6 +263,51 @@ describe("countProgressBuckets (V7, V8)", () => {
     expect(
       countProgressBuckets([{ progress_pct: 50 }, { progress_pct: 80 }])
     ).toEqual({ needsAttention: 0, onTrack: 2, other: 0 })
+  })
+})
+
+describe("progress list status membership", () => {
+  it("should partition every live project status into listable or excluded", () => {
+    const listed = [...PROGRESS_LIST_STATUSES]
+    const excluded = [...PROGRESS_LIST_EXCLUDED_STATUSES]
+    expect([...listed, ...excluded].sort()).toEqual([...PROJECT_STATUS].sort())
+    expect(listed).toHaveLength(6)
+    expect(excluded).toHaveLength(3)
+  })
+
+  it("should not treat Ready for Review as a stored listable or excluded token", () => {
+    expect(PROGRESS_LIST_STATUSES).not.toContain("Ready for Review")
+    expect(PROGRESS_LIST_EXCLUDED_STATUSES).not.toContain("Ready for Review")
+    expect(PROJECT_STATUS).not.toContain("Ready for Review")
+  })
+
+  it.each([...PROJECT_STATUS])(
+    "should classify %s as either listable or excluded, not both",
+    (status) => {
+      const listed = isProgressListStatus(status)
+      const excluded = (PROGRESS_LIST_EXCLUDED_STATUSES as readonly string[]).includes(
+        status
+      )
+      expect(listed || excluded).toBe(true)
+      expect(listed && excluded).toBe(false)
+    }
+  )
+
+  it("should treat old Ready for Review data as For Completion for list membership only", () => {
+    expect(isProgressListStatus("Ready for Review")).toBe(true)
+    expect(isProgressListStatus("For Completion")).toBe(true)
+  })
+
+  it("should keep Planning, Procurement, and Cancelled off the progress list", () => {
+    expect(
+      filterProjectsForProgressList([
+        { id: "plan", status: "Planning" },
+        { id: "buy", status: "Procurement" },
+        { id: "live", status: "Ongoing" },
+        { id: "done", status: "Cancelled" },
+        { id: "old", status: "Ready for Review" },
+      ]).map((project) => project.id)
+    ).toEqual(["live", "old"])
   })
 })
 
