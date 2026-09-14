@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -172,6 +172,35 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(await screen.findByRole("option", { name: "Bridge" }))
     await user.clear(screen.getByLabelText(/total allocated budget amount/i))
     await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
+  }
+
+  function seedReleasedAmountTable() {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p1",
+        amount: 25_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-17",
+      },
+    ]
   }
 
   it("should show allocator full name after allocate when users list includes the actor", async () => {
@@ -1659,6 +1688,79 @@ describe("BudgetModule (V9, V10, V24)", () => {
       spentCard?.querySelector("[data-slot=progress-indicator]")
     ).toHaveStyle({ transform: "translateX(-75%)" })
   })
+
+  it.each(["Province", "Super Admin"] as const)(
+    "should show header + Released Amount for %s without a per-row Released Amount action",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "current-user",
+        email: "current@example.test",
+        name: `Current ${role}`,
+        role,
+        account_status: "Active",
+      }
+      seedReleasedAmountTable()
+
+      render(<BudgetModule />)
+
+      await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText("Bridge")).toBeInTheDocument()
+      })
+
+      expect(screen.getByTestId("released-amount")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
+
+      const table = screen.getByRole("table")
+      expect(
+        within(table).queryByRole("button", { name: /released amount/i })
+      ).not.toBeInTheDocument()
+      expect(within(table).queryByTestId("released-amount")).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("columnheader", { name: /actions/i })
+      ).not.toBeInTheDocument()
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should hide header + Released Amount for %s and keep the table free of a Released Amount row action",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "current-user",
+        email: "current@example.test",
+        name: "Current Local Officer",
+        role,
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        account_status: "Active",
+      }
+      seedReleasedAmountTable()
+
+      render(<BudgetModule />)
+
+      await user.click(await screen.findByRole("tab", { name: /released amount/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText("Bridge")).toBeInTheDocument()
+      })
+
+      expect(screen.queryByTestId("released-amount")).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("button", { name: /\+ released amount/i })
+      ).not.toBeInTheDocument()
+
+      const table = screen.getByRole("table")
+      expect(
+        within(table).queryByRole("button", { name: /released amount/i })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("columnheader", { name: /actions/i })
+      ).not.toBeInTheDocument()
+    }
+  )
 })
 
 describe("budget remaining and released amount writers", () => {
