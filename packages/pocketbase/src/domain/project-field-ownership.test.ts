@@ -15,6 +15,7 @@ import {
   ownedProjectFieldsForActor,
   PROVINCIAL_OWNED_FIELDS,
   projectFieldFilledByLabel,
+  projectHasIncompleteAwaitingDetails,
   projectPayloadForActor,
   statusOptionsForActor,
 } from "./project-field-ownership"
@@ -1216,6 +1217,45 @@ describe("awaiting details badge copy", () => {
         bid_price: 0,
       })
     ).toBe(AWAITING_DETAILS_COPY)
+  })
+})
+
+describe("projectHasIncompleteAwaitingDetails", () => {
+  it("should report incomplete when any required LGU detail is empty", () => {
+    expect(
+      projectHasIncompleteAwaitingDetails({
+        ...filledLguDetails,
+        contractor: "",
+      })
+    ).toBe(true)
+  })
+
+  it("should report incomplete when bid_price is zero", () => {
+    expect(
+      projectHasIncompleteAwaitingDetails({
+        ...filledLguDetails,
+        bid_price: 0,
+      })
+    ).toBe(true)
+  })
+
+  it("should report complete when all five required fields are filled", () => {
+    expect(projectHasIncompleteAwaitingDetails(filledLguDetails)).toBe(false)
+  })
+
+  it("should stay role-agnostic so Super Admin incomplete records still count", () => {
+    expect(
+      projectHasIncompleteAwaitingDetails({
+        ...filledLguDetails,
+        start_date: "",
+      })
+    ).toBe(true)
+    expect(
+      awaitingDetailsBadgeCopy("Super Admin", {
+        ...filledLguDetails,
+        start_date: "",
+      })
+    ).toBe(null)
   })
 })
 

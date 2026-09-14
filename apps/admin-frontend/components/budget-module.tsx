@@ -7,9 +7,8 @@ import {
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
 import {
-  COMPLETED_PROJECT_ALLOCATION_MESSAGE,
+  budgetAllocationIneligibilityMessage,
   filterProjectsForBudgetAllocation,
-  isEligibleForBudgetAllocation,
   validateReleasedAmountCreate,
 } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import {
@@ -472,8 +471,9 @@ export function BudgetModule() {
     }
 
     const targetProject = projects.find((row) => row.id === parsed.data.project)
-    if (!targetProject || !isEligibleForBudgetAllocation(targetProject)) {
-      setFieldErrors({ project: COMPLETED_PROJECT_ALLOCATION_MESSAGE })
+    const ineligible = budgetAllocationIneligibilityMessage(targetProject)
+    if (ineligible) {
+      setFieldErrors({ project: ineligible })
       return
     }
 

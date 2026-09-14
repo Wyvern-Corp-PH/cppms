@@ -1,4 +1,7 @@
-import type { ProjectRecord } from "../types"
+import {
+  projectHasIncompleteAwaitingDetails,
+  type ProjectFieldMap,
+} from "./project-field-ownership"
 
 /** Exact copy for release-vs-allocated create failures (all wired paths). */
 export const RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE =
@@ -11,6 +14,10 @@ export const RELEASED_AMOUNT_INVALID_MESSAGE =
 /** Defense-in-depth when allocate-save targets a Completed project. */
 export const COMPLETED_PROJECT_ALLOCATION_MESSAGE =
   "Cannot allocate budget to a Completed project."
+
+/** Defense-in-depth when allocate-save targets incomplete LGU details. */
+export const INCOMPLETE_PROJECT_ALLOCATION_MESSAGE =
+  "Cannot allocate budget until required project details are complete."
 
 export type ReleasedAmountCreateValidation =
   | { ok: true }
@@ -55,15 +62,27 @@ export function validateReleasedAmountCreate(input: {
   return { ok: true }
 }
 
-export function isEligibleForBudgetAllocation(
-  project: Pick<ProjectRecord, "status">
-): boolean {
-  return project.status !== "Completed"
+export function budgetAllocationIneligibilityMessage(
+  project: ProjectFieldMap | null | undefined
+): string | null {
+  if (project?.status === "Completed") {
+    return COMPLETED_PROJECT_ALLOCATION_MESSAGE
+  }
+  if (projectHasIncompleteAwaitingDetails(project)) {
+    return INCOMPLETE_PROJECT_ALLOCATION_MESSAGE
+  }
+  return null
 }
 
-/** Allocate Budget project options — omit Completed only. */
+export function isEligibleForBudgetAllocation(
+  project: ProjectFieldMap
+): boolean {
+  return budgetAllocationIneligibilityMessage(project) === null
+}
+
+/** Allocate Budget project options — omit Completed and incomplete details. */
 export function filterProjectsForBudgetAllocation<
-  T extends Pick<ProjectRecord, "status">,
+  T extends ProjectFieldMap,
 >(projects: readonly T[]): T[] {
   return projects.filter(isEligibleForBudgetAllocation)
 }

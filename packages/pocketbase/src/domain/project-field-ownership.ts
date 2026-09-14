@@ -101,16 +101,21 @@ const AWAITING_DETAILS_FIELDS = [
   "target_end_date",
 ] as const
 
+export function projectHasIncompleteAwaitingDetails(
+  record: ProjectFieldMap | null | undefined
+): boolean {
+  return AWAITING_DETAILS_FIELDS.some((field) => {
+    const value = record?.[field]
+    return isEmptyValue(value) || value === 0
+  })
+}
+
 export function awaitingDetailsBadgeCopy(
   role: string | undefined,
   record: ProjectFieldMap | null | undefined
 ): string | null {
   if (!isLguRole(role)) return null
-  const incomplete = AWAITING_DETAILS_FIELDS.some((field) => {
-    const value = record?.[field]
-    return isEmptyValue(value) || value === 0
-  })
-  if (!incomplete) return null
+  if (!projectHasIncompleteAwaitingDetails(record)) return null
   return "Awaiting your details — please complete the required fields for this project"
 }
 

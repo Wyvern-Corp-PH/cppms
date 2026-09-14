@@ -36,7 +36,14 @@ vi.mock("@/lib/pocketbase", () => ({
         if (store.deniedCollections.includes(name)) {
           throw new Error("Only superusers can perform this action.")
         }
-        if (name === "projects") return store.projects
+        if (name === "projects") {
+          return store.projects.map((project) => ({
+            contractor: "Build Co",
+            start_date: "2026-06-01",
+            target_end_date: "2026-12-01",
+            ...project,
+          }))
+        }
         if (name === "budget_allocations") return store.allocations
         if (name === "budget_expenses") return store.expenses
         if (name === "locations") return store.locations
@@ -1417,7 +1424,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
+        contractor: "Build Co",
         bid_price: 200_000,
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
       },
       {
         id: "p2",
@@ -1441,6 +1451,50 @@ describe("BudgetModule (V9, V10, V24)", () => {
     ).toBeInTheDocument()
     expect(
       screen.queryByRole("option", { name: "Finished Road" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("should hide incomplete LGU-detail projects from allocate select", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Ready Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        contractor: "Build Co",
+        bid_price: 200_000,
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+      },
+      {
+        id: "p2",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Incomplete Road",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        contractor: "",
+        bid_price: 200_000,
+        start_date: "2026-06-01",
+        target_end_date: "2026-12-01",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByTestId("allocate-budget"))
+    await user.click((await screen.findAllByRole("combobox"))[0]!)
+
+    expect(
+      await screen.findByRole("option", { name: "Ready Bridge" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("option", { name: "Incomplete Road" })
     ).not.toBeInTheDocument()
   })
 

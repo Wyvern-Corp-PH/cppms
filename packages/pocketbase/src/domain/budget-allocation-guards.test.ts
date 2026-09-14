@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   COMPLETED_PROJECT_ALLOCATION_MESSAGE,
+  INCOMPLETE_PROJECT_ALLOCATION_MESSAGE,
   RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE,
   RELEASED_AMOUNT_INVALID_MESSAGE,
+  budgetAllocationIneligibilityMessage,
   filterProjectsForBudgetAllocation,
   isEligibleForBudgetAllocation,
   validateReleasedAmountCreate,
@@ -151,13 +153,20 @@ describe("validateReleasedAmountCreate", () => {
   })
 })
 
+const filledLguDetails = {
+  contractor: "Build Co",
+  bid_price: 200_000,
+  start_date: "2026-06-01",
+  target_end_date: "2026-12-01",
+}
+
 describe("filterProjectsForBudgetAllocation", () => {
   it("should exclude Completed projects and keep others", () => {
     const projects = [
-      { id: "a", status: "Ongoing" as const },
-      { id: "b", status: "Completed" as const },
-      { id: "c", status: "Planning" as const },
-      { id: "d", status: "For Completion" as const },
+      { id: "a", status: "Ongoing" as const, ...filledLguDetails },
+      { id: "b", status: "Completed" as const, ...filledLguDetails },
+      { id: "c", status: "Planning" as const, ...filledLguDetails },
+      { id: "d", status: "For Completion" as const, ...filledLguDetails },
     ]
 
     expect(filterProjectsForBudgetAllocation(projects).map((p) => p.id)).toEqual([
@@ -169,5 +178,52 @@ describe("filterProjectsForBudgetAllocation", () => {
     expect(COMPLETED_PROJECT_ALLOCATION_MESSAGE).toBe(
       "Cannot allocate budget to a Completed project."
     )
+  })
+
+  it("should hide incomplete LGU-detail projects from allocate select", () => {
+    const projects = [
+      { id: "ready", status: "Ongoing" as const, ...filledLguDetails },
+      {
+        id: "missing-contractor",
+        status: "Ongoing" as const,
+        ...filledLguDetails,
+        contractor: "",
+      },
+      {
+        id: "zero-bid",
+        status: "Planning" as const,
+        ...filledLguDetails,
+        bid_price: 0,
+      },
+    ]
+
+    expect(filterProjectsForBudgetAllocation(projects).map((p) => p.id)).toEqual([
+      "ready",
+    ])
+    expect(isEligibleForBudgetAllocation(projects[1]!)).toBe(false)
+    expect(isEligibleForBudgetAllocation(projects[2]!)).toBe(false)
+  })
+
+  it("should reject incomplete details with a distinct allocation message", () => {
+    const incomplete = {
+      status: "Ongoing" as const,
+      ...filledLguDetails,
+      contractor: "",
+    }
+    const completed = { status: "Completed" as const, ...filledLguDetails }
+
+    expect(budgetAllocationIneligibilityMessage(incomplete)).toBe(
+      INCOMPLETE_PROJECT_ALLOCATION_MESSAGE
+    )
+    expect(budgetAllocationIneligibilityMessage(completed)).toBe(
+      COMPLETED_PROJECT_ALLOCATION_MESSAGE
+    )
+    expect(INCOMPLETE_PROJECT_ALLOCATION_MESSAGE).not.toBe(
+      COMPLETED_PROJECT_ALLOCATION_MESSAGE
+    )
+    expect(budgetAllocationIneligibilityMessage({
+      status: "Ongoing" as const,
+      ...filledLguDetails,
+    })).toBe(null)
   })
 })
