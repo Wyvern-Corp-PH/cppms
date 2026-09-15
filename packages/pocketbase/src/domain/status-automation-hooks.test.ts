@@ -455,6 +455,25 @@ describe("sync-project-progress history-edit revert", () => {
     expect(saved).toEqual([{ status: "Ongoing", progress_pct: 70 }])
   })
 
+  it("should set For Completion on afterCreate from Ongoing at 100", () => {
+    const project = projectState("Ongoing", 70)
+    const { app, saved } = appFor(project, [
+      row("newest", 100, "2026-08-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressUpdate(app, row("newest", 100))
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
+  it("should set For Completion on afterUpdate from Ongoing at 100", () => {
+    const project = projectState("Ongoing", 70)
+    const { app, saved } = appFor(project, [
+      row("newest", 100, "2026-08-01 00:00:00.000Z"),
+      row("older", 70, "2026-05-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressHistoryEdit(app, row("newest", 100))
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
   it("should not add For Completion to the create-path Ongoing from-set", () => {
     expect(
       progressHook.projectProgressPatch(70, "For Completion")

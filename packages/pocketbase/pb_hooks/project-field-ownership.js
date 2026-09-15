@@ -109,6 +109,39 @@ function isApprovalWorkflowStatusWrite(changed, submitted, original) {
   return submitted.status === "For Revision" && nextApproval === "pending"
 }
 
+const PROGRESS_SYNC_PROMOTE_FROM = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+  "Ready for Review",
+]
+
+function submittedProgressPct(submitted) {
+  if (submitted.progress_pct === undefined) return null
+  const pct = Number(submitted.progress_pct)
+  return Number.isFinite(pct) ? pct : null
+}
+
+function isProgressSyncPairWrite(submitted, original) {
+  const pct = submittedProgressPct(submitted)
+  if (pct === null) return false
+  const nextStatus = submitted.status
+  const currentStatus = original?.status
+  if (
+    nextStatus === "For Completion" &&
+    pct >= 100 &&
+    PROGRESS_SYNC_PROMOTE_FROM.includes(currentStatus)
+  ) {
+    return true
+  }
+  return (
+    currentStatus === "For Completion" &&
+    nextStatus === "Ongoing" &&
+    pct < 100
+  )
+}
+
 function isLguRole(role) {
   return role === "Municipality" || role === "Barangay"
 }
@@ -164,7 +197,8 @@ function evaluateProjectFieldWrite(options) {
       for (const field of changed) {
         if (
           field === "status" &&
-          isApprovalWorkflowStatusWrite(changed, submitted, original)
+          (isApprovalWorkflowStatusWrite(changed, submitted, original) ||
+            isProgressSyncPairWrite(submitted, original))
         ) {
           continue
         }
@@ -184,6 +218,7 @@ function evaluateProjectFieldWrite(options) {
       const nextStatus = submitted.status
       const currentStatus = original?.status
       if (valuesEqual(currentStatus, nextStatus)) continue
+      if (isProgressSyncPairWrite(submitted, original)) continue
       if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
       if (nextStatus === "Cancelled") continue
       if (
@@ -192,6 +227,9 @@ function evaluateProjectFieldWrite(options) {
       ) {
         return reject("status")
       }
+      continue
+    }
+    if (field === "progress_pct" && isProgressSyncPairWrite(submitted, original)) {
       continue
     }
     if ((field === "municipality" || field === "barangay") && isLguRole(role)) {

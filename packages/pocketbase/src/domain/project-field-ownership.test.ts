@@ -207,6 +207,103 @@ describe("project field ownership", () => {
     expect(fromReview.ok).toBe(false)
   })
 
+  it("should allow LGU progress-sync write to For Completion at 100 percent", () => {
+    for (const currentStatus of [
+      "Planning",
+      "Procurement",
+      "Ongoing",
+      "For Revision",
+      "Ready for Review",
+    ]) {
+      const options = {
+        role: "Municipality" as const,
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: currentStatus,
+          progress_pct: 40,
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { status: "For Completion", progress_pct: 100 },
+      }
+      expect(evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+    }
+  })
+
+  it("should allow Super Admin progress-sync write to For Completion at 100 percent", () => {
+    const options = {
+      role: "Super Admin",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        status: "Ongoing",
+        progress_pct: 40,
+      },
+      submitted: { status: "For Completion", progress_pct: 100 },
+    }
+    expect(evaluateProjectFieldWrite(options)).toEqual({
+      ok: true,
+      setLguEncodedAt: false,
+    })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+      ok: true,
+      setLguEncodedAt: false,
+    })
+  })
+
+  it("should reject LGU status-only For Completion without progress_pct", () => {
+    const options = {
+      role: "Municipality",
+      isCreate: false,
+      original: {
+        ...ppdoCreate,
+        status: "Ongoing",
+        progress_pct: 100,
+        lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+      },
+      submitted: { status: "For Completion" },
+    }
+    expect(evaluateProjectFieldWrite(options)).toEqual({
+      ok: false,
+      error: "You cannot update field 'status'.",
+    })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+      ok: false,
+      error: "You cannot update field 'status'.",
+    })
+  })
+
+  it("should allow For Completion to Ongoing when progress_pct is below 100", () => {
+    for (const role of ["Municipality", "Super Admin"] as const) {
+      const options = {
+        role,
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "For Completion",
+          progress_pct: 100,
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { status: "Ongoing", progress_pct: 70 },
+      }
+      expect(evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+    }
+  })
+
   it("lets LGU change among Planning, Procurement, and Ongoing after the marker", () => {
     const result = evaluateProjectFieldWrite({
       role: "Municipality",

@@ -164,6 +164,44 @@ function isApprovalWorkflowStatusWrite(
   return submitted.status === "For Revision" && nextApproval === "pending"
 }
 
+const PROGRESS_SYNC_PROMOTE_FROM = [
+  "Planning",
+  "Procurement",
+  "Ongoing",
+  "For Revision",
+  "Ready for Review",
+] as const
+
+function submittedProgressPct(submitted: ProjectFieldMap): number | null {
+  if (submitted.progress_pct === undefined) return null
+  const pct = Number(submitted.progress_pct)
+  return Number.isFinite(pct) ? pct : null
+}
+
+function isProgressSyncPairWrite(
+  submitted: ProjectFieldMap,
+  original?: ProjectFieldMap | null
+): boolean {
+  const pct = submittedProgressPct(submitted)
+  if (pct === null) return false
+  const nextStatus = submitted.status
+  const currentStatus = original?.status
+  if (
+    nextStatus === "For Completion" &&
+    pct >= 100 &&
+    (PROGRESS_SYNC_PROMOTE_FROM as readonly string[]).includes(
+      String(currentStatus)
+    )
+  ) {
+    return true
+  }
+  return (
+    currentStatus === "For Completion" &&
+    nextStatus === "Ongoing" &&
+    pct < 100
+  )
+}
+
 function isLguRole(role: string | undefined): boolean {
   return role === "Municipality" || role === "Barangay"
 }
@@ -297,7 +335,8 @@ export function evaluateProjectFieldWrite(options: {
       for (const field of changed) {
         if (
           field === "status" &&
-          isApprovalWorkflowStatusWrite(changed, submitted, original)
+          (isApprovalWorkflowStatusWrite(changed, submitted, original) ||
+            isProgressSyncPairWrite(submitted, original))
         ) {
           continue
         }
@@ -319,6 +358,7 @@ export function evaluateProjectFieldWrite(options: {
       const nextStatus = submitted.status
       const currentStatus = original?.status
       if (valuesEqual(currentStatus, nextStatus)) continue
+      if (isProgressSyncPairWrite(submitted, original)) continue
       if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
       if (nextStatus === "Cancelled") continue
       if (
@@ -327,6 +367,9 @@ export function evaluateProjectFieldWrite(options: {
       ) {
         return reject("status")
       }
+      continue
+    }
+    if (field === "progress_pct" && isProgressSyncPairWrite(submitted, original)) {
       continue
     }
     if (field === "municipality" || field === "barangay") {
