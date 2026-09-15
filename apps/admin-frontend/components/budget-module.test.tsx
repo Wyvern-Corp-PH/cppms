@@ -770,14 +770,16 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(await screen.findByRole("tab", { name: /released amount/i }))
 
     expect(screen.queryByRole("tab", { name: /^expenses$/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /\+ released amount/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: new RegExp(`\\+ ${"record"} ${"expense"}`, "i"),
+      })
+    ).not.toBeInTheDocument()
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
-      expect(
-        screen.queryByRole("button", {
-          name: new RegExp(`\\+ ${"record"} ${"expense"}`, "i"),
-        })
-      ).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /category/i })).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /fund source/i })).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /funding years/i })).not.toBeInTheDocument()
@@ -788,281 +790,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.getAllByText("2026").length).toBeGreaterThan(0)
       expect(screen.getByText("Calamity reserve")).toBeInTheDocument()
     })
-
-    await user.click(screen.getByRole("button", { name: /\+ released amount/i }))
-
-    expect(screen.getAllByText("Fund Source").length).toBeGreaterThan(0)
-    expect(screen.queryByLabelText(/^fund source$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/funding years/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^fund type$/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^year$/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/main account/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/main account/i))
-    expect(await screen.findByRole("option", { name: "General Fund" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Special Education Fund" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Special Health Fund" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Trust Fund" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Others" })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: /^Other$/ })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole("option", { name: "Others" }))
-
-    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/other/i)).toBeInTheDocument()
-  })
-
-  it("creates released amount payload with fund source fields only", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-    store.allocations = [
-      {
-        id: "a1",
-        collectionId: "a",
-        collectionName: "budget_allocations",
-        project: "p1",
-        amount: 100_000,
-        year: 2026,
-        date: "2026-01-01",
-      },
-    ]
-    store.fundingYears = [
-      {
-        id: "fy1",
-        collectionId: "funding_years",
-        collectionName: "budget_funding_years",
-        name: "2027",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-    store.fundMainAccounts = [
-      {
-        id: "ma1",
-        collectionId: "fund_main_accounts",
-        collectionName: "budget_fund_main_accounts",
-        name: "General Fund",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-    store.fundSubAccounts = [
-      {
-        id: "sa1",
-        collectionId: "fund_sub_accounts",
-        collectionName: "budget_fund_sub_accounts",
-        main_account: "General Fund",
-        name: "20% DF",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-    await user.click(screen.getByLabelText(/expense project/i))
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "25000")
-    await user.click(screen.getByLabelText(/^year$/i))
-    await user.click(await screen.findByRole("option", { name: "2027" }))
-    await user.click(screen.getByLabelText(/main account/i))
-    await user.click(await screen.findByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/sub account/i))
-    await user.click(await screen.findByRole("option", { name: "20% DF" }))
-    await user.type(screen.getByLabelText(/receipt number/i), "OR-100")
-    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith({
-        project: "p1",
-        amount: 25000,
-        year: 2027,
-        main_account: "General Fund",
-        sub_account: "20% DF",
-        date: expect.any(String),
-        receipt_number: "OR-100",
-      })
-    })
-
-    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(payload).not.toHaveProperty("category")
-    expect(payload).not.toHaveProperty("fund_source")
-    expect(payload).not.toHaveProperty("fund_type")
-    expect(payload).not.toHaveProperty("funding_years")
-  })
-
-  it("requires sub account before creating General Fund released amounts", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-    await user.click(screen.getByLabelText(/expense project/i))
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "25000")
-    await user.click(screen.getByLabelText(/main account/i))
-    await user.click(await screen.findByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
-
-    expect(await screen.findByText("Sub account is required.")).toHaveAttribute(
-      "data-slot",
-      "field-error"
-    )
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
-  it("renders released amount validation with Field primitives", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
-
-    expect(await screen.findByText("Project is required.")).toHaveAttribute(
-      "data-slot",
-      "field-error"
-    )
-    expect(screen.getByText("Amount must be greater than zero.")).toHaveAttribute(
-      "data-slot",
-      "field-error"
-    )
-    expect(screen.getByText("Main account is required.")).toHaveAttribute(
-      "data-slot",
-      "field-error"
-    )
-    expect(screen.getByLabelText(/^amount \(php\)$/i)).toHaveAttribute(
-      "aria-invalid",
-      "true"
-    )
-    expect(screen.getAllByRole("group").some((node) => node.getAttribute("data-slot") === "field")).toBe(
-      true
-    )
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
-  it("loads released amount fund source dropdown options from PocketBase collections", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-    store.fundingYears = [
-      {
-        id: "fy1",
-        collectionId: "funding_years",
-        collectionName: "budget_funding_years",
-        name: "2027",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-    store.fundMainAccounts = [
-      {
-        id: "ft1",
-        collectionId: "fund_main_accounts",
-        collectionName: "budget_fund_main_accounts",
-        name: "Special Education Fund",
-        active: true,
-        sort_order: 1,
-      },
-      {
-        id: "ft2",
-        collectionId: "fund_main_accounts",
-        collectionName: "budget_fund_main_accounts",
-        name: "Other",
-        active: true,
-        sort_order: 2,
-      },
-    ]
-    store.fundSubAccounts = [
-      {
-        id: "sa1",
-        collectionId: "fund_sub_accounts",
-        collectionName: "budget_fund_sub_accounts",
-        main_account: "Special Education Fund",
-        name: "PB SEF Program",
-        active: true,
-        sort_order: 1,
-      },
-      {
-        id: "sa2",
-        collectionId: "fund_sub_accounts",
-        collectionName: "budget_fund_sub_accounts",
-        main_account: "General Fund",
-        name: "PB General Program",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-
-    await user.click(screen.getByLabelText(/^year$/i))
-    expect(await screen.findByRole("option", { name: "2027" })).toBeInTheDocument()
-
-    await user.keyboard("{Escape}")
-    await user.click(screen.getByLabelText(/main account/i))
-    expect(await screen.findByRole("option", { name: "Special Education Fund" })).toBeInTheDocument()
-    await user.click(await screen.findByRole("option", { name: "Special Education Fund" }))
-
-    expect(screen.queryByLabelText(/sub account/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/main account/i))
-    expect(await screen.findByRole("option", { name: "Others" })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: /^Other$/ })).not.toBeInTheDocument()
   })
 
   it("loads budget year filter options from PocketBase funding years", async () => {
@@ -1418,20 +1145,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(dialog).toHaveClass("sm:max-w-lg")
   })
 
-  it("keeps released amount content responsive at zoomed viewports", async () => {
-    const user = userEvent.setup()
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-
-    const dialog = await screen.findByRole("dialog")
-    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
-    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
-    expect(dialog).toHaveClass("overflow-y-auto")
-    expect(dialog).toHaveClass("sm:max-w-lg")
-  })
-
   it("renders summary cards and breakdown after skeleton load", async () => {
     render(<BudgetModule />)
 
@@ -1529,76 +1242,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("should reject released amount create that exceeds allocated budget", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-    store.allocations = [
-      {
-        id: "a1",
-        collectionId: "a",
-        collectionName: "budget_allocations",
-        project: "p1",
-        amount: 50_000,
-        year: 2026,
-        date: "2026-01-01",
-      },
-    ]
-    store.expenses = [
-      {
-        id: "e1",
-        collectionId: "e",
-        collectionName: "budget_expenses",
-        project: "p1",
-        amount: 40_000,
-        year: 2026,
-        main_account: "Special Education Fund",
-        date: "2026-06-01",
-      },
-    ]
-    store.fundMainAccounts = [
-      {
-        id: "ma1",
-        collectionId: "fund_main_accounts",
-        collectionName: "budget_fund_main_accounts",
-        name: "Special Education Fund",
-        active: true,
-        sort_order: 1,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByRole("tab", { name: /released amount/i }))
-    await user.click(await screen.findByTestId("released-amount"))
-    await user.click(screen.getByLabelText(/expense project/i))
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "15000")
-    await user.click(screen.getByLabelText(/main account/i))
-    await user.click(
-      await screen.findByRole("option", { name: "Special Education Fund" })
-    )
-    await user.click(screen.getByRole("button", { name: /^released amount$/i }))
-
-    expect(
-      await screen.findByText(
-        "Released amount exceeds the project's allocated budget."
-      )
-    ).toBeInTheDocument()
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
   it("should cap spend progress at 100 percent and show Over Budget when released exceeds total budget", async () => {
     store.projects = [
       {
@@ -1690,7 +1333,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
   })
 
   it.each(["Province", "Super Admin"] as const)(
-    "should show header + Released Amount for %s without a per-row Released Amount action",
+    "should hide header + Released Amount for %s and keep the table free of a Released Amount row action",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -1710,8 +1353,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
         expect(screen.getByText("Bridge")).toBeInTheDocument()
       })
 
-      expect(screen.getByTestId("released-amount")).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: /\+ released amount/i })).toBeInTheDocument()
+      expect(screen.queryByTestId("released-amount")).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole("button", { name: /\+ released amount/i })
+      ).not.toBeInTheDocument()
 
       const table = screen.getByRole("table")
       expect(

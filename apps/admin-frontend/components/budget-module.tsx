@@ -707,18 +707,6 @@ export function BudgetModule() {
         </TabsContent>
 
         <TabsContent value="expenses" className="space-y-4">
-          {canCreateExpenses ? (
-            <Button
-              type="button"
-              data-testid="released-amount"
-              onClick={() => {
-                setFieldErrors({})
-                setExpenseOpen(true)
-              }}
-            >
-              + Released Amount
-            </Button>
-          ) : null}
           <DataTable
             columns={expenseColumns}
             data={filteredExpenses}
