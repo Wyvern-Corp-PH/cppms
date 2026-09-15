@@ -7,5 +7,5 @@ globalThis.onRecordAfterCreateSuccess((event) => {
 
 globalThis.onRecordAfterUpdateSuccess((event) => {
   const hook = require(`${globalThis.__hooks}/sync-project-progress.js`)
-  hook.handleProgressUpdateAfterUpdate(event, hook.syncProjectFromProgressUpdate)
+  hook.handleProgressUpdateAfterUpdate(event, hook.syncProjectFromProgressHistoryEdit)
 }, "progress_updates")

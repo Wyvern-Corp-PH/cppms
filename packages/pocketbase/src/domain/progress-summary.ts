@@ -62,6 +62,29 @@ const FOR_COMPLETION_FROM_STATUSES = [
 
 const ONGOING_FROM_STATUSES = ["Planning", "Procurement"] as const
 
+export function maxProgressToPct(
+  updates: readonly Pick<ProgressUpdateRecord, "to_pct">[]
+): number {
+  let highWater = 0
+  for (const row of updates) {
+    const pct = Number(row.to_pct)
+    if (Number.isFinite(pct) && pct > highWater) highWater = pct
+  }
+  return highWater
+}
+
+/** History-edit revert only. Null = leave status and stored percent alone. */
+export function projectProgressPatchFromHistoryHighWater(
+  highWaterPct: number,
+  currentStatus: string
+): Pick<ProjectRecord, "progress_pct" | "status"> | null {
+  const pct = Number.isFinite(highWaterPct) ? highWaterPct : 0
+  if (currentStatus === "For Completion" && pct < 100) {
+    return { progress_pct: pct, status: "Ongoing" }
+  }
+  return null
+}
+
 /** Progress % drives this patch. Remaining/released funds are not inputs. */
 export function projectProgressPatchFromUpdate(
   toPct: number,

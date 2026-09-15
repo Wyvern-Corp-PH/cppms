@@ -99,9 +99,6 @@ import { getPocketBase } from "@/lib/pocketbase"
 
 const SLIDER_MARKERS = [0, 25, 50, 75, 100]
 const HISTORY_EDIT_ROLES = new Set(["Super Admin", "Province", "Municipality", "Barangay"])
-const SKIP_PROGRESS_SYNC = {
-  headers: { "X-Skip-Progress-Sync": "1" },
-}
 
 function canEditProgressHistoryEntry(
   actor: ReturnType<typeof getPocketBase>["authStore"]["record"],
@@ -1188,7 +1185,7 @@ export function ProgressModule() {
       })
       await pb
         .collection("progress_updates")
-        .update(historyTarget.id, payload, SKIP_PROGRESS_SYNC)
+        .update(historyTarget.id, payload)
       resetProgressDialogState()
       await load()
       return

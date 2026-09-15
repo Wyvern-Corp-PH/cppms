@@ -2,8 +2,10 @@
  * Keep projects.progress_pct in sync when local roles create progress_updates
  * (they cannot call projects.update under collection rules).
  *
- * Always apply the newest update for the project (by created), not merely the
- * row that triggered the hook — editing an older row must not regress %.
+ * After create: newest update by created.
+ * After history edit: if For Completion and max(to_pct) < 100, revert to
+ * Ongoing with stored progress_pct = that high-water mark. If high-water is
+ * still ≥ 100, leave status and stored percent alone.
  *
  * Note: findRecordsByFilter rejects sort field "created" in some PB JSAPI
  * paths (see migration 1740000029). Fetch unsorted and pick newest in JS.
@@ -35,6 +37,25 @@ function projectProgressPatch(toPct, currentStatus) {
   }
 }
 
+function projectProgressPatchFromHistoryHighWater(highWaterPct, currentStatus) {
+  const pct = Number(highWaterPct)
+  const highWater = Number.isFinite(pct) ? pct : 0
+  if (currentStatus === "For Completion" && highWater < 100) {
+    return { progress_pct: highWater, status: "Ongoing" }
+  }
+  return null
+}
+
+function maxProgressToPct(rows) {
+  let highWater = 0
+  if (!rows) return highWater
+  for (let i = 0; i < rows.length; i++) {
+    const pct = Number(rows[i].get("to_pct"))
+    if (Number.isFinite(pct) && pct > highWater) highWater = pct
+  }
+  return highWater
+}
+
 function sanitizeId(value) {
   return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "")
 }
@@ -58,17 +79,22 @@ function pickLatestProgressUpdate(rows) {
   return latest
 }
 
-function latestProgressUpdate(app, projectId) {
+function progressRowsForProject(app, projectId) {
   const safeId = sanitizeId(projectId)
-  if (!safeId) return null
-  const rows = app.findRecordsByFilter(
-    "progress_updates",
-    `project = "${safeId}"`,
-    "",
-    500,
-    0
+  if (!safeId) return []
+  return (
+    app.findRecordsByFilter(
+      "progress_updates",
+      `project = "${safeId}"`,
+      "",
+      500,
+      0
+    ) || []
   )
-  return pickLatestProgressUpdate(rows)
+}
+
+function latestProgressUpdate(app, projectId) {
+  return pickLatestProgressUpdate(progressRowsForProject(app, projectId))
 }
 
 const HISTORY_EDIT_SKIP_ROLES = ["Super Admin", "Province", "Municipality", "Barangay"]
@@ -189,11 +215,43 @@ function syncProjectFromProgressUpdate(app, progressRecord) {
   }
 }
 
+function syncProjectFromProgressHistoryEdit(app, progressRecord) {
+  try {
+    const projectId = progressRecord.get("project")
+    if (!projectId) return
+
+    const rows = progressRowsForProject(app, projectId)
+    const highWater = maxProgressToPct(rows)
+    const project = app.findRecordById("projects", projectId)
+    const revert = projectProgressPatchFromHistoryHighWater(
+      highWater,
+      project.get("status")
+    )
+    if (revert) {
+      project.set("progress_pct", revert.progress_pct)
+      project.set("status", revert.status)
+      app.save(project)
+      return
+    }
+    if (project.get("status") === "For Completion") {
+      return
+    }
+    syncProjectFromProgressUpdate(app, progressRecord)
+  } catch (error) {
+    console.error(
+      "Progress update saved, but project summary did not sync.",
+      error
+    )
+  }
+}
+
 module.exports = {
   projectProgressPatch,
+  projectProgressPatchFromHistoryHighWater,
   latestProgressUpdate,
   pickLatestProgressUpdate,
   syncProjectFromProgressUpdate,
+  syncProjectFromProgressHistoryEdit,
   handleProgressUpdateAfterUpdate,
   shouldSkipProgressSyncOnUpdate,
 }

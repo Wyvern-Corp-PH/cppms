@@ -14,6 +14,8 @@ import {
   isStuckAt100NeedingReadyForReview,
   PROGRESS_LIST_EXCLUDED_STATUSES,
   PROGRESS_LIST_STATUSES,
+  maxProgressToPct,
+  projectProgressPatchFromHistoryHighWater,
   projectProgressPatchFromUpdate,
   projectStatusAfterAllocation,
 } from "./progress-summary"
@@ -109,6 +111,13 @@ describe("projectProgressPatchFromUpdate", () => {
     })
   })
 
+  it("should keep For Completion below 100 so a new create does not revert", () => {
+    expect(projectProgressPatchFromUpdate(70, "For Completion")).toEqual({
+      progress_pct: 70,
+      status: "For Completion",
+    })
+  })
+
   it("should ignore remaining and released funds when patching status", () => {
     const source = projectProgressPatchFromUpdate.toString()
     expect(source).not.toMatch(/remaining|released|allocated|spent/)
@@ -117,6 +126,42 @@ describe("projectProgressPatchFromUpdate", () => {
       progress_pct: 40,
       status: "Ongoing",
     })
+  })
+})
+
+describe("history-edit high-water patch", () => {
+  it("should take max to_pct across all rows, not newest-by-created", () => {
+    expect(
+      maxProgressToPct([
+        { to_pct: 70 },
+        { to_pct: 100 },
+        { to_pct: 80 },
+      ])
+    ).toBe(100)
+    expect(
+      maxProgressToPct([
+        { to_pct: 90 },
+        { to_pct: 40 },
+      ])
+    ).toBe(90)
+  })
+
+  it("should revert For Completion to Ongoing when high-water drops below 100", () => {
+    expect(projectProgressPatchFromHistoryHighWater(70, "For Completion")).toEqual({
+      progress_pct: 70,
+      status: "Ongoing",
+    })
+  })
+
+  it("should not revert when high-water is still at least 100", () => {
+    expect(projectProgressPatchFromHistoryHighWater(100, "For Completion")).toBeNull()
+    expect(projectProgressPatchFromHistoryHighWater(110, "For Completion")).toBeNull()
+  })
+
+  it("should not revert statuses other than For Completion", () => {
+    expect(projectProgressPatchFromHistoryHighWater(70, "Ongoing")).toBeNull()
+    expect(projectProgressPatchFromHistoryHighWater(70, "For Approval")).toBeNull()
+    expect(projectProgressPatchFromHistoryHighWater(70, "Completed")).toBeNull()
   })
 })
 

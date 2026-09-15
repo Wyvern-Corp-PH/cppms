@@ -24,6 +24,10 @@ const progressHook = loadHook<{
     toPct: unknown,
     currentStatus: string
   ) => { progress_pct: number; status: string }
+  projectProgressPatchFromHistoryHighWater: (
+    highWaterPct: unknown,
+    currentStatus: string
+  ) => { progress_pct: number; status: string } | null
   handleProgressUpdateAfterUpdate: (
     event: {
       app: unknown
@@ -31,6 +35,14 @@ const progressHook = loadHook<{
       requestInfo?: unknown
     },
     sync: (app: unknown, record: unknown) => void
+  ) => void
+  syncProjectFromProgressUpdate: (
+    app: unknown,
+    progressRecord: { get: (field: string) => unknown }
+  ) => void
+  syncProjectFromProgressHistoryEdit: (
+    app: unknown,
+    progressRecord: { get: (field: string) => unknown }
   ) => void
 }>("sync-project-progress.js")
 
@@ -238,6 +250,127 @@ describe("sync-project-progress skip header", () => {
       }
     )
     expect(calls).toHaveLength(0)
+  })
+})
+
+describe("sync-project-progress history-edit revert", () => {
+  function row(id: string, toPct: number, created = "2026-06-01 00:00:00.000Z") {
+    return {
+      id,
+      get(field: string) {
+        if (field === "to_pct") return toPct
+        if (field === "created") return created
+        if (field === "project") return "proj-1"
+        return ""
+      },
+    }
+  }
+
+  function projectState(status: string, progressPct: number) {
+    const state = { status, progress_pct: progressPct }
+    return {
+      state,
+      record: {
+        get(field: string) {
+          if (field === "status") return state.status
+          if (field === "progress_pct") return state.progress_pct
+          return ""
+        },
+        set(field: string, value: string | number) {
+          if (field === "status") state.status = String(value)
+          if (field === "progress_pct") state.progress_pct = Number(value)
+        },
+      },
+    }
+  }
+
+  function appFor(
+    project: ReturnType<typeof projectState>,
+    rows: ReturnType<typeof row>[]
+  ) {
+    const saved: { status: string; progress_pct: number }[] = []
+    return {
+      saved,
+      app: {
+        findRecordById(collection: string, id: string) {
+          if (collection === "projects" && id === "proj-1") return project.record
+          throw new Error("missing record")
+        },
+        findRecordsByFilter() {
+          return rows
+        },
+        save() {
+          saved.push({
+            status: project.state.status,
+            progress_pct: project.state.progress_pct,
+          })
+        },
+      },
+    }
+  }
+
+  it("should revert For Completion to Ongoing on afterUpdate when max to_pct drops below 100", () => {
+    const project = projectState("For Completion", 100)
+    const { app, saved } = appFor(project, [
+      row("newest", 70, "2026-08-01 00:00:00.000Z"),
+      row("older", 40, "2026-05-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressHistoryEdit(app, row("newest", 70))
+    expect(saved).toEqual([{ status: "Ongoing", progress_pct: 70 }])
+  })
+
+  it("should use max to_pct across rows, not newest-by-created, for the revert write", () => {
+    const project = projectState("For Completion", 100)
+    const { app, saved } = appFor(project, [
+      row("newest", 60, "2026-08-01 00:00:00.000Z"),
+      row("older-high", 85, "2026-05-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressHistoryEdit(app, row("newest", 60))
+    expect(saved).toEqual([{ status: "Ongoing", progress_pct: 85 }])
+  })
+
+  it("should leave For Completion and stored percent when high-water is still at least 100", () => {
+    const project = projectState("For Completion", 100)
+    const { app, saved } = appFor(project, [
+      row("newest", 70, "2026-08-01 00:00:00.000Z"),
+      row("still-complete", 100, "2026-05-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressHistoryEdit(app, row("newest", 70))
+    expect(saved).toEqual([])
+    expect(project.state).toEqual({ status: "For Completion", progress_pct: 100 })
+  })
+
+  it("should not revert For Completion on afterCreate when a new row is below 100", () => {
+    const project = projectState("For Completion", 100)
+    const { app, saved } = appFor(project, [
+      row("newest", 70, "2026-08-01 00:00:00.000Z"),
+      row("complete", 100, "2026-05-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressUpdate(app, row("newest", 70))
+    expect(project.state.status).toBe("For Completion")
+    expect(saved.every((write) => write.status !== "Ongoing")).toBe(true)
+  })
+
+  it("should not revert For Completion on afterCreate when the new row is the only below-100 row", () => {
+    const project = projectState("For Completion", 100)
+    const { app, saved } = appFor(project, [
+      row("newest", 70, "2026-08-01 00:00:00.000Z"),
+    ])
+    progressHook.syncProjectFromProgressUpdate(app, row("newest", 70))
+    expect(project.state.status).toBe("For Completion")
+    expect(saved.every((write) => write.status !== "Ongoing")).toBe(true)
+  })
+
+  it("should not add For Completion to the create-path Ongoing from-set", () => {
+    expect(
+      progressHook.projectProgressPatch(70, "For Completion")
+    ).toEqual({ progress_pct: 70, status: "For Completion" })
+    expect(
+      progressHook.projectProgressPatchFromHistoryHighWater(70, "For Completion")
+    ).toEqual({ progress_pct: 70, status: "Ongoing" })
+    expect(
+      progressHook.projectProgressPatchFromHistoryHighWater(100, "For Completion")
+    ).toBeNull()
   })
 })
 

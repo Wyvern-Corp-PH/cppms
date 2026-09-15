@@ -2558,11 +2558,9 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(progressUpdateMock).toHaveBeenCalledWith(
       "u-mid",
-      expect.objectContaining({ notes: "Province corrected history" }),
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-      })
+      expect.objectContaining({ notes: "Province corrected history" })
     )
+    expect(progressUpdateMock.mock.calls[0]?.[2]).toBeUndefined()
     expect(createMock).not.toHaveBeenCalled()
     expect(projectUpdateMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
@@ -2631,11 +2629,9 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(progressUpdateMock).toHaveBeenCalledWith(
       "u-mid",
-      expect.objectContaining({ notes: "Corrected mid band" }),
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-      })
+      expect.objectContaining({ notes: "Corrected mid band" })
     )
+    expect(progressUpdateMock.mock.calls[0]?.[2]).toBeUndefined()
     expect(createMock).not.toHaveBeenCalled()
     expect(projectUpdateMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
@@ -2704,11 +2700,9 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(progressUpdateMock).toHaveBeenCalledWith(
       "u-latest",
-      expect.objectContaining({ notes: "Corrected latest band" }),
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-      })
+      expect.objectContaining({ notes: "Corrected latest band" })
     )
+    expect(progressUpdateMock.mock.calls[0]?.[2]).toBeUndefined()
     expect(createMock).not.toHaveBeenCalled()
     expect(projectUpdateMock).not.toHaveBeenCalled()
     expect(store.updates.find((row) => row.id === "u-mid")?.notes).toBe("mid band")
@@ -2789,11 +2783,7 @@ describe("ProgressModule (V81, V84)", () => {
       expect.objectContaining({ to_pct: 80 })
     )
     expect(payload).not.toHaveProperty("from_pct")
-    expect(options).toEqual(
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-      })
-    )
+    expect(options).toBeUndefined()
     expect(projectUpdateMock).not.toHaveBeenCalled()
     expect(store.updates.find((row) => row.id === "u-latest")?.to_pct).toBe(80)
     expect(store.updates.find((row) => row.id === "u-latest")?.from_pct).toBe(0)
@@ -2989,11 +2979,9 @@ describe("ProgressModule (V81, V84)", () => {
       })
       expect(progressUpdateMock).toHaveBeenCalledWith(
         "u-mid",
-        expect.objectContaining({ notes: `${role} corrected history` }),
-        expect.objectContaining({
-          headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-        })
+        expect.objectContaining({ notes: `${role} corrected history` })
       )
+      expect(progressUpdateMock.mock.calls[0]?.[2]).toBeUndefined()
       expect(createMock).not.toHaveBeenCalled()
       expect(projectUpdateMock).not.toHaveBeenCalled()
       expect(expenseCreateMock).not.toHaveBeenCalled()
@@ -3073,11 +3061,9 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(progressUpdateMock).toHaveBeenCalledWith(
       "u-a",
-      expect.objectContaining({ notes: "Corrected band A" }),
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Skip-Progress-Sync": "1" }),
-      })
+      expect.objectContaining({ notes: "Corrected band A" })
     )
+    expect(progressUpdateMock.mock.calls[0]?.[2]).toBeUndefined()
     expect(expenseUpdateMock).toHaveBeenCalledWith(
       "be-a",
       expect.objectContaining({ amount: 1100 })
