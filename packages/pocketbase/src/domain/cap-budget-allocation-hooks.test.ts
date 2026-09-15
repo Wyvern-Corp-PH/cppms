@@ -36,6 +36,7 @@ const capHook = loadHook<{
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE: string
   ALLOCATION_AMOUNT_INVALID_MESSAGE: string
   ALLOCATION_LIST_TRUNCATED_MESSAGE: string
+  PROJECT_ROW_LOCK_SQL: string
   validateAllocationAgainstBidPrice: (input: {
     newAmount: number | string
     existingAllocations: readonly { amount: number }[]
@@ -45,6 +46,11 @@ const capHook = loadHook<{
   applyAllocationBidPriceCap: (event: {
     next?: () => void
     app: {
+      db?: () => {
+        newQuery: (sql: string) => {
+          bind: (params: { id: string }) => { execute: () => void }
+        }
+      }
       findRecordById: (collection: string, id: string) => { get: (field: string) => unknown }
       findRecordsByFilter: (
         collection: string,
@@ -76,13 +82,39 @@ function capEvent(options: {
   bidPrice?: unknown
   existing?: Array<{ id: string; amount: number }>
   missingProject?: boolean
+  omitDb?: boolean
 }) {
   const next = vi.fn()
+  const lockQueries: Array<{ sql: string; params: { id: string } }> = []
+  const callOrder: string[] = []
+  const existingRows = options.existing ?? []
   return {
     next,
+    lockQueries,
+    callOrder,
     event: {
       next,
       app: {
+        ...(options.omitDb
+          ? {}
+          : {
+              db() {
+                return {
+                  newQuery(sql: string) {
+                    return {
+                      bind(params: { id: string }) {
+                        return {
+                          execute() {
+                            callOrder.push("lock")
+                            lockQueries.push({ sql, params })
+                          },
+                        }
+                      },
+                    }
+                  },
+                }
+              },
+            }),
         findRecordById(collection: string, id: string) {
           if (options.missingProject) throw new Error("missing")
           if (collection === "projects" && id === "proj1") {
@@ -91,7 +123,8 @@ function capEvent(options: {
           throw new Error("missing record")
         },
         findRecordsByFilter() {
-          return (options.existing ?? []).map((item) => row(item.id, item.amount))
+          callOrder.push("read")
+          return existingRows.map((item) => row(item.id, item.amount))
         },
       },
       record: {
@@ -227,6 +260,56 @@ describe("applyAllocationBidPriceCap", () => {
       ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
     )
   })
+
+  it("should lock the project row before reading allocations", () => {
+    const { event, lockQueries, callOrder } = capEvent({
+      amount: 50_000,
+      bidPrice: 100_000,
+    })
+
+    capHook.applyAllocationBidPriceCap(event)
+
+    expect(lockQueries).toEqual([
+      { sql: capHook.PROJECT_ROW_LOCK_SQL, params: { id: "proj1" } },
+    ])
+    expect(callOrder[0]).toBe("lock")
+    expect(callOrder).toContain("read")
+  })
+
+  it("should reject the second persist when remaining is already consumed", () => {
+    const existing: Array<{ id: string; amount: number }> = []
+    const persist = (id: string, amount: number) => {
+      const { next, event } = capEvent({
+        id,
+        amount,
+        bidPrice: 100_000,
+      })
+      event.app.findRecordsByFilter = () =>
+        existing.map((item) => row(item.id, item.amount))
+      capHook.applyAllocationBidPriceCap(event)
+      existing.push({ id, amount })
+      return next
+    }
+
+    expect(persist("a1", 60_000)).toHaveBeenCalledTimes(1)
+    expect(() => persist("a2", 60_000)).toThrow(
+      ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
+    )
+  })
+
+  it("should still reject over-cap when the lock API is missing", () => {
+    const { next, event } = capEvent({
+      amount: 60_000,
+      bidPrice: 100_000,
+      existing: [{ id: "a1", amount: 50_000 }],
+      omitDb: true,
+    })
+
+    expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
+      ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
 })
 
 describe("cap-budget-allocation hook entrypoint", () => {
@@ -238,6 +321,8 @@ describe("cap-budget-allocation hook entrypoint", () => {
     expect(entry).toContain("cap-budget-allocation.js")
     expect(entry).toContain("onRecordCreateRequest")
     expect(entry).toContain("onRecordUpdateRequest")
+    expect(entry).toContain("onRecordCreate(")
+    expect(entry).toContain("onRecordUpdate(")
     expect(entry).toContain("budget_allocations")
   })
 })

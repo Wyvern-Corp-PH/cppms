@@ -10,6 +10,13 @@ const ALLOCATION_AMOUNT_INVALID_MESSAGE =
 const ALLOCATION_LIST_TRUNCATED_MESSAGE =
   "Too many allocations to validate against bid price."
 const ALLOCATION_QUERY_LIMIT = 500
+// tradeoff: PocketBase JSVM has no row-lock / SELECT FOR UPDATE API.
+// This no-op UPDATE takes a SQLite write lock on the project row until the
+// current transaction commits (model hooks run inside Save). Request-hook
+// calls auto-commit and do not span persist — the model hook re-locks.
+// Ceiling: no-op when app.db is missing. Upgrade: allocated_total column
+// or BEGIN IMMEDIATE if persist moves outside Save's transaction.
+const PROJECT_ROW_LOCK_SQL = "UPDATE projects SET updated = updated WHERE id = {:id}"
 
 function sumAmounts(rows) {
   return rows.reduce((sum, row) => sum + row.amount, 0)
@@ -49,6 +56,16 @@ function recordId(record) {
   return ""
 }
 
+function lockProjectRow(app, projectId) {
+  const id = sanitizeId(projectId)
+  if (!id || !app || typeof app.db !== "function") return
+  try {
+    app.db().newQuery(PROJECT_ROW_LOCK_SQL).bind({ id }).execute()
+  } catch {
+    // cannot prove a lock; caller still validates against this read
+  }
+}
+
 function applyAllocationBidPriceCap(event) {
   const record = event.record
   const projectId = sanitizeId(record.get("project"))
@@ -58,6 +75,7 @@ function applyAllocationBidPriceCap(event) {
   }
 
   const app = event.app
+  lockProjectRow(app, projectId)
   let bidPrice = 0
   try {
     bidPrice = app.findRecordById("projects", projectId).get("bid_price")
@@ -100,6 +118,8 @@ module.exports = {
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
   ALLOCATION_LIST_TRUNCATED_MESSAGE,
+  PROJECT_ROW_LOCK_SQL,
+  lockProjectRow,
   validateAllocationAgainstBidPrice,
   applyAllocationBidPriceCap,
 }

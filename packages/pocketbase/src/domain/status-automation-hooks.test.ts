@@ -51,8 +51,14 @@ const allocationHook = loadHook<{
     currentStatus: string,
     allocationCount: number
   ) => string
+  PROJECT_ROW_LOCK_SQL: string
   syncProjectProcurementFromAllocation: (
     app: {
+      db?: () => {
+        newQuery: (sql: string) => {
+          bind: (params: { id: string }) => { execute: () => void }
+        }
+      }
       findRecordById: (collection: string, id: string) => unknown
       findRecordsByFilter: (
         collection: string,
@@ -489,7 +495,10 @@ describe("sync-project-procurement after-create count", () => {
   function allocationSync(options: {
     status: string
     allocationCount: number
+    omitDb?: boolean
+    recordId?: string
   }) {
+    const recordId = options.recordId ?? "alloc-0"
     const project = {
       status: options.status,
       get(field: string) {
@@ -501,13 +510,36 @@ describe("sync-project-procurement after-create count", () => {
       },
     }
     const saved: string[] = []
+    const lockQueries: Array<{ sql: string; params: { id: string } }> = []
+    const callOrder: string[] = []
     const app = {
+      ...(options.omitDb
+        ? {}
+        : {
+            db() {
+              return {
+                newQuery(sql: string) {
+                  return {
+                    bind(params: { id: string }) {
+                      return {
+                        execute() {
+                          callOrder.push("lock")
+                          lockQueries.push({ sql, params })
+                        },
+                      }
+                    },
+                  }
+                },
+              }
+            },
+          }),
       findRecordById() {
         return project
       },
       findRecordsByFilter() {
+        callOrder.push("read")
         return Array.from({ length: options.allocationCount }, (_, index) => ({
-          id: `alloc-${index}`,
+          id: index === 0 ? recordId : `alloc-${index}`,
         }))
       },
       save(record: { status: string }) {
@@ -515,13 +547,15 @@ describe("sync-project-procurement after-create count", () => {
       },
     }
     const record = {
+      id: recordId,
       get(field: string) {
         if (field === "project") return "proj1"
+        if (field === "id") return recordId
         return ""
       },
     }
     allocationHook.syncProjectProcurementFromAllocation(app, record)
-    return { project, saved }
+    return { project, saved, lockQueries, callOrder }
   }
 
   it("should write Ongoing on first persist from Planning or Procurement", () => {
@@ -562,5 +596,55 @@ describe("sync-project-procurement after-create count", () => {
     expect(
       allocationSync({ status: "Procurement", allocationCount: 1 }).saved
     ).toEqual(["Ongoing"])
+  })
+
+  it("should write Ongoing when this persist is the first live row before insert", () => {
+    expect(
+      allocationSync({ status: "Planning", allocationCount: 0 }).saved
+    ).toEqual(["Ongoing"])
+    expect(
+      allocationSync({ status: "Procurement", allocationCount: 0 }).saved
+    ).toEqual(["Ongoing"])
+  })
+
+  it("should lock the project row before counting live allocations", () => {
+    const { lockQueries, callOrder, saved } = allocationSync({
+      status: "Planning",
+      allocationCount: 0,
+    })
+    expect(lockQueries).toEqual([
+      { sql: allocationHook.PROJECT_ROW_LOCK_SQL, params: { id: "proj1" } },
+    ])
+    expect(callOrder[0]).toBe("lock")
+    expect(callOrder).toContain("read")
+    expect(saved).toEqual(["Ongoing"])
+  })
+
+  it("should not rewrite terminal statuses when this persist is the first live row", () => {
+    for (const status of [
+      "Cancelled",
+      "Completed",
+      "For Completion",
+      "For Approval",
+      "For Revision",
+      "Rejected",
+    ]) {
+      expect(
+        allocationSync({ status, allocationCount: 0 }).saved
+      ).toEqual([])
+    }
+  })
+})
+
+describe("sync-project-procurement hook entrypoint", () => {
+  it("should sync first allocation on create inside the persist transaction", () => {
+    const entry = readFileSync(
+      resolve(hooksDir, "sync-project-procurement.pb.js"),
+      "utf8"
+    )
+    expect(entry).toContain("sync-project-procurement.js")
+    expect(entry).toContain("onRecordCreate(")
+    expect(entry).toContain("onRecordAfterCreateSuccess")
+    expect(entry).toContain("budget_allocations")
   })
 })
