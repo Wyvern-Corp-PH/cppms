@@ -1,10 +1,14 @@
 /**
- * Move Planning projects to Procurement when a budget allocation is created.
+ * Set Planning or Procurement projects to Ongoing on the first budget allocation.
  * System write — LGU/Province cannot client-write this status flip.
+ * Failed cap validation never reaches this after-create hook.
  */
 
-function projectStatusAfterAllocation(currentStatus) {
-  return currentStatus === "Planning" ? "Procurement" : currentStatus
+const FIRST_ALLOCATION_FROM = ["Planning", "Procurement"]
+
+function projectStatusAfterAllocation(currentStatus, allocationCount) {
+  if (allocationCount !== 1) return currentStatus
+  return FIRST_ALLOCATION_FROM.includes(currentStatus) ? "Ongoing" : currentStatus
 }
 
 function sanitizeId(value) {
@@ -16,9 +20,17 @@ function syncProjectProcurementFromAllocation(app, allocationRecord) {
     const projectId = sanitizeId(allocationRecord.get("project"))
     if (!projectId) return
 
+    const rows = app.findRecordsByFilter(
+      "budget_allocations",
+      `project = "${projectId}"`,
+      "",
+      2,
+      0
+    )
+    const allocationCount = (rows || []).length
     const project = app.findRecordById("projects", projectId)
     const currentStatus = project.get("status")
-    const nextStatus = projectStatusAfterAllocation(currentStatus)
+    const nextStatus = projectStatusAfterAllocation(currentStatus, allocationCount)
     if (nextStatus === currentStatus) return
 
     project.set("status", nextStatus)

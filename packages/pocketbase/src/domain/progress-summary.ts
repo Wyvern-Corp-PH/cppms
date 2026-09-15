@@ -85,8 +85,14 @@ export function projectProgressPatchFromUpdate(
   }
 }
 
-export function projectStatusAfterAllocation(currentStatus: string): string {
-  return currentStatus === "Planning" ? "Procurement" : currentStatus
+export function projectStatusAfterAllocation(
+  currentStatus: string,
+  allocationCount: number
+): string {
+  if (allocationCount !== 1) return currentStatus
+  return (ONGOING_FROM_STATUSES as readonly string[]).includes(currentStatus)
+    ? "Ongoing"
+    : currentStatus
 }
 
 /** Statuses where authorized actors may open Update Progress (status gate only). */

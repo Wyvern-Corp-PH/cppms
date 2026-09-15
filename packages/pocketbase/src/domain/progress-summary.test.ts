@@ -174,23 +174,37 @@ describe("canShowUpdateProgress", () => {
 })
 
 describe("projectStatusAfterAllocation", () => {
-  it("should set Procurement only from Planning", () => {
-    expect(projectStatusAfterAllocation("Planning")).toBe("Procurement")
+  it("should set Ongoing from Planning or Procurement when allocation count is 1", () => {
+    expect(projectStatusAfterAllocation("Planning", 1)).toBe("Ongoing")
+    expect(projectStatusAfterAllocation("Procurement", 1)).toBe("Ongoing")
+    expect(projectStatusAfterAllocation("Planning", 1)).not.toBe(
+      "Ready for Review"
+    )
   })
 
-  it("should keep every other status including Cancelled", () => {
+  it("should keep terminal and later statuses when allocation count is 1", () => {
     for (const status of [
-      "Procurement",
-      "Ongoing",
+      "Cancelled",
+      "Completed",
       "For Completion",
       "For Approval",
-      "Completed",
       "For Revision",
       "Rejected",
-      "Cancelled",
     ] as const) {
-      expect(projectStatusAfterAllocation(status)).toBe(status)
+      expect(projectStatusAfterAllocation(status, 1)).toBe(status)
     }
+    expect(projectStatusAfterAllocation("Ongoing", 1)).toBe("Ongoing")
+  })
+
+  it("should not rewrite status when allocation count is not 1", () => {
+    expect(projectStatusAfterAllocation("Planning", 2)).toBe("Planning")
+    expect(projectStatusAfterAllocation("Procurement", 2)).toBe("Procurement")
+    expect(projectStatusAfterAllocation("Planning", 0)).toBe("Planning")
+  })
+
+  it("should set Ongoing again when allocation count returns to 1", () => {
+    expect(projectStatusAfterAllocation("Planning", 1)).toBe("Ongoing")
+    expect(projectStatusAfterAllocation("Procurement", 1)).toBe("Ongoing")
   })
 })
 

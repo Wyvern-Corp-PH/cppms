@@ -35,7 +35,24 @@ const progressHook = loadHook<{
 }>("sync-project-progress.js")
 
 const allocationHook = loadHook<{
-  projectStatusAfterAllocation: (currentStatus: string) => string
+  projectStatusAfterAllocation: (
+    currentStatus: string,
+    allocationCount: number
+  ) => string
+  syncProjectProcurementFromAllocation: (
+    app: {
+      findRecordById: (collection: string, id: string) => unknown
+      findRecordsByFilter: (
+        collection: string,
+        filter: string,
+        sort: string,
+        limit: number,
+        offset: number
+      ) => unknown[]
+      save: (record: unknown) => void
+    },
+    allocationRecord: { get: (field: string) => unknown }
+  ) => void
 }>("sync-project-procurement.js")
 
 describe("sync-project-progress hook patch", () => {
@@ -225,15 +242,104 @@ describe("sync-project-progress skip header", () => {
 })
 
 describe("sync-project-procurement hook", () => {
-  it("sets Procurement only from Planning", () => {
-    expect(allocationHook.projectStatusAfterAllocation("Planning")).toBe(
-      "Procurement"
-    )
-    expect(allocationHook.projectStatusAfterAllocation("Ongoing")).toBe(
+  it("should set Ongoing from Planning or Procurement when count is 1", () => {
+    expect(allocationHook.projectStatusAfterAllocation("Planning", 1)).toBe(
       "Ongoing"
     )
-    expect(allocationHook.projectStatusAfterAllocation("Cancelled")).toBe(
+    expect(allocationHook.projectStatusAfterAllocation("Procurement", 1)).toBe(
+      "Ongoing"
+    )
+    expect(allocationHook.projectStatusAfterAllocation("Cancelled", 1)).toBe(
       "Cancelled"
     )
+  })
+
+  it("should not rewrite status when count is not 1", () => {
+    expect(allocationHook.projectStatusAfterAllocation("Planning", 2)).toBe(
+      "Planning"
+    )
+    expect(allocationHook.projectStatusAfterAllocation("Procurement", 2)).toBe(
+      "Procurement"
+    )
+  })
+})
+
+describe("sync-project-procurement after-create count", () => {
+  function allocationSync(options: {
+    status: string
+    allocationCount: number
+  }) {
+    const project = {
+      status: options.status,
+      get(field: string) {
+        if (field === "status") return this.status
+        return ""
+      },
+      set(field: string, value: string) {
+        if (field === "status") this.status = value
+      },
+    }
+    const saved: string[] = []
+    const app = {
+      findRecordById() {
+        return project
+      },
+      findRecordsByFilter() {
+        return Array.from({ length: options.allocationCount }, (_, index) => ({
+          id: `alloc-${index}`,
+        }))
+      },
+      save(record: { status: string }) {
+        saved.push(record.status)
+      },
+    }
+    const record = {
+      get(field: string) {
+        if (field === "project") return "proj1"
+        return ""
+      },
+    }
+    allocationHook.syncProjectProcurementFromAllocation(app, record)
+    return { project, saved }
+  }
+
+  it("should write Ongoing on first persist from Planning or Procurement", () => {
+    expect(allocationSync({ status: "Planning", allocationCount: 1 }).saved).toEqual(
+      ["Ongoing"]
+    )
+    expect(
+      allocationSync({ status: "Procurement", allocationCount: 1 }).saved
+    ).toEqual(["Ongoing"])
+  })
+
+  it("should not write status on a later allocation", () => {
+    expect(
+      allocationSync({ status: "Planning", allocationCount: 2 }).saved
+    ).toEqual([])
+    expect(
+      allocationSync({ status: "Procurement", allocationCount: 2 }).saved
+    ).toEqual([])
+  })
+
+  it("should not rewrite terminal or later statuses on first persist", () => {
+    for (const status of [
+      "Cancelled",
+      "Completed",
+      "For Completion",
+      "For Approval",
+      "For Revision",
+      "Rejected",
+    ]) {
+      expect(allocationSync({ status, allocationCount: 1 }).saved).toEqual([])
+    }
+  })
+
+  it("should write Ongoing again when count returns to 1 after delete", () => {
+    expect(
+      allocationSync({ status: "Planning", allocationCount: 1 }).saved
+    ).toEqual(["Ongoing"])
+    expect(
+      allocationSync({ status: "Procurement", allocationCount: 1 }).saved
+    ).toEqual(["Ongoing"])
   })
 })

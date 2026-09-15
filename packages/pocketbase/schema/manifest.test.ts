@@ -1085,7 +1085,7 @@ describe("PocketBase sync-project-procurement hook", () => {
     "utf8"
   )
 
-  it("sets Procurement on budget_allocations create only from Planning", () => {
+  it("sets Ongoing on first budget_allocations create from Planning or Procurement", () => {
     expect(hookEntrypointSource).toContain("sync-project-procurement.js")
     expect(hookEntrypointSource).toContain("onRecordAfterCreateSuccess")
     expect(hookEntrypointSource).toContain("budget_allocations")
@@ -1093,7 +1093,10 @@ describe("PocketBase sync-project-procurement hook", () => {
     expect(hookSource).toContain("projectStatusAfterAllocation")
     expect(hookSource).toContain('"Planning"')
     expect(hookSource).toContain('"Procurement"')
+    expect(hookSource).toContain('"Ongoing"')
+    expect(hookSource).toContain("findRecordsByFilter")
     expect(hookSource).toContain("app.save")
+    expect(hookSource).not.toContain("Ready for Review")
   })
 })
 
