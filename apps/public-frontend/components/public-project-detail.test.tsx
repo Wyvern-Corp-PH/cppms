@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const store = {
@@ -444,5 +445,112 @@ describe("PublicProjectDetail", () => {
       /unable to load progress update history/i
     )
     expect(screen.getByTestId("progress-history-error")).toBeInTheDocument()
+  })
+
+  it("should open a zoomed dialog when a project photo is activated", async () => {
+    const user = userEvent.setup()
+    store.project = {
+      ...publishedProject,
+      project_photos: ["site.jpg"],
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: /project photo/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: /project photo/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    const zoomed = within(dialog).getByRole("img", { name: /project photo/i })
+    expect(zoomed).toHaveAttribute(
+      "src",
+      "http://localhost:8090/api/files/p/bridge-1/site.jpg"
+    )
+    expect(zoomed).toHaveClass("object-contain")
+    expect(zoomed).not.toHaveClass("object-cover")
+  })
+
+  it("should open a zoomed dialog when a project photo is activated from the keyboard", async () => {
+    const user = userEvent.setup()
+    store.project = {
+      ...publishedProject,
+      project_photos: ["site.jpg"],
+    }
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    const trigger = await screen.findByRole("button", { name: /project photo/i })
+    trigger.focus()
+    await user.keyboard("{Enter}")
+
+    const dialog = await screen.findByRole("dialog")
+    expect(
+      within(dialog).getByRole("img", { name: /project photo/i })
+    ).toHaveAttribute(
+      "src",
+      "http://localhost:8090/api/files/p/bridge-1/site.jpg"
+    )
+  })
+
+  it("should return to the same detail page when the project photo dialog is closed", async () => {
+    const user = userEvent.setup()
+    store.project = {
+      ...publishedProject,
+      project_photos: ["site.jpg"],
+    }
+    const hrefBefore = window.location.href
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await user.click(await screen.findByRole("button", { name: /project photo/i }))
+    expect(await screen.findByRole("dialog")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /close/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    })
+    expect(window.location.href).toBe(hrefBefore)
+    expect(
+      screen.getByRole("heading", { name: "Cagayan River Bridge" })
+    ).toBeInTheDocument()
+  })
+
+  it("should open a zoomed dialog when a site photo is activated and close without changing the route", async () => {
+    const user = userEvent.setup()
+    store.updates = [
+      progressUpdate({
+        id: "upd-2",
+        created: "2026-03-20T10:00:00.000Z",
+        site_photo: ["deck.jpg"],
+        updated_at: "2026-03-20T10:00:00.000Z",
+      }),
+    ]
+    const hrefBefore = window.location.href
+
+    render(<PublicProjectDetail projectId="bridge-1" />)
+
+    await user.click(await screen.findByRole("button", { name: /site photo/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    const zoomed = within(dialog).getByRole("img", { name: /site photo/i })
+    expect(zoomed).toHaveAttribute(
+      "src",
+      "http://localhost:8090/api/files/pu/upd-2/deck.jpg"
+    )
+    expect(zoomed).toHaveClass("object-contain")
+    expect(zoomed).not.toHaveClass("object-cover")
+
+    await user.keyboard("{Escape}")
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    })
+    expect(window.location.href).toBe(hrefBefore)
+    expect(
+      screen.getByRole("heading", { name: "Cagayan River Bridge" })
+    ).toBeInTheDocument()
   })
 })

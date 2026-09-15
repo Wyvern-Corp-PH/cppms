@@ -22,6 +22,11 @@ import type {
   ProjectRecord,
 } from "@workspace/pocketbase/types"
 import { Badge } from "@workspace/ui/components/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Progress } from "@workspace/ui/components/progress"
 
 import { getPocketBase } from "@/lib/pocketbase"
@@ -46,6 +51,9 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
   const [progressError, setProgressError] = useState<string | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "missing">("loading")
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(
+    null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -186,13 +194,15 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
           {photos.map((filename, index) => {
             const src = recordFileUrl(project, filename)
             if (!src) return null
+            const alt =
+              photos.length > 1 ? `Project photo ${index + 1}` : "Project photo"
             return (
-              <img
+              <PhotoTrigger
                 key={filename}
                 src={src}
-                alt={photos.length > 1 ? `Project photo ${index + 1}` : "Project photo"}
+                alt={alt}
                 className="rounded-md border border-border object-cover"
-                loading="lazy"
+                onOpen={setLightbox}
               />
             )
           })}
@@ -235,17 +245,17 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
                       {photosOnUpdate.map((filename, index) => {
                         const src = recordFileUrl(update, filename)
                         if (!src) return null
+                        const alt =
+                          photosOnUpdate.length > 1
+                            ? `Site photo ${index + 1}`
+                            : "Site photo"
                         return (
-                          <img
+                          <PhotoTrigger
                             key={filename}
                             src={src}
-                            alt={
-                              photosOnUpdate.length > 1
-                                ? `Site photo ${index + 1}`
-                                : "Site photo"
-                            }
+                            alt={alt}
                             className="h-24 w-full max-w-xs rounded-md border border-border object-cover"
-                            loading="lazy"
+                            onOpen={setLightbox}
                           />
                         )
                       })}
@@ -257,7 +267,46 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
           </ul>
         </section>
       ) : null}
+      <Dialog
+        open={lightbox !== null}
+        onOpenChange={(open) => {
+          if (!open) setLightbox(null)
+        }}
+      >
+        <DialogContent className="max-w-[min(96vw,80rem)] p-2 sm:max-w-[min(96vw,80rem)]">
+          <DialogTitle className="sr-only">{lightbox?.alt ?? "Photo"}</DialogTitle>
+          {lightbox ? (
+            <img
+              src={lightbox.src}
+              alt={lightbox.alt}
+              className="max-h-[85vh] w-full object-contain"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </article>
+  )
+}
+
+function PhotoTrigger({
+  src,
+  alt,
+  className,
+  onOpen,
+}: {
+  src: string
+  alt: string
+  className: string
+  onOpen: (photo: { src: string; alt: string }) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen({ src, alt })}
+      className="block w-full cursor-pointer rounded-md p-0 text-left"
+    >
+      <img src={src} alt={alt} className={className} loading="lazy" />
+    </button>
   )
 }
 
