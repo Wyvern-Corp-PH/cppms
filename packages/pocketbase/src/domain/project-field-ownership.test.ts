@@ -237,26 +237,37 @@ describe("project field ownership", () => {
     }
   })
 
-  it("should allow Super Admin progress-sync write to For Completion at 100 percent", () => {
-    const options = {
-      role: "Super Admin",
-      isCreate: false,
-      original: {
-        ...ppdoCreate,
-        status: "Ongoing",
-        progress_pct: 40,
-      },
-      submitted: { status: "For Completion", progress_pct: 100 },
+  it.each(["Super Admin", "Province"] as const)(
+    "should allow %s progress-sync write to For Completion at 100 percent",
+    (role) => {
+      for (const currentStatus of [
+        "Planning",
+        "Procurement",
+        "Ongoing",
+        "For Revision",
+        "Ready for Review",
+      ]) {
+        const options = {
+          role,
+          isCreate: false,
+          original: {
+            ...ppdoCreate,
+            status: currentStatus,
+            progress_pct: 40,
+          },
+          submitted: { status: "For Completion", progress_pct: 100 },
+        }
+        expect(evaluateProjectFieldWrite(options)).toEqual({
+          ok: true,
+          setLguEncodedAt: false,
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+          ok: true,
+          setLguEncodedAt: false,
+        })
+      }
     }
-    expect(evaluateProjectFieldWrite(options)).toEqual({
-      ok: true,
-      setLguEncodedAt: false,
-    })
-    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
-      ok: true,
-      setLguEncodedAt: false,
-    })
-  })
+  )
 
   it("should reject LGU status-only For Completion without progress_pct", () => {
     const options = {
@@ -281,7 +292,7 @@ describe("project field ownership", () => {
   })
 
   it("should allow For Completion to Ongoing when progress_pct is below 100", () => {
-    for (const role of ["Municipality", "Super Admin"] as const) {
+    for (const role of ["Municipality", "Super Admin", "Province"] as const) {
       const options = {
         role,
         isCreate: false,
