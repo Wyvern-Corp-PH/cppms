@@ -35,6 +35,7 @@ function loadHook<T extends Record<string, unknown>>(fileName: string): T {
 const capHook = loadHook<{
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE: string
   ALLOCATION_AMOUNT_INVALID_MESSAGE: string
+  ALLOCATION_LIST_TRUNCATED_MESSAGE: string
   validateAllocationAgainstBidPrice: (input: {
     newAmount: number | string
     existingAllocations: readonly { amount: number }[]
@@ -195,6 +196,23 @@ describe("applyAllocationBidPriceCap", () => {
 
     expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
       ALLOCATION_AMOUNT_INVALID_MESSAGE
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should reject persist when the allocation list is truncated at 500", () => {
+    const existing = Array.from({ length: 500 }, (_, index) => ({
+      id: `a${index}`,
+      amount: 1,
+    }))
+    const { next, event } = capEvent({
+      amount: 1,
+      bidPrice: 1_000_000,
+      existing,
+    })
+
+    expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
+      capHook.ALLOCATION_LIST_TRUNCATED_MESSAGE
     )
     expect(next).not.toHaveBeenCalled()
   })

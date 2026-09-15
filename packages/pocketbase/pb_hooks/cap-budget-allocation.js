@@ -7,6 +7,9 @@ const ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE =
   "Allocation amount exceeds the project's bid price."
 const ALLOCATION_AMOUNT_INVALID_MESSAGE =
   "Allocation amount must be a valid number."
+const ALLOCATION_LIST_TRUNCATED_MESSAGE =
+  "Too many allocations to validate against bid price."
+const ALLOCATION_QUERY_LIMIT = 500
 
 function sumAmounts(rows) {
   return rows.reduce((sum, row) => sum + row.amount, 0)
@@ -63,14 +66,17 @@ function applyAllocationBidPriceCap(event) {
   }
 
   const currentId = recordId(record)
-  // tradeoff: first 500 rows per project; page if a project ever exceeds that.
+  // tradeoff: first 500 rows per project; fail closed (reject persist) if truncated.
   const rows = app.findRecordsByFilter(
     "budget_allocations",
     `project = "${projectId}"`,
     "",
-    500,
+    ALLOCATION_QUERY_LIMIT,
     0
   )
+  if ((rows || []).length >= ALLOCATION_QUERY_LIMIT) {
+    throw new BadRequestError(ALLOCATION_LIST_TRUNCATED_MESSAGE)
+  }
   const existingAllocations = []
   for (const row of rows || []) {
     if (recordId(row) === currentId) continue
@@ -93,6 +99,7 @@ function applyAllocationBidPriceCap(event) {
 module.exports = {
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
+  ALLOCATION_LIST_TRUNCATED_MESSAGE,
   validateAllocationAgainstBidPrice,
   applyAllocationBidPriceCap,
 }

@@ -118,11 +118,12 @@ describe("sync-project-progress skip header", () => {
     barangay: "Centro 01 (Bagumbayan)",
   }
 
-  function projectRecord() {
+  function projectRecord(status = "Ongoing") {
     return {
       get(field: string) {
         if (field === "municipality") return tuguegarao.municipality
         if (field === "barangay") return tuguegarao.barangay
+        if (field === "status") return status
         return ""
       },
     }
@@ -132,17 +133,37 @@ describe("sync-project-progress skip header", () => {
     return {
       get(field: string) {
         if (field === "project") return "proj-1"
+        if (field === "to_pct") return 70
         return ""
       },
     }
   }
 
-  function eventFor(auth: Record<string, unknown> | null, headers: Record<string, string>) {
+  function eventFor(
+    auth: Record<string, unknown> | null,
+    headers: Record<string, string>,
+    options?: { status?: string; progressToPcts?: number[] }
+  ) {
+    const status = options?.status ?? "Ongoing"
+    const progressToPcts = options?.progressToPcts ?? [70]
     return {
       app: {
         findRecordById(collection: string, id: string) {
-          if (collection === "projects" && id === "proj-1") return projectRecord()
+          if (collection === "projects" && id === "proj-1") {
+            return projectRecord(status)
+          }
           throw new Error("missing record")
+        },
+        findRecordsByFilter() {
+          return progressToPcts.map((toPct, index) => ({
+            id: `row-${index}`,
+            get(field: string) {
+              if (field === "to_pct") return toPct
+              if (field === "project") return "proj-1"
+              if (field === "created") return `2026-06-0${index + 1} 00:00:00.000Z`
+              return ""
+            },
+          }))
         },
       },
       record: progressRecord(),
@@ -152,7 +173,7 @@ describe("sync-project-progress skip header", () => {
     }
   }
 
-  it("does not call sync when Super Admin sends the skip header", () => {
+  it("does not call sync when Super Admin sends the skip header on Ongoing", () => {
     const sync = (app: unknown, record: unknown) => {
       void app
       void record
@@ -166,7 +187,7 @@ describe("sync-project-progress skip header", () => {
     ).not.toThrow()
   })
 
-  it("does not call sync when Municipality in scope sends the skip header", () => {
+  it("does not call sync when Municipality in scope sends the skip header on Ongoing", () => {
     const calls: unknown[] = []
     progressHook.handleProgressUpdateAfterUpdate(
       eventFor(
@@ -180,7 +201,7 @@ describe("sync-project-progress skip header", () => {
     expect(calls).toHaveLength(0)
   })
 
-  it("does not call sync when Province sends the skip header", () => {
+  it("does not call sync when Province sends the skip header on Ongoing", () => {
     const calls: unknown[] = []
     progressHook.handleProgressUpdateAfterUpdate(
       eventFor({ role: "Province" }, { "X-Skip-Progress-Sync": "1" }),
@@ -234,7 +255,7 @@ describe("sync-project-progress skip header", () => {
     expect(calls).toHaveLength(1)
   })
 
-  it("does not call sync when Barangay in scope sends the skip header", () => {
+  it("does not call sync when Barangay in scope sends the skip header on Ongoing", () => {
     const calls: unknown[] = []
     progressHook.handleProgressUpdateAfterUpdate(
       eventFor(
@@ -244,6 +265,36 @@ describe("sync-project-progress skip header", () => {
           barangay: "Centro 01 (Bagumbayan)",
         },
         { "X-Skip-Progress-Sync": "1" }
+      ),
+      (app, record) => {
+        calls.push([app, record])
+      }
+    )
+    expect(calls).toHaveLength(0)
+  })
+
+  it("still syncs when Super Admin skip header is sent on For Completion below 100", () => {
+    const calls: unknown[] = []
+    progressHook.handleProgressUpdateAfterUpdate(
+      eventFor(
+        { role: "Super Admin" },
+        { "X-Skip-Progress-Sync": "1" },
+        { status: "For Completion", progressToPcts: [70, 40] }
+      ),
+      (app, record) => {
+        calls.push([app, record])
+      }
+    )
+    expect(calls).toHaveLength(1)
+  })
+
+  it("does not call sync when Super Admin skip header is sent on For Completion still at 100", () => {
+    const calls: unknown[] = []
+    progressHook.handleProgressUpdateAfterUpdate(
+      eventFor(
+        { role: "Super Admin" },
+        { "X-Skip-Progress-Sync": "1" },
+        { status: "For Completion", progressToPcts: [70, 100] }
       ),
       (app, record) => {
         calls.push([app, record])
@@ -359,6 +410,43 @@ describe("sync-project-progress history-edit revert", () => {
     progressHook.syncProjectFromProgressUpdate(app, row("newest", 70))
     expect(project.state.status).toBe("For Completion")
     expect(saved.every((write) => write.status !== "Ongoing")).toBe(true)
+  })
+
+  it("should not revert For Completion when the progress list is truncated at 500", () => {
+    const project = projectState("For Completion", 100)
+    const rows = Array.from({ length: 500 }, (_, index) =>
+      row(`row-${index}`, 50)
+    )
+    const { app, saved } = appFor(project, rows)
+    progressHook.syncProjectFromProgressHistoryEdit(app, row("newest", 50))
+    expect(saved).toEqual([])
+    expect(project.state).toEqual({
+      status: "For Completion",
+      progress_pct: 100,
+    })
+  })
+
+  it("should revert For Completion on afterUpdate even when the skip header is sent", () => {
+    const project = projectState("For Completion", 100)
+    const rows = [
+      row("newest", 70, "2026-08-01 00:00:00.000Z"),
+      row("older", 40, "2026-05-01 00:00:00.000Z"),
+    ]
+    const { app, saved } = appFor(project, rows)
+    progressHook.handleProgressUpdateAfterUpdate(
+      {
+        app,
+        record: row("newest", 70),
+        requestInfo() {
+          return {
+            headers: { "X-Skip-Progress-Sync": "1" },
+            auth: { role: "Super Admin" },
+          }
+        },
+      },
+      progressHook.syncProjectFromProgressHistoryEdit
+    )
+    expect(saved).toEqual([{ status: "Ongoing", progress_pct: 70 }])
   })
 
   it("should not add For Completion to the create-path Ongoing from-set", () => {

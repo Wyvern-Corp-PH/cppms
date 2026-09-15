@@ -79,6 +79,8 @@ function pickLatestProgressUpdate(rows) {
   return latest
 }
 
+const PROGRESS_QUERY_LIMIT = 500
+
 function progressRowsForProject(app, projectId) {
   const safeId = sanitizeId(projectId)
   if (!safeId) return []
@@ -87,10 +89,14 @@ function progressRowsForProject(app, projectId) {
       "progress_updates",
       `project = "${safeId}"`,
       "",
-      500,
+      PROGRESS_QUERY_LIMIT,
       0
     ) || []
   )
+}
+
+function isProgressListTruncated(rows) {
+  return (rows || []).length >= PROGRESS_QUERY_LIMIT
 }
 
 function latestProgressUpdate(app, projectId) {
@@ -157,9 +163,13 @@ function canSkipProgressSync(auth, project) {
   )
 }
 
-function shouldSkipProgressSyncOnUpdate(info, project) {
+function shouldSkipProgressSyncOnUpdate(info, project, highWaterPct) {
   if (!headerRequestsSkip(info?.headers)) return false
-  return canSkipProgressSync(info?.auth, project)
+  if (!canSkipProgressSync(info?.auth, project)) return false
+  if (project?.status === "For Completion" && Number(highWaterPct) < 100) {
+    return false
+  }
+  return true
 }
 
 function projectScopeFromApp(app, projectId) {
@@ -170,6 +180,7 @@ function projectScopeFromApp(app, projectId) {
     return {
       municipality: project.get("municipality"),
       barangay: project.get("barangay"),
+      status: project.get("status"),
     }
   } catch {
     return null
@@ -187,7 +198,11 @@ function handleProgressUpdateAfterUpdate(event, sync) {
       ? record.get("project")
       : record?.project
   const project = projectScopeFromApp(event.app, projectId)
-  if (shouldSkipProgressSyncOnUpdate(info, project)) {
+  const highWater =
+    project?.status === "For Completion"
+      ? maxProgressToPct(progressRowsForProject(event.app, projectId))
+      : 100
+  if (shouldSkipProgressSyncOnUpdate(info, project, highWater)) {
     return
   }
   sync(event.app, record)
@@ -221,6 +236,10 @@ function syncProjectFromProgressHistoryEdit(app, progressRecord) {
     if (!projectId) return
 
     const rows = progressRowsForProject(app, projectId)
+    // tradeoff: first 500 rows; fail closed (no revert) if truncated. Page if a project ever exceeds that.
+    if (isProgressListTruncated(rows)) {
+      return
+    }
     const highWater = maxProgressToPct(rows)
     const project = app.findRecordById("projects", projectId)
     const revert = projectProgressPatchFromHistoryHighWater(
