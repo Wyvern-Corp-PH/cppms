@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ALLOCATION_AMOUNT_INVALID_MESSAGE,
+  ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
   COMPLETED_PROJECT_ALLOCATION_MESSAGE,
   INCOMPLETE_PROJECT_ALLOCATION_MESSAGE,
   RELEASED_AMOUNT_EXCEEDS_ALLOCATED_MESSAGE,
@@ -8,6 +10,7 @@ import {
   budgetAllocationIneligibilityMessage,
   filterProjectsForBudgetAllocation,
   isEligibleForBudgetAllocation,
+  validateAllocationAgainstBidPrice,
   validateReleasedAmountCreate,
 } from "./budget-allocation-guards"
 
@@ -149,6 +152,150 @@ describe("validateReleasedAmountCreate", () => {
     expect(result).toEqual({
       ok: false,
       message: RELEASED_AMOUNT_INVALID_MESSAGE,
+    })
+  })
+})
+
+describe("validateAllocationAgainstBidPrice", () => {
+  it("should fail when existing plus new amount exceeds bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 60_000,
+      existingAllocations: [{ amount: 50_000 }],
+      bidPrice: 100_000,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+    })
+  })
+
+  it("should succeed when existing plus new amount equals bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 50_000,
+      existingAllocations: [{ amount: 50_000 }],
+      bidPrice: 100_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should succeed when existing plus new amount is under bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 25_000,
+      existingAllocations: [{ amount: 50_000 }],
+      bidPrice: 100_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should succeed a zero-amount allocate when the sum does not exceed bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 0,
+      existingAllocations: [],
+      bidPrice: 0,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should fail any positive create when bid price is treated as zero", () => {
+    for (const bidPrice of [0, Number.NaN, undefined, null] as const) {
+      const result = validateAllocationAgainstBidPrice({
+        newAmount: 1,
+        existingAllocations: [],
+        bidPrice,
+      })
+
+      expect(result).toEqual({
+        ok: false,
+        message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+      })
+    }
+  })
+
+  it("should reject non-finite allocation amounts with distinct invalid message", () => {
+    for (const newAmount of [Number.NaN, Number.POSITIVE_INFINITY, "not-a-number"]) {
+      const result = validateAllocationAgainstBidPrice({
+        newAmount,
+        existingAllocations: [],
+        bidPrice: 100_000,
+      })
+
+      expect(result).toEqual({
+        ok: false,
+        message: ALLOCATION_AMOUNT_INVALID_MESSAGE,
+      })
+    }
+  })
+
+  it("should reject non-finite row amounts in existing allocations", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 10_000,
+      existingAllocations: [{ amount: Number.NaN }],
+      bidPrice: 100_000,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: ALLOCATION_AMOUNT_INVALID_MESSAGE,
+    })
+  })
+
+  it("should export the exact exceed error string", () => {
+    expect(ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE).toBe(
+      "Allocation amount exceeds the project's bid price."
+    )
+  })
+
+  it("should succeed a replace-old patch when others plus new equals bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 60_000,
+      existingAllocations: [{ amount: 50_000 }, { amount: 40_000 }],
+      bidPrice: 100_000,
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should fail a replace-old patch when others plus new exceeds bid price", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 70_000,
+      existingAllocations: [{ amount: 50_000 }, { amount: 40_000 }],
+      bidPrice: 100_000,
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+    })
+  })
+
+  it("should allow a replace-old increase that would fail a create-style sum", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 55_000,
+      existingAllocations: [{ amount: 50_000 }, { amount: 45_000 }],
+      bidPrice: 100_000,
+      replaceOldAmount: 50_000,
+    })
+
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject a non-finite replace-old amount", () => {
+    const result = validateAllocationAgainstBidPrice({
+      newAmount: 10_000,
+      existingAllocations: [{ amount: 50_000 }],
+      bidPrice: 100_000,
+      replaceOldAmount: Number.NaN,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      message: ALLOCATION_AMOUNT_INVALID_MESSAGE,
     })
   })
 })

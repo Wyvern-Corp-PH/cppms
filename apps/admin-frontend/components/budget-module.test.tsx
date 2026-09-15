@@ -282,6 +282,43 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it("should block allocate save when the amount would exceed the project's bid price", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 100_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 50_000,
+        year: 2026,
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await fillAllocationForm(user)
+    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
+
+    expect(
+      await screen.findByText("Allocation amount exceeds the project's bid price.")
+    ).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
   it("creates allocation FormData uploads with the current auth user", async () => {
     const user = userEvent.setup()
     store.projects = [
