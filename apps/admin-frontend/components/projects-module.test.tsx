@@ -132,7 +132,8 @@ function expectCreatePayloadContaining(expected: Record<string, unknown>) {
   expect(payload).toEqual(expect.objectContaining(expected))
 }
 
-describe("ProjectsModule (J4)", () => {
+// PPDO create fills scalars plus three uploads and can exceed the 10s default.
+describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
       configurable: true,
