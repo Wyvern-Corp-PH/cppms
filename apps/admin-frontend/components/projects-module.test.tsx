@@ -95,6 +95,43 @@ async function fillOwnedFundSource(user: ReturnType<typeof userEvent.setup>) {
   )
 }
 
+async function fillPpdoRequiredAttachments(user: ReturnType<typeof userEvent.setup>) {
+  await user.upload(screen.getByTestId("document-upload-input-moa-file"), [
+    new File(["moa"], "moa.pdf", { type: "application/pdf" }),
+  ])
+  await user.upload(screen.getByTestId("document-upload-input-resolution-file"), [
+    new File(["res"], "resolution.pdf", { type: "application/pdf" }),
+  ])
+  await user.upload(screen.getByTestId("document-upload-input-supporting-file"), [
+    new File(["sup"], "supporting.pdf", { type: "application/pdf" }),
+  ])
+}
+
+async function fillPpdoRequiredScalars(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("combobox", { name: /^municipality$/i }))
+  await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+  await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+  await user.click(
+    await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
+  )
+  await user.type(
+    screen.getByLabelText(/period of implementation/i),
+    "FY 2026 Q1–Q4"
+  )
+}
+
+function expectCreatePayloadContaining(expected: Record<string, unknown>) {
+  const payload = createMock.mock.calls[0]?.[0]
+  expect(payload).toBeTruthy()
+  if (payload instanceof FormData) {
+    for (const [key, value] of Object.entries(expected)) {
+      expect(payload.get(key)).toBe(String(value))
+    }
+    return
+  }
+  expect(payload).toEqual(expect.objectContaining(expected))
+}
+
 describe("ProjectsModule (J4)", () => {
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "hasPointerCapture", {
@@ -363,23 +400,10 @@ describe("ProjectsModule (J4)", () => {
     await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledTimes(2)
+      expect(createMock).not.toHaveBeenCalled()
     })
-    expect(createMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        name: "Road Widening",
-        description: "Phase 1",
-        location: "Tuguegarao City",
-        contractor: "BuildCo",
-        bid_price: 1500000,
-        category: "Infrastructure",
-        status: "Planning",
-        progress_pct: 0,
-      })
-    )
     expect(
-      await screen.findByText("2 of 3 projects imported successfully. 1 row had errors.")
+      await screen.findByText("0 of 3 projects imported successfully. 3 rows had errors.")
     ).toBeInTheDocument()
     expect(screen.getByText(/Row 3: Project Name is required/i)).toBeInTheDocument()
   })
@@ -405,25 +429,11 @@ describe("ProjectsModule (J4)", () => {
     await user.click(screen.getByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText(/0 of 1 projects imported successfully/i)
+      ).toBeInTheDocument()
     })
-    expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Road Widening",
-        description: "Phase 1",
-        location: "Tuguegarao City",
-      })
-    )
-    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(payload).not.toHaveProperty("contractor")
-    expect(payload).not.toHaveProperty("bid_price")
-    expect(payload).not.toHaveProperty("fund_source")
-    expect(payload).not.toHaveProperty("funding_year")
-    expect(
-      screen.queryByText(/Bid Price is required/i)
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/funding year is required/i)).not.toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("imports multiple Excel files and reports filename row errors", async () => {
@@ -469,11 +479,11 @@ describe("ProjectsModule (J4)", () => {
     await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledTimes(2)
+      expect(createMock).not.toHaveBeenCalled()
     })
     expect(XLSX.read).toHaveBeenCalledTimes(2)
     expect(
-      await screen.findByText("2 of 3 projects imported successfully. 1 row had errors.")
+      await screen.findByText("0 of 3 projects imported successfully. 3 rows had errors.")
     ).toBeInTheDocument()
     expect(
       screen.getByText(/projects-b\.xlsx Row 2: Project Name is required/i)
@@ -635,16 +645,20 @@ describe("ProjectsModule (J4)", () => {
     )
     await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
     await fillOwnedFundSource(user)
+    await user.type(
+      screen.getByLabelText(/period of implementation/i),
+      "FY 2026 Q1–Q4"
+    )
+    await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          municipality: "Tuguegarao City",
-          barangay: "Centro 01 (Bagumbayan)",
-          location: "East bank approach",
-        })
-      )
+      expect(createMock).toHaveBeenCalled()
+    })
+    expectCreatePayloadContaining({
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "East bank approach",
     })
   })
 
@@ -876,6 +890,7 @@ describe("ProjectsModule (J4)", () => {
         budget_year: 2026,
         bid_price: 200_000,
         progress_pct: 25,
+        project_photos: ["site.jpg"],
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
     ]
@@ -1144,28 +1159,11 @@ describe("ProjectsModule (J4)", () => {
       account_status: "Active",
     }
     store.projects = [
-      {
+      catalogProject({
         id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
         name: "Bridge",
-        description: "Road bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        municipality: "Tuguegarao City",
-        barangay: "Centro 01 (Bagumbayan)",
-        location: "Tuguegarao City, Cagayan",
-        contractor: "Build Co",
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-        budget_year: 2026,
-        bid_price: 200_000,
         progress_pct: 25,
-        funding_year: 2025,
-        fund_source: "Special Education Fund",
-      },
+      }),
     ]
     updateMock.mockResolvedValue({})
 
@@ -1202,30 +1200,7 @@ describe("ProjectsModule (J4)", () => {
       role: "Super Admin",
       account_status: "Active",
     }
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Bridge",
-        description: "Road bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        municipality: "Tuguegarao City",
-        barangay: "Centro 01 (Bagumbayan)",
-        location: "Tuguegarao City, Cagayan",
-        contractor: "Build Co",
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-        budget_year: 2026,
-        bid_price: 200_000,
-        progress_pct: 25,
-        funding_year: 2025,
-        fund_source: "Special Education Fund",
-      },
-    ]
+    store.projects = [catalogProject({ id: "p1", name: "Bridge", progress_pct: 25 })]
     updateMock.mockRejectedValueOnce(new Error("Failed to update record."))
 
     render(<ProjectsModule />)
@@ -1254,30 +1229,7 @@ describe("ProjectsModule (J4)", () => {
       role: "Super Admin",
       account_status: "Active",
     }
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Bridge",
-        description: "Road bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        municipality: "Tuguegarao City",
-        barangay: "Centro 01 (Bagumbayan)",
-        location: "Tuguegarao City, Cagayan",
-        contractor: "Build Co",
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-        budget_year: 2026,
-        bid_price: 200_000,
-        progress_pct: 25,
-        funding_year: 2025,
-        fund_source: "Special Education Fund",
-      },
-    ]
+    store.projects = [catalogProject({ id: "p1", name: "Bridge", progress_pct: 25 })]
     updateMock.mockRejectedValueOnce(
       Object.assign(new Error("Failed to update record."), {
         response: {
@@ -1454,20 +1406,26 @@ describe("ProjectsModule (J4)", () => {
     await user.type(screen.getByLabelText(/project name/i), "Charter Road")
     await user.type(screen.getByLabelText(/^description$/i), "Charter encoding")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
+    await fillPpdoRequiredScalars(user)
     await fillOwnedFundSource(user)
+    await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Charter Road",
-          status: "Planning",
-          description: "Charter encoding",
-          location: "Provincial hall",
-        })
-      )
+      expect(createMock).toHaveBeenCalled()
     })
-    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("total_budget")
+    expectCreatePayloadContaining({
+      name: "Charter Road",
+      status: "Planning",
+      description: "Charter encoding",
+      location: "Provincial hall",
+    })
+    const payload = createMock.mock.calls[0]?.[0]
+    if (payload instanceof FormData) {
+      expect(payload.get("total_budget")).toBeNull()
+    } else {
+      expect(payload).not.toHaveProperty("total_budget")
+    }
   })
 
   it("matches Released Amount fund source year, main, and sub on New Project", async () => {
@@ -1561,26 +1519,32 @@ describe("ProjectsModule (J4)", () => {
     await user.type(screen.getByLabelText(/project name/i), "Funded Road")
     await user.type(screen.getByLabelText(/^description$/i), "Funded span")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
+    await fillPpdoRequiredScalars(user)
     await user.click(screen.getByLabelText(/^funding year$/i))
     await user.click(await screen.findByRole("option", { name: "2024" }))
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(await screen.findByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
     await user.click(await screen.findByRole("option", { name: "GF - Proper" }))
+    await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Funded Road",
-          funding_year: 2024,
-          fund_source: "General Fund",
-          sub_account: "GF - Proper",
-          budget_year: new Date().getFullYear(),
-        })
-      )
+      expect(createMock).toHaveBeenCalled()
     })
-    expect(createMock.mock.calls[0]?.[0]).not.toHaveProperty("main_account")
+    expectCreatePayloadContaining({
+      name: "Funded Road",
+      funding_year: 2024,
+      fund_source: "General Fund",
+      sub_account: "GF - Proper",
+      budget_year: new Date().getFullYear(),
+    })
+    const fundedPayload = createMock.mock.calls[0]?.[0]
+    if (fundedPayload instanceof FormData) {
+      expect(fundedPayload.get("main_account")).toBeNull()
+    } else {
+      expect(fundedPayload).not.toHaveProperty("main_account")
+    }
   })
 
   it("locks status for Province after LGU encoding and keeps name editable", async () => {
@@ -1645,6 +1609,11 @@ describe("ProjectsModule (J4)", () => {
       progress_pct: 25,
       funding_year: 2025,
       fund_source: "Special Education Fund",
+      period_of_implementation: "FY 2026 Q1–Q4",
+      moa_file: ["moa.pdf"],
+      resolution_file: ["resolution.pdf"],
+      supporting_docs: ["supporting.pdf"],
+      project_photos: ["site.jpg"],
       ...overrides,
     }
   }
@@ -1893,15 +1862,11 @@ describe("ProjectsModule (J4)", () => {
     await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText(/0 of 1 projects imported successfully/i)
+      ).toBeInTheDocument()
     })
-    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(payload).toMatchObject({
-      name: "Road Widening",
-      description: "Phase 1",
-      location: "Tuguegarao City",
-    })
-    expect(payload).not.toHaveProperty("total_budget")
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it.each(["Province", "Super Admin"] as const)(
@@ -2200,7 +2165,7 @@ describe("ProjectsModule (J4)", () => {
   )
 
   it.each(["Super Admin", "Province"] as const)(
-    "should persist last remaining MOA removal on save for %s",
+    "should block save when %s removes the last remaining MOA",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2224,18 +2189,12 @@ describe("ProjectsModule (J4)", () => {
       await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
       await user.click(screen.getByRole("button", { name: /^save$/i }))
 
-      await waitFor(() => {
-        expect(updateMock).toHaveBeenCalled()
-      })
-      const payload = updateMock.mock.calls[0]?.[1]
-      expect(payload).toBeInstanceOf(FormData)
-      const formData = payload as FormData
-      expect(formData.getAll("moa_file-")).toEqual(["old-moa.pdf"])
-      expect(formData.getAll("moa_file")).not.toContain("-old-moa.pdf")
+      expect(await screen.findByText(/MOA document is required/i)).toBeInTheDocument()
+      expect(updateMock).not.toHaveBeenCalled()
     }
   )
 
-  it("should persist last remaining MOA removal when Super Admin has no users.role", async () => {
+  it("should block save when Super Admin with no users.role removes the last MOA", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "sa-superuser",
@@ -2255,17 +2214,11 @@ describe("ProjectsModule (J4)", () => {
       await screen.findByRole("button", { name: /actions for bridge/i })
     )
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
-      await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
+    await user.click(screen.getByRole("button", { name: /remove old-moa\.pdf/i }))
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalled()
-    })
-    const payload = updateMock.mock.calls[0]?.[1]
-    expect(payload).toBeInstanceOf(FormData)
-    const formData = payload as FormData
-    expect(formData.getAll("moa_file-")).toEqual(["old-moa.pdf"])
-    expect(formData.getAll("moa_file")).not.toContain("-old-moa.pdf")
+    expect(await screen.findByText(/MOA document is required/i)).toBeInTheDocument()
+    expect(updateMock).not.toHaveBeenCalled()
   })
 
   it.each(["Municipality", "Barangay"] as const)(
@@ -2412,9 +2365,16 @@ describe("ProjectsModule (J4)", () => {
     await user.type(screen.getByLabelText(/project name/i), "City Bridge")
     await user.type(screen.getByLabelText(/^description$/i), "Span repair")
     await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
+    await fillPpdoRequiredScalars(user)
     await fillOwnedFundSource(user)
     await user.upload(screen.getByTestId("document-upload-input-moa-file"), [
       new File(["moa"], "new-moa.pdf", { type: "application/pdf" }),
+    ])
+    await user.upload(screen.getByTestId("document-upload-input-resolution-file"), [
+      new File(["res"], "resolution.pdf", { type: "application/pdf" }),
+    ])
+    await user.upload(screen.getByTestId("document-upload-input-supporting-file"), [
+      new File(["sup"], "supporting.pdf", { type: "application/pdf" }),
     ])
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
@@ -2450,7 +2410,14 @@ describe("ProjectsModule (J4)", () => {
 
   it("should keep all four empty upload slots visible when Super Admin edits a project with no files", async () => {
     const user = userEvent.setup()
-    store.projects = [catalogProject()]
+    store.projects = [
+      catalogProject({
+        moa_file: [],
+        resolution_file: [],
+        supporting_docs: [],
+        project_photos: [],
+      }),
+    ]
 
     render(<ProjectsModule />)
 
@@ -2518,6 +2485,10 @@ describe("ProjectsModule (J4)", () => {
       }
       store.projects = [
         catalogProject({
+          moa_file: [],
+          resolution_file: [],
+          supporting_docs: [],
+          project_photos: [],
           lgu_encoded_at: "2026-08-01 00:00:00.000Z",
         }),
       ]

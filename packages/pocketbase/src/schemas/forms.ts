@@ -153,6 +153,22 @@ const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
   "Trust Fund",
 ])
 
+const optionalFileListInput = z.preprocess(
+  (value) => (value instanceof File ? [value] : (value ?? [])),
+  z.array(uploadedFileSchema)
+)
+
+function attachmentSatisfied(
+  isCreate: boolean,
+  files: unknown,
+  existingNames: unknown
+) {
+  const hasNew = Array.isArray(files) && files.length > 0
+  if (hasNew) return true
+  if (isCreate) return false
+  return Array.isArray(existingNames) && existingNames.length > 0
+}
+
 function refineBudgetExpenseSubAccount(
   value: { main_account: string; sub_account?: string },
   ctx: z.RefinementCtx
@@ -176,81 +192,155 @@ function refineBudgetExpenseSubAccount(
   }
 }
 
+function requireTrimmed(
+  value: string | undefined,
+  path: string,
+  message: string,
+  ctx: z.RefinementCtx
+) {
+  if (!value?.trim()) {
+    ctx.addIssue({ code: "custom", path: [path], message })
+  }
+}
+
 export function projectMutateSchemaForActor(
   role: string | undefined,
-  _isCreate: boolean,
-  options?: { form?: boolean }
+  isCreate: boolean,
+  _options?: { form?: boolean }
 ) {
-  const ownsFormFields = PROJECT_FORM_OWNERS.has(role ?? "")
-  const requireIdentity = Boolean(options?.form) && ownsFormFields
-  const requireFundSource = Boolean(options?.form) && ownsFormFields
-  const requireLguDates = LGU_DATE_OWNERS.has(role ?? "")
+  const requirePpdo = PROJECT_FORM_OWNERS.has(role ?? "")
+  const requireLgu = LGU_DATE_OWNERS.has(role ?? "")
 
-  if (!requireIdentity && !requireFundSource && !requireLguDates) {
+  if (!requirePpdo && !requireLgu) {
     return projectMutateSchema
   }
 
-  return projectMutateSchema.superRefine((value, ctx) => {
-    if (requireLguDates) {
-      if (!value.start_date?.trim()) {
+  return projectMutateSchema
+    .extend({
+      moa_file: optionalFileListInput.optional(),
+      resolution_file: optionalFileListInput.optional(),
+      supporting_docs: optionalFileListInput.optional(),
+      project_photos: optionalFileListInput.optional(),
+      existing_moa_file: z.array(z.string()).optional(),
+      existing_resolution_file: z.array(z.string()).optional(),
+      existing_supporting_docs: z.array(z.string()).optional(),
+      existing_project_photos: z.array(z.string()).optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (requireLgu) {
+        requireTrimmed(value.contractor, "contractor", "Contractor is required.", ctx)
+        if (value.bid_price == null || Number(value.bid_price) <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["bid_price"],
+            message: "Bid price is required.",
+          })
+        }
+        requireTrimmed(value.start_date, "start_date", "Start date is required.", ctx)
+        requireTrimmed(
+          value.target_end_date,
+          "target_end_date",
+          "End date is required.",
+          ctx
+        )
+        if (
+          !attachmentSatisfied(
+            isCreate,
+            value.project_photos,
+            value.existing_project_photos
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["project_photos"],
+            message: "Project photos are required.",
+          })
+        }
+      }
+      if (!requirePpdo) return
+      requireTrimmed(value.description, "description", "Description is required.", ctx)
+      requireTrimmed(
+        value.municipality,
+        "municipality",
+        "Municipality is required.",
+        ctx
+      )
+      requireTrimmed(value.barangay, "barangay", "Barangay is required.", ctx)
+      requireTrimmed(value.location, "location", "Location is required.", ctx)
+      requireTrimmed(
+        value.period_of_implementation,
+        "period_of_implementation",
+        "Period of implementation is required.",
+        ctx
+      )
+      if (value.funding_year == null) {
         ctx.addIssue({
           code: "custom",
-          path: ["start_date"],
-          message: "Start date is required.",
+          path: ["funding_year"],
+          message: "Funding year is required.",
         })
       }
-      if (!value.target_end_date?.trim()) {
+      if (!value.fund_source) {
         ctx.addIssue({
           code: "custom",
-          path: ["target_end_date"],
-          message: "End date is required.",
+          path: ["fund_source"],
+          message: "Main account is required.",
         })
+      } else {
+        refineBudgetExpenseSubAccount(
+          { main_account: value.fund_source, sub_account: value.sub_account },
+          ctx
+        )
       }
-    }
-    if (requireIdentity) {
-      if (!value.description?.trim()) {
+      if (
+        !attachmentSatisfied(isCreate, value.moa_file, value.existing_moa_file)
+      ) {
         ctx.addIssue({
           code: "custom",
-          path: ["description"],
-          message: "Description is required.",
+          path: ["moa_file"],
+          message: "MOA document is required.",
         })
       }
-      if (!value.location?.trim()) {
+      if (
+        !attachmentSatisfied(
+          isCreate,
+          value.resolution_file,
+          value.existing_resolution_file
+        )
+      ) {
         ctx.addIssue({
           code: "custom",
-          path: ["location"],
-          message: "Location is required.",
+          path: ["resolution_file"],
+          message: "Resolution document is required.",
         })
       }
-      if (value.barangay?.trim() && !value.municipality?.trim()) {
+      if (
+        !attachmentSatisfied(
+          isCreate,
+          value.supporting_docs,
+          value.existing_supporting_docs
+        )
+      ) {
         ctx.addIssue({
           code: "custom",
-          path: ["municipality"],
-          message: "Municipality is required.",
+          path: ["supporting_docs"],
+          message: "Supporting documents are required.",
         })
       }
-    }
-    if (!requireFundSource) return
-    if (value.funding_year == null) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["funding_year"],
-        message: "Funding year is required.",
-      })
-    }
-    if (!value.fund_source) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["fund_source"],
-        message: "Main account is required.",
-      })
-      return
-    }
-    refineBudgetExpenseSubAccount(
-      { main_account: value.fund_source, sub_account: value.sub_account },
-      ctx
+    })
+    .transform(
+      ({
+        moa_file: _moa,
+        resolution_file: _resolution,
+        supporting_docs: _supporting,
+        project_photos: _photos,
+        existing_moa_file: _existingMoa,
+        existing_resolution_file: _existingResolution,
+        existing_supporting_docs: _existingSupporting,
+        existing_project_photos: _existingPhotos,
+        ...rest
+      }) => rest
     )
-  })
 }
 
 export const budgetAllocationMutateSchema = z.object({

@@ -747,6 +747,14 @@ export function ProjectsModule() {
       start_date: form.start_date || undefined,
       target_end_date: form.target_end_date || undefined,
       progress_pct: editing?.progress_pct ?? 0,
+      moa_file: moaFiles,
+      resolution_file: resolutionFiles,
+      supporting_docs: supportingFiles,
+      project_photos: projectPhotoFiles,
+      existing_moa_file: editing ? retainedMoaNames : undefined,
+      existing_resolution_file: editing ? retainedResolutionNames : undefined,
+      existing_supporting_docs: editing ? retainedSupportingNames : undefined,
+      existing_project_photos: editing ? retainedPhotoNames : undefined,
     })
 
     if (!parsed.success) {
@@ -1433,7 +1441,7 @@ export function ProjectsModule() {
                   />
                   <FieldError>{fieldErrors.municipality}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.barangay)}>
                   <FieldLabel>Barangay</FieldLabel>
                   <FieldOwnerHint field="barangay" />
                   <LocationCombobox
@@ -1457,6 +1465,7 @@ export function ProjectsModule() {
                     }
                     disabled={!form.municipality || fieldLocked("barangay")}
                   />
+                  <FieldError>{fieldErrors.barangay}</FieldError>
                 </Field>
               </div>
               <Field data-invalid={Boolean(fieldErrors.location)}>
@@ -1497,7 +1506,7 @@ export function ProjectsModule() {
                 disabled={fieldLocked("fund_source")}
               />
               <FieldOwnerHint field="fund_source" />
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
                 <FieldLabel htmlFor="project-period">
                   Period of Implementation
                 </FieldLabel>
@@ -1506,6 +1515,7 @@ export function ProjectsModule() {
                   id="project-period"
                   value={form.period_of_implementation}
                   disabled={fieldLocked("period_of_implementation")}
+                  aria-invalid={Boolean(fieldErrors.period_of_implementation)}
                   onChange={(event) =>
                     setForm({
                       ...form,
@@ -1513,6 +1523,7 @@ export function ProjectsModule() {
                     })
                   }
                 />
+                <FieldError>{fieldErrors.period_of_implementation}</FieldError>
                 <FieldDescription>
                   Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
                 </FieldDescription>
@@ -1552,17 +1563,19 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.target_end_date}</FieldError>
                 </Field>
               </div>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.contractor)}>
                 <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
                 <FieldOwnerHint field="contractor" />
                 <Input
                   id="project-contractor"
                   value={form.contractor}
                   disabled={fieldLocked("contractor")}
+                  aria-invalid={Boolean(fieldErrors.contractor)}
                   onChange={(event) =>
                     setForm({ ...form, contractor: event.target.value })
                   }
                 />
+                <FieldError>{fieldErrors.contractor}</FieldError>
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.budget_year)}>
@@ -1580,7 +1593,7 @@ export function ProjectsModule() {
                   />
                   <FieldError>{fieldErrors.budget_year}</FieldError>
                 </Field>
-                <Field>
+                <Field data-invalid={Boolean(fieldErrors.bid_price)}>
                   <FieldLabel htmlFor="project-bid-price">Bid price (PHP)</FieldLabel>
                   <FieldOwnerHint field="bid_price" />
                   <Input
@@ -1589,10 +1602,12 @@ export function ProjectsModule() {
                     min={0}
                     value={form.bid_price}
                     disabled={fieldLocked("bid_price")}
+                    aria-invalid={Boolean(fieldErrors.bid_price)}
                     onChange={(event) =>
                       setForm({ ...form, bid_price: event.target.value })
                     }
                   />
+                  <FieldError>{fieldErrors.bid_price}</FieldError>
                 </Field>
               </div>
               <FieldSet className="space-y-2 border-t pt-3">
@@ -1614,6 +1629,7 @@ export function ProjectsModule() {
                     onExistingNamesChange={setRetainedMoaNames}
                     onChange={setMoaFiles}
                     disabled={fieldLocked("moa_file")}
+                    error={fieldErrors.moa_file}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1631,6 +1647,7 @@ export function ProjectsModule() {
                     onExistingNamesChange={setRetainedPhotoNames}
                     onChange={setProjectPhotoFiles}
                     disabled={fieldLocked("project_photos")}
+                    error={fieldErrors.project_photos}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1648,6 +1665,7 @@ export function ProjectsModule() {
                     onExistingNamesChange={setRetainedResolutionNames}
                     onChange={setResolutionFiles}
                     disabled={fieldLocked("resolution_file")}
+                    error={fieldErrors.resolution_file}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1666,6 +1684,7 @@ export function ProjectsModule() {
                     onExistingNamesChange={setRetainedSupportingNames}
                     onChange={setSupportingFiles}
                     disabled={fieldLocked("supporting_docs")}
+                    error={fieldErrors.supporting_docs}
                   />
                 </div>
               </FieldSet>
