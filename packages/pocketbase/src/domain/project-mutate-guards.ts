@@ -1,5 +1,7 @@
 /** Project create/update completeness — scalars + attachments with update retention. */
 
+import { normalizeFileNames } from "./normalize-file-names"
+
 export type ProjectMutateCompletenessResult =
   | { ok: true }
   | { ok: false; field: string; message: string }
@@ -12,26 +14,23 @@ const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
 ])
 
 export function normalizeProjectFileNames(value: unknown): string[] {
-  if (value == null || value === "") return []
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item : String(item ?? "")))
-      .filter(Boolean)
-  }
-  if (typeof value === "string") return [value]
-  return []
+  return normalizeFileNames(value)
 }
 
 /**
- * Effective files that will persist. On update, callers pass the post-merge
- * record value (omit-file keeps on-record names; explicit clear is empty).
+ * Effective files that will persist.
+ * Absent field on update keeps original; explicit "" / [] clears.
  */
 export function effectiveProjectFiles(
-  _isCreate: boolean,
+  isCreate: boolean,
   submitted: unknown,
-  _original?: unknown
+  original?: unknown
 ): string[] {
-  return normalizeProjectFileNames(submitted)
+  if (isCreate) return normalizeFileNames(submitted)
+  if (submitted === undefined || submitted === null) {
+    return normalizeFileNames(original)
+  }
+  return normalizeFileNames(submitted)
 }
 
 function trimText(value: unknown): string {
@@ -48,11 +47,18 @@ function requireText(
 }
 
 function requireAttachment(
+  isCreate: boolean,
   submitted: Record<string, unknown>,
+  original: Record<string, unknown> | null | undefined,
   field: string,
   message: string
 ): ProjectMutateCompletenessResult | null {
-  if (effectiveProjectFiles(false, submitted[field]).length > 0) return null
+  if (
+    effectiveProjectFiles(isCreate, submitted[field], original?.[field])
+      .length > 0
+  ) {
+    return null
+  }
   return { ok: false, field, message }
 }
 
@@ -74,7 +80,9 @@ function refineSubAccount(
 }
 
 function validatePpdo(
-  submitted: Record<string, unknown>
+  isCreate: boolean,
+  submitted: Record<string, unknown>,
+  original: Record<string, unknown> | null | undefined
 ): ProjectMutateCompletenessResult {
   const checks: Array<ProjectMutateCompletenessResult | null> = [
     requireText(submitted, "name", "Project name is required."),
@@ -95,14 +103,24 @@ function validatePpdo(
       "period_of_implementation",
       "Period of implementation is required."
     ),
-    requireAttachment(submitted, "moa_file", "MOA document is required."),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
+      "moa_file",
+      "MOA document is required."
+    ),
+    requireAttachment(
+      isCreate,
+      submitted,
+      original,
       "resolution_file",
       "Resolution document is required."
     ),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
       "supporting_docs",
       "Supporting documents are required."
     ),
@@ -114,7 +132,9 @@ function validatePpdo(
 }
 
 function validateLgu(
-  submitted: Record<string, unknown>
+  isCreate: boolean,
+  submitted: Record<string, unknown>,
+  original: Record<string, unknown> | null | undefined
 ): ProjectMutateCompletenessResult {
   const bid = Number(submitted.bid_price)
   const checks: Array<ProjectMutateCompletenessResult | null> = [
@@ -126,7 +146,9 @@ function validateLgu(
     requireText(submitted, "start_date", "Start date is required."),
     requireText(submitted, "target_end_date", "End date is required."),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
       "project_photos",
       "Project photos are required."
     ),
@@ -145,11 +167,18 @@ export function validateProjectMutateCompleteness(input: {
   original?: Record<string, unknown> | null
 }): ProjectMutateCompletenessResult {
   const role = input.role ?? ""
+  if (!role) {
+    return {
+      ok: false,
+      field: "role",
+      message: "You cannot update this project.",
+    }
+  }
   if (PPDO_ROLES.has(role)) {
-    return validatePpdo(input.submitted)
+    return validatePpdo(input.isCreate, input.submitted, input.original)
   }
   if (LGU_ROLES.has(role)) {
-    return validateLgu(input.submitted)
+    return validateLgu(input.isCreate, input.submitted, input.original)
   }
   return { ok: true }
 }

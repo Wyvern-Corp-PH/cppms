@@ -1,7 +1,7 @@
 /**
  * Reject progress_updates create/update that omit notes or site photo.
- * Reject progress-linked budget_expenses create missing released-amount fields.
- * Update omit-file keeps on-record site_photo names on the request record (PB merge).
+ * Reject progress-linked budget_expenses create/update missing released-amount fields.
+ * Absent site_photo on update keeps originalCopy names; explicit clear is empty.
  */
 
 const PROGRESS_FIELDS = ["notes", "site_photo", "from_pct", "to_pct", "project"]
@@ -21,6 +21,7 @@ const MAIN_ACCOUNTS_REQUIRING_SUB_ACCOUNT = new Set([
   "Trust Fund",
 ])
 
+// tradeoff: JSVM cannot import TS — mirror normalize-file-names.ts; generate hook from TS guard if drift recurs.
 function normalizeProgressFileNames(value) {
   if (value == null || value === "") return []
   if (Array.isArray(value)) {
@@ -32,7 +33,10 @@ function normalizeProgressFileNames(value) {
   return []
 }
 
-function effectiveProgressSitePhotos(submitted) {
+function effectiveProgressSitePhotos(submitted, original) {
+  if (submitted === undefined || submitted === null) {
+    return normalizeProgressFileNames(original)
+  }
   return normalizeProgressFileNames(submitted)
 }
 
@@ -42,12 +46,16 @@ function trimText(value) {
 
 function validateProgressMutateCompleteness(input) {
   const submitted = input.submitted
+  const original = input.original
 
   if (!trimText(submitted.notes)) {
     return { ok: false, field: "notes", message: "Update notes are required." }
   }
 
-  if (effectiveProgressSitePhotos(submitted.site_photo).length === 0) {
+  if (
+    effectiveProgressSitePhotos(submitted.site_photo, original?.site_photo)
+      .length === 0
+  ) {
     return {
       ok: false,
       field: "site_photo",
@@ -152,10 +160,19 @@ function recordToObject(record, fields) {
   return submitted
 }
 
+function originalRecord(record) {
+  const original = record?.originalCopy || record?.original
+  if (typeof original === "function") return original.call(record)
+  return original || null
+}
+
 function applyProgressMutateCompleteness(event, isCreate) {
   const result = validateProgressMutateCompleteness({
     isCreate,
     submitted: recordToObject(event.record, PROGRESS_FIELDS),
+    original: isCreate
+      ? null
+      : recordToObject(originalRecord(event.record), PROGRESS_FIELDS),
   })
   if (!result.ok) {
     throw new BadRequestError(result.message)

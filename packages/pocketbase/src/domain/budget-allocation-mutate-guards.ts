@@ -1,26 +1,27 @@
 /** Budget allocation create/update completeness — description + required docs. */
 
+import { normalizeFileNames } from "./normalize-file-names"
+
 export type BudgetAllocationMutateCompletenessResult =
   | { ok: true }
   | { ok: false; field: string; message: string }
 
 export function normalizeBudgetAllocationFileNames(value: unknown): string[] {
-  if (value == null || value === "") return []
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item : String(item ?? "")))
-      .filter(Boolean)
-  }
-  if (typeof value === "string") return [value]
-  return []
+  return normalizeFileNames(value)
 }
 
 /**
- * Effective files that will persist. On update, callers pass the post-merge
- * record value (omit-file keeps on-record names).
+ * Effective files that will persist.
+ * Absent field on update keeps original; explicit "" / [] clears.
  */
-export function effectiveBudgetAllocationFiles(submitted: unknown): string[] {
-  return normalizeBudgetAllocationFileNames(submitted)
+export function effectiveBudgetAllocationFiles(
+  submitted: unknown,
+  original?: unknown
+): string[] {
+  if (submitted === undefined || submitted === null) {
+    return normalizeFileNames(original)
+  }
+  return normalizeFileNames(submitted)
 }
 
 function trimText(value: unknown): string {
@@ -29,10 +30,16 @@ function trimText(value: unknown): string {
 
 function requireAttachment(
   submitted: Record<string, unknown>,
+  original: Record<string, unknown> | null | undefined,
   field: string,
   message: string
 ): BudgetAllocationMutateCompletenessResult | null {
-  if (effectiveBudgetAllocationFiles(submitted[field]).length > 0) return null
+  if (
+    effectiveBudgetAllocationFiles(submitted[field], original?.[field]).length >
+    0
+  ) {
+    return null
+  }
   return { ok: false, field, message }
 }
 
@@ -40,8 +47,10 @@ function requireAttachment(
 export function validateBudgetAllocationMutateCompleteness(input: {
   isCreate: boolean
   submitted: Record<string, unknown>
+  original?: Record<string, unknown> | null
 }): BudgetAllocationMutateCompletenessResult {
   const submitted = input.submitted
+  const original = input.original
 
   if (!trimText(submitted.description)) {
     return {
@@ -52,14 +61,16 @@ export function validateBudgetAllocationMutateCompleteness(input: {
   }
 
   const checks: Array<BudgetAllocationMutateCompletenessResult | null> = [
-    requireAttachment(submitted, "moa_file", "MOA document is required."),
+    requireAttachment(submitted, original, "moa_file", "MOA document is required."),
     requireAttachment(
       submitted,
+      original,
       "resolution_file",
       "Resolution document is required."
     ),
     requireAttachment(
       submitted,
+      original,
       "supporting_docs",
       "Supporting documents are required."
     ),

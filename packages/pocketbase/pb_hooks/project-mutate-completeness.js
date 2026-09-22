@@ -1,6 +1,6 @@
 /**
  * Reject projects create/update that omit role-required scalars or attachments.
- * Update omit-file keeps on-record names on the request record (PB merge).
+ * Absent file fields on update keep originalCopy names; explicit clear is empty.
  */
 
 const PPDO_ROLES = new Set(["Province", "Super Admin"])
@@ -32,6 +32,7 @@ const PROJECT_FIELDS = [
   "project_photos",
 ]
 
+// tradeoff: JSVM cannot import TS — mirror normalize-file-names.ts; generate hook from TS guard if drift recurs.
 function normalizeProjectFileNames(value) {
   if (value == null || value === "") return []
   if (Array.isArray(value)) {
@@ -43,7 +44,11 @@ function normalizeProjectFileNames(value) {
   return []
 }
 
-function effectiveProjectFiles(_isCreate, submitted) {
+function effectiveProjectFiles(isCreate, submitted, original) {
+  if (isCreate) return normalizeProjectFileNames(submitted)
+  if (submitted === undefined || submitted === null) {
+    return normalizeProjectFileNames(original)
+  }
   return normalizeProjectFileNames(submitted)
 }
 
@@ -56,8 +61,13 @@ function requireText(submitted, field, message) {
   return { ok: false, field, message }
 }
 
-function requireAttachment(submitted, field, message) {
-  if (effectiveProjectFiles(false, submitted[field]).length > 0) return null
+function requireAttachment(isCreate, submitted, original, field, message) {
+  if (
+    effectiveProjectFiles(isCreate, submitted[field], original?.[field])
+      .length > 0
+  ) {
+    return null
+  }
   return { ok: false, field, message }
 }
 
@@ -76,7 +86,7 @@ function refineSubAccount(submitted) {
   return null
 }
 
-function validatePpdo(submitted) {
+function validatePpdo(isCreate, submitted, original) {
   const checks = [
     requireText(submitted, "name", "Project name is required."),
     requireText(submitted, "description", "Description is required."),
@@ -96,14 +106,24 @@ function validatePpdo(submitted) {
       "period_of_implementation",
       "Period of implementation is required."
     ),
-    requireAttachment(submitted, "moa_file", "MOA document is required."),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
+      "moa_file",
+      "MOA document is required."
+    ),
+    requireAttachment(
+      isCreate,
+      submitted,
+      original,
       "resolution_file",
       "Resolution document is required."
     ),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
       "supporting_docs",
       "Supporting documents are required."
     ),
@@ -114,7 +134,7 @@ function validatePpdo(submitted) {
   return { ok: true }
 }
 
-function validateLgu(submitted) {
+function validateLgu(isCreate, submitted, original) {
   const bid = Number(submitted.bid_price)
   const checks = [
     requireText(submitted, "status", "Project status is required."),
@@ -125,7 +145,9 @@ function validateLgu(submitted) {
     requireText(submitted, "start_date", "Start date is required."),
     requireText(submitted, "target_end_date", "End date is required."),
     requireAttachment(
+      isCreate,
       submitted,
+      original,
       "project_photos",
       "Project photos are required."
     ),
@@ -138,8 +160,19 @@ function validateLgu(submitted) {
 
 function validateProjectMutateCompleteness(input) {
   const role = input.role || ""
-  if (PPDO_ROLES.has(role)) return validatePpdo(input.submitted)
-  if (LGU_ROLES.has(role)) return validateLgu(input.submitted)
+  if (!role) {
+    return {
+      ok: false,
+      field: "role",
+      message: "You cannot update this project.",
+    }
+  }
+  if (PPDO_ROLES.has(role)) {
+    return validatePpdo(input.isCreate, input.submitted, input.original)
+  }
+  if (LGU_ROLES.has(role)) {
+    return validateLgu(input.isCreate, input.submitted, input.original)
+  }
   return { ok: true }
 }
 
@@ -151,6 +184,12 @@ function recordToObject(record) {
       typeof record.get === "function" ? record.get(field) : record[field]
   }
   return submitted
+}
+
+function originalRecord(record) {
+  const original = record?.originalCopy || record?.original
+  if (typeof original === "function") return original.call(record)
+  return original || null
 }
 
 function actorRole(event) {
@@ -169,13 +208,13 @@ function actorRole(event) {
 function applyProjectMutateCompleteness(event, isCreate) {
   const role = actorRole(event)
   if (!role) {
-    if (typeof event.next === "function") event.next()
-    return
+    throw new BadRequestError("You cannot update this project.")
   }
   const result = validateProjectMutateCompleteness({
     role,
     isCreate,
     submitted: recordToObject(event.record),
+    original: isCreate ? null : recordToObject(originalRecord(event.record)),
   })
   if (!result.ok) {
     throw new BadRequestError(result.message)

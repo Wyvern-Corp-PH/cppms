@@ -17,3 +17,9 @@ globalThis.onRecordCreateRequest((event) => {
     event
   )
 }, "budget_expenses")
+
+globalThis.onRecordUpdateRequest((event) => {
+  require(`${globalThis.__hooks}/progress-mutate-completeness.js`).applyProgressLinkedExpenseCompleteness(
+    event
+  )
+}, "budget_expenses")

@@ -163,4 +163,74 @@ describe("project-mutate-completeness hook entrypoint", () => {
     )
     expect(next).toHaveBeenCalledOnce()
   })
+
+  it("should throw BadRequestError when actor role is missing", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          record: recordGet({
+            name: "Road",
+            description: "Desc",
+            category: "Infrastructure",
+            municipality: "Tuguegarao City",
+            barangay: "Centro",
+            location: "East",
+            budget_year: 2026,
+            funding_year: 2025,
+            fund_source: "Special Education Fund",
+            period_of_implementation: "FY 2026",
+            moa_file: ["moa.pdf"],
+            resolution_file: ["r.pdf"],
+            supporting_docs: ["s.pdf"],
+          }),
+        },
+        false
+      )
+    ).toThrow(/You cannot update this project/)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should accept scalar-only update when files remain on the record", () => {
+    const next = vi.fn()
+    completenessHook.applyProjectMutateCompleteness(
+      {
+        next,
+        auth: { get: (field: string) => (field === "role" ? "Province" : "") },
+        record: {
+          get(field: string) {
+            const fields: Record<string, unknown> = {
+              name: "Road",
+              description: "Scalar edit",
+              category: "Infrastructure",
+              municipality: "Tuguegarao City",
+              barangay: "Centro",
+              location: "East",
+              budget_year: 2026,
+              funding_year: 2025,
+              fund_source: "Special Education Fund",
+              period_of_implementation: "FY 2026",
+              moa_file: ["moa.pdf"],
+              resolution_file: ["r.pdf"],
+              supporting_docs: ["s.pdf"],
+            }
+            return fields[field]
+          },
+          originalCopy: {
+            get(field: string) {
+              const fields: Record<string, unknown> = {
+                moa_file: ["moa.pdf"],
+                resolution_file: ["r.pdf"],
+                supporting_docs: ["s.pdf"],
+              }
+              return fields[field]
+            },
+          },
+        },
+      },
+      false
+    )
+    expect(next).toHaveBeenCalledOnce()
+  })
 })

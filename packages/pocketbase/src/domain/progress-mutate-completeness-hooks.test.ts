@@ -174,4 +174,36 @@ describe("progress-mutate-completeness hook entrypoint", () => {
     ).toThrow(/Description is required/)
     expect(next).not.toHaveBeenCalled()
   })
+
+  it("should wire budget_expenses update completeness", () => {
+    const entry = readFileSync(
+      resolve(hooksDir, "progress-mutate-completeness.pb.js"),
+      "utf8"
+    )
+    const updateExpenseHooks = entry.match(
+      /onRecordUpdateRequest[\s\S]*?budget_expenses/g
+    )
+    expect(updateExpenseHooks?.length).toBeGreaterThanOrEqual(1)
+    expect(entry).toContain("applyProgressLinkedExpenseCompleteness")
+  })
+
+  it("should throw BadRequestError when progress-linked expense update clears receipt", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProgressLinkedExpenseCompleteness({
+        next,
+        record: recordGet({
+          project: "p1",
+          progress_update: "pu1",
+          amount: 1500,
+          year: 2026,
+          main_account: "Special Education Fund",
+          date: "2026-07-09",
+          receipt_number: "",
+          description: "Materials",
+        }),
+      })
+    ).toThrow(/Receipt number is required/)
+    expect(next).not.toHaveBeenCalled()
+  })
 })

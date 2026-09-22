@@ -39,6 +39,17 @@ describe("effectiveBudgetAllocationFiles", () => {
     expect(effectiveBudgetAllocationFiles(["kept.pdf"])).toEqual(["kept.pdf"])
     expect(effectiveBudgetAllocationFiles([])).toEqual([])
   })
+
+  it("should retain original files when update omits the field", () => {
+    expect(effectiveBudgetAllocationFiles(undefined, ["old.pdf"])).toEqual([
+      "old.pdf",
+    ])
+  })
+
+  it("should treat an explicit empty submitted set as empty on update", () => {
+    expect(effectiveBudgetAllocationFiles([], ["old.pdf"])).toEqual([])
+    expect(effectiveBudgetAllocationFiles("", ["old.pdf"])).toEqual([])
+  })
 })
 
 describe("validateBudgetAllocationMutateCompleteness", () => {
@@ -144,5 +155,50 @@ describe("validateBudgetAllocationMutateCompleteness", () => {
       },
     })
     expect(result).toEqual({ ok: true })
+  })
+
+  it("should accept scalar-only update when files are absent but present on original", () => {
+    const result = validateBudgetAllocationMutateCompleteness({
+      isCreate: false,
+      submitted: {
+        project: "p1",
+        amount: 90_000,
+        year: 2026,
+        date: "2026-07-09",
+        description: "Notes only",
+      },
+      original: {
+        moa_file: ["kept-moa.pdf"],
+        resolution_file: ["kept-res.pdf"],
+        supporting_docs: ["kept-sup.pdf"],
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject update when a required document is explicitly cleared despite original", () => {
+    const result = validateBudgetAllocationMutateCompleteness({
+      isCreate: false,
+      submitted: {
+        project: "p1",
+        amount: 90_000,
+        year: 2026,
+        date: "2026-07-09",
+        description: "Cleared moa",
+        moa_file: [],
+        resolution_file: ["kept-res.pdf"],
+        supporting_docs: ["kept-sup.pdf"],
+      },
+      original: {
+        moa_file: ["kept-moa.pdf"],
+        resolution_file: ["kept-res.pdf"],
+        supporting_docs: ["kept-sup.pdf"],
+      },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "moa_file",
+      message: "MOA document is required.",
+    })
   })
 })

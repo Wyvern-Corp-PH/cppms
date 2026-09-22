@@ -48,6 +48,17 @@ describe("effectiveProgressSitePhotos", () => {
     expect(effectiveProgressSitePhotos(["kept.jpg"])).toEqual(["kept.jpg"])
     expect(effectiveProgressSitePhotos([])).toEqual([])
   })
+
+  it("should retain original site photo when update omits the field", () => {
+    expect(effectiveProgressSitePhotos(undefined, ["old.jpg"])).toEqual([
+      "old.jpg",
+    ])
+  })
+
+  it("should treat an explicit empty submitted set as empty on update", () => {
+    expect(effectiveProgressSitePhotos([], ["old.jpg"])).toEqual([])
+    expect(effectiveProgressSitePhotos("", ["old.jpg"])).toEqual([])
+  })
 })
 
 describe("validateProgressMutateCompleteness", () => {
@@ -138,6 +149,35 @@ describe("validateProgressMutateCompleteness", () => {
     })
     expect(result).toEqual({ ok: true })
   })
+
+  it("should accept scalar-only update when site photo is absent but present on original", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: false,
+      submitted: {
+        notes: "Notes only edit",
+        to_pct: 60,
+      },
+      original: { site_photo: ["kept.jpg"] },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject update when site photo is explicitly cleared despite original", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: false,
+      submitted: {
+        notes: "Cleared photo",
+        site_photo: [],
+        to_pct: 60,
+      },
+      original: { site_photo: ["kept.jpg"] },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "site_photo",
+      message: "Site photo is required.",
+    })
+  })
 })
 
 describe("validateProgressLinkedExpenseCompleteness", () => {
@@ -181,5 +221,16 @@ describe("validateProgressLinkedExpenseCompleteness", () => {
       submitted: expenseComplete,
     })
     expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject progress-linked update when receipt number is cleared", () => {
+    const result = validateProgressLinkedExpenseCompleteness({
+      submitted: { ...expenseComplete, receipt_number: "" },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "receipt_number",
+      message: "Receipt number is required.",
+    })
   })
 })

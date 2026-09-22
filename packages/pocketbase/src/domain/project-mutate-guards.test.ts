@@ -56,8 +56,16 @@ describe("effectiveProjectFiles", () => {
     ])
   })
 
+  it("should retain original files when update omits the field", () => {
+    expect(effectiveProjectFiles(false, undefined, ["old.pdf"])).toEqual([
+      "old.pdf",
+    ])
+    expect(effectiveProjectFiles(false, null, ["old.pdf"])).toEqual(["old.pdf"])
+  })
+
   it("should treat an explicit empty submitted set as empty on update", () => {
     expect(effectiveProjectFiles(false, [], ["old.pdf"])).toEqual([])
+    expect(effectiveProjectFiles(false, "", ["old.pdf"])).toEqual([])
   })
 })
 
@@ -112,6 +120,44 @@ describe("validateProjectMutateCompleteness", () => {
       original: ppdoComplete,
     })
     expect(result).toEqual({ ok: true })
+  })
+
+  it("should accept scalar-only update when files are absent but present on original", () => {
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: false,
+      submitted: {
+        name: ppdoComplete.name,
+        description: "Updated description",
+        category: ppdoComplete.category,
+        municipality: ppdoComplete.municipality,
+        barangay: ppdoComplete.barangay,
+        location: ppdoComplete.location,
+        budget_year: ppdoComplete.budget_year,
+        funding_year: ppdoComplete.funding_year,
+        fund_source: ppdoComplete.fund_source,
+        period_of_implementation: ppdoComplete.period_of_implementation,
+      },
+      original: ppdoComplete,
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject update when required files are explicitly cleared", () => {
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: false,
+      submitted: {
+        ...ppdoComplete,
+        moa_file: [],
+      },
+      original: ppdoComplete,
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "moa_file",
+      message: "MOA document is required.",
+    })
   })
 
   it("should reject municipality create when project photos are missing", () => {
@@ -172,10 +218,24 @@ describe("validateProjectMutateCompleteness", () => {
     ).toEqual({ ok: true })
   })
 
-  it("should skip completeness for unknown roles", () => {
+  it("should reject completeness when actor role is missing", () => {
     expect(
       validateProjectMutateCompleteness({
         role: "",
+        isCreate: true,
+        submitted: {},
+      })
+    ).toEqual({
+      ok: false,
+      field: "role",
+      message: "You cannot update this project.",
+    })
+  })
+
+  it("should skip completeness for unrecognized non-empty roles", () => {
+    expect(
+      validateProjectMutateCompleteness({
+        role: "Auditor",
         isCreate: true,
         submitted: {},
       })

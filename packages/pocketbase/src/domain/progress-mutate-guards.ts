@@ -1,5 +1,7 @@
 /** Progress create/update completeness — notes, site photo, derived from_pct. */
 
+import { normalizeFileNames } from "./normalize-file-names"
+
 export type ProgressMutateCompletenessResult =
   | { ok: true }
   | { ok: false; field: string; message: string }
@@ -9,14 +11,7 @@ export type ReleasedExpenseCompletenessResult =
   | { ok: false; field: string; message: string }
 
 export function normalizeProgressFileNames(value: unknown): string[] {
-  if (value == null || value === "") return []
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item : String(item ?? "")))
-      .filter(Boolean)
-  }
-  if (typeof value === "string") return [value]
-  return []
+  return normalizeFileNames(value)
 }
 
 function trimText(value: unknown): string {
@@ -24,25 +19,36 @@ function trimText(value: unknown): string {
 }
 
 /**
- * Effective site photos that will persist. On update, callers pass the
- * post-merge record value (omit-file keeps on-record names).
+ * Effective site photos that will persist.
+ * Absent field on update keeps original; explicit "" / [] clears.
  */
-export function effectiveProgressSitePhotos(submitted: unknown): string[] {
-  return normalizeProgressFileNames(submitted)
+export function effectiveProgressSitePhotos(
+  submitted: unknown,
+  original?: unknown
+): string[] {
+  if (submitted === undefined || submitted === null) {
+    return normalizeFileNames(original)
+  }
+  return normalizeFileNames(submitted)
 }
 
 /** Completeness for progress_updates create/update (UI + direct API). */
 export function validateProgressMutateCompleteness(input: {
   isCreate: boolean
   submitted: Record<string, unknown>
+  original?: Record<string, unknown> | null
 }): ProgressMutateCompletenessResult {
   const submitted = input.submitted
+  const original = input.original
 
   if (!trimText(submitted.notes)) {
     return { ok: false, field: "notes", message: "Update notes are required." }
   }
 
-  if (effectiveProgressSitePhotos(submitted.site_photo).length === 0) {
+  if (
+    effectiveProgressSitePhotos(submitted.site_photo, original?.site_photo)
+      .length === 0
+  ) {
     return {
       ok: false,
       field: "site_photo",
