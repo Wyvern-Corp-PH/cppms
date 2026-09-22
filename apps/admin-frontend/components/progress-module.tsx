@@ -927,23 +927,16 @@ export function ProgressModule() {
     }).safeParse(parseInput)
   }
 
-  function buildProgressUpdateFormData(
-    parsed: {
-      projectId: string
-      toPct: number
-      notes?: string
-      sitePhoto: File[]
-    },
-    latestUpdate: ProgressUpdateRecord | undefined
-  ) {
+  function buildProgressUpdateFormData(parsed: {
+    projectId: string
+    toPct: number
+    notes?: string
+    sitePhoto: File[]
+  }) {
     const formData = new FormData()
     formData.append("project", parsed.projectId)
     formData.append("to_pct", String(parsed.toPct))
-    if (latestUpdate) {
-      formData.append("notes", parsed.notes ?? "")
-    } else if (parsed.notes) {
-      formData.append("notes", parsed.notes)
-    }
+    formData.append("notes", parsed.notes ?? "")
     for (const file of parsed.sitePhoto) {
       formData.append("site_photo", file)
     }
@@ -1173,7 +1166,7 @@ export function ProgressModule() {
         options.parsed.toPct
       )
       const payload = replaceFiles
-        ? buildProgressUpdateFormData(options.parsed, historyTarget)
+        ? buildProgressUpdateFormData(options.parsed)
         : buildProgressUpdateScalarPayload(options.parsed)
       await syncReleasedAmountExpense({
         pb,
@@ -1210,16 +1203,13 @@ export function ProgressModule() {
         })
       }
       const payload = replaceFiles
-        ? buildProgressUpdateFormData(options.parsed, options.latestUpdate)
+        ? buildProgressUpdateFormData(options.parsed)
         : buildProgressUpdateScalarPayload(options.parsed)
       await pb
         .collection("progress_updates")
         .update(options.latestUpdate.id, payload)
     } else {
-      const formData = buildProgressUpdateFormData(
-        options.parsed,
-        options.latestUpdate
-      )
+      const formData = buildProgressUpdateFormData(options.parsed)
       formData.append(
         "from_pct",
         String(options.project.progress_pct ?? 0)

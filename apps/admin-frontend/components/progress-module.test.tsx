@@ -315,9 +315,18 @@ describe("ProgressModule (V81, V84)", () => {
     }
   }
 
+  async function fillRequiredNotes(
+    user: ReturnType<typeof userEvent.setup>
+  ) {
+    const notes = screen.getByLabelText(/update notes/i)
+    await user.clear(notes)
+    await user.type(notes, "Progress notes")
+  }
+
   async function fillRequiredReleasedAmount(
     user: ReturnType<typeof userEvent.setup>
   ) {
+    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.type(screen.getByLabelText(/^receipt number$/i), "OR-1500")
     await user.click(screen.getByLabelText(/^main account$/i))
@@ -1484,11 +1493,59 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(
       await screen.findByRole("button", { name: /update progress/i })
     )
+    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     expect(
       await screen.findAllByText(/site photo is required/i)
     ).not.toHaveLength(0)
+    expect(createMock).not.toHaveBeenCalled()
+  })
+
+  it("should show a field error when saving without update notes", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 25,
+        ...barangayScope,
+      },
+    ]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /update progress/i })
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
+    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-1500")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(screen.getByRole("option", { name: "General Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    await user.type(screen.getByLabelText(/^description$/i), "Release for progress")
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    expect(
+      await screen.findByText(/update notes are required/i)
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/update notes/i)).toHaveAttribute(
+      "aria-invalid",
+      "true"
+    )
     expect(createMock).not.toHaveBeenCalled()
   })
 
@@ -2217,6 +2274,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -2282,6 +2340,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -3944,6 +4003,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.type(screen.getByLabelText(/^receipt number$/i), "007")
     await user.click(screen.getByLabelText(/^main account$/i))
@@ -4011,6 +4071,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.type(screen.getByLabelText(/^receipt number$/i), "007")
     await user.click(screen.getByLabelText(/^main account$/i))
@@ -4088,6 +4149,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -4125,6 +4187,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -4274,6 +4337,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {

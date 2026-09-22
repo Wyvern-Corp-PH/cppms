@@ -568,12 +568,16 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     receipt_number: "OR-1",
     description: "Materials",
   }
+  const progressBase = {
+    projectId: "1",
+    toPct: 50,
+    notes: "Progress notes",
+    sitePhoto: makeFile("site.jpg"),
+  }
 
   it("requires released amount fields for scoped progress updates", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: {
         amount: "",
         year: "2026",
@@ -592,9 +596,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when receipt_number is blank", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: { ...validReleasedAmount, receipt_number: "" },
     })
 
@@ -608,9 +610,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when receipt_number is whitespace-only", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: { ...validReleasedAmount, receipt_number: "   " },
     })
 
@@ -624,9 +624,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when description is blank", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: { ...validReleasedAmount, description: "" },
     })
 
@@ -640,9 +638,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when description is whitespace-only", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: { ...validReleasedAmount, description: "   " },
     })
 
@@ -656,9 +652,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should accept trimmed non-blank receipt_number and description", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
+      ...progressBase,
       releasedAmount: {
         ...validReleasedAmount,
         receipt_number: "  OR-1  ",
@@ -762,15 +756,48 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: undefined,
     })
     expect(result.success).toBe(false)
+  })
+
+  it("should reject when update notes are blank", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      notes: "   ",
+      sitePhoto: makeFile("site.jpg"),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).notes).toBe(
+        "Update notes are required."
+      )
+    }
+  })
+
+  it("should reject when update notes are omitted", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).notes).toBe(
+        "Update notes are required."
+      )
+    }
   })
 
   it("requires all completion documents when progress reaches 100% (V110)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: makeFile("site.jpg"),
       completionDocs: {
         certification_completion: makeFile("certification.pdf"),
@@ -793,6 +820,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 22,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       completionDocs: {
         certification_completion: null,
@@ -812,6 +840,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
     })
 
@@ -822,6 +851,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
       completionDocs: {
         certification_completion: [
@@ -861,6 +891,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
     })
@@ -868,10 +899,28 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     expect(result.success).toBe(true)
   })
 
+  it("should reject revision when update notes are blank", () => {
+    const result = progressUpdateRevisionFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      notes: "",
+      sitePhoto: [],
+      existingSitePhotoNames: ["site-on-record.jpg"],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).notes).toBe(
+        "Update notes are required."
+      )
+    }
+  })
+
   it("rejects empty File[] without server site photo names", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: [],
     })
@@ -886,6 +935,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       completionDocs: {
@@ -915,6 +965,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [makeFile("site.jpg")],
       existingSitePhotoNames: [],
       completionDocs: {},
@@ -935,6 +986,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
     })
 
@@ -945,6 +997,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -965,6 +1018,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -1021,6 +1075,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {

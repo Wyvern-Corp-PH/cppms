@@ -458,7 +458,7 @@ export const progressUpdateFormSchema = z
   .object({
     projectId: z.string().min(1, "Project is required."),
     toPct: z.number().min(0).max(100),
-    notes: z.string().optional(),
+    notes: requiredTrimmedText("Update notes are required."),
     sitePhoto: sitePhotoListSchema,
     completionDocs: completionDocsSchema.optional(),
   })
@@ -510,7 +510,7 @@ export const progressUpdateRevisionFormSchema = z
   .object({
     projectId: z.string().min(1, "Project is required."),
     toPct: z.number().min(0).max(100),
-    notes: z.string().optional(),
+    notes: requiredTrimmedText("Update notes are required."),
     sitePhoto: revisionSitePhotoListSchema,
     completionDocs: completionDocsSchema.optional(),
     existingSitePhotoNames: z.array(z.string()).optional(),
