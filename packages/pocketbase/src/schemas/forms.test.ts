@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   approvalFormSchema,
+  budgetAllocationMutateSchema,
+  budgetAllocationMutateSchemaForMode,
   budgetExpenseMutateSchema,
   changePasswordFormSchema,
   loginFormSchema,
@@ -1104,5 +1106,90 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
       expect(errors["releasedAmount.receipt_number"]).toMatch(/required/i)
       expect(errors["releasedAmount.description"]).toMatch(/required/i)
     }
+  })
+})
+
+const allocationComplete = {
+  project: "p1",
+  amount: 100_000,
+  year: 2026,
+  date: "2026-07-09",
+  description: "FY2026 tranche",
+  moa_file: [makeFile("moa.pdf")],
+  resolution_file: [makeFile("res.pdf")],
+  supporting_docs: [makeFile("sup.pdf")],
+}
+
+describe("budgetAllocationMutateSchema", () => {
+  it("should reject allocation create when description is blank", () => {
+    const result = budgetAllocationMutateSchema.safeParse({
+      ...allocationComplete,
+      description: "   ",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).description).toBe(
+        "Description is required."
+      )
+    }
+  })
+
+  it("should reject allocation create when required documents are missing", () => {
+    const result = budgetAllocationMutateSchema.safeParse({
+      project: "p1",
+      amount: 100_000,
+      year: 2026,
+      date: "2026-07-09",
+      description: "FY2026 tranche",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const errors = fieldErrorsFromZod(result.error)
+      expect(errors.moa_file).toBe("MOA document is required.")
+      expect(errors.resolution_file).toBe("Resolution document is required.")
+      expect(errors.supporting_docs).toBe("Supporting documents are required.")
+    }
+  })
+
+  it("should keep project, amount, and year required", () => {
+    const result = budgetAllocationMutateSchema.safeParse({
+      description: "FY2026 tranche",
+      date: "2026-07-09",
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const errors = fieldErrorsFromZod(result.error)
+      expect(errors.project).toBeTruthy()
+      expect(errors.amount).toBeTruthy()
+      expect(errors.year).toBeTruthy()
+    }
+  })
+
+  it("should accept complete allocation create", () => {
+    const result = budgetAllocationMutateSchema.safeParse(allocationComplete)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.description).toBe("FY2026 tranche")
+      expect(result.data).not.toHaveProperty("moa_file")
+      expect(result.data).not.toHaveProperty("resolution_file")
+      expect(result.data).not.toHaveProperty("supporting_docs")
+    }
+  })
+
+  it("should accept allocation edit when documents exist on record without new files", () => {
+    const result = budgetAllocationMutateSchemaForMode(false).safeParse({
+      project: "p1",
+      amount: 90_000,
+      year: 2026,
+      date: "2026-07-09",
+      description: "Scalar edit",
+      existing_moa_file: ["moa-on-record.pdf"],
+      existing_resolution_file: ["res-on-record.pdf"],
+      existing_supporting_docs: ["sup-on-record.pdf"],
+    })
+    expect(result.success).toBe(true)
   })
 })

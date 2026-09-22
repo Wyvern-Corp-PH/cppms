@@ -464,6 +464,9 @@ export function BudgetModule() {
       date: new Date().toISOString().slice(0, 10),
       description: allocationDescription || undefined,
       allocated_by: actor?.id,
+      moa_file: moaFiles,
+      resolution_file: resolutionFiles,
+      supporting_docs: supportingFiles,
     })
 
     if (!parsed.success) {
@@ -492,27 +495,20 @@ export function BudgetModule() {
 
     setFieldErrors({})
     const pb = getPocketBase()
-    const hasFiles =
-      moaFiles.length > 0 || resolutionFiles.length > 0 || supportingFiles.length > 0
-
-    if (hasFiles) {
-      const formData = new FormData()
-      for (const [key, value] of Object.entries(parsed.data)) {
-        if (value !== undefined) formData.append(key, String(value))
-      }
-      for (const file of moaFiles) {
-        formData.append("moa_file", file)
-      }
-      for (const file of resolutionFiles) {
-        formData.append("resolution_file", file)
-      }
-      for (const file of supportingFiles) {
-        formData.append("supporting_docs", file)
-      }
-      await pb.collection("budget_allocations").create(formData)
-    } else {
-      await pb.collection("budget_allocations").create(parsed.data)
+    const formData = new FormData()
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== undefined) formData.append(key, String(value))
     }
+    for (const file of moaFiles) {
+      formData.append("moa_file", file)
+    }
+    for (const file of resolutionFiles) {
+      formData.append("resolution_file", file)
+    }
+    for (const file of supportingFiles) {
+      formData.append("supporting_docs", file)
+    }
+    await pb.collection("budget_allocations").create(formData)
 
     setAllocationOpen(false)
     await load()
@@ -785,13 +781,15 @@ export function BudgetModule() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field>
+            <Field data-invalid={!!fieldErrors.description}>
               <FieldLabel htmlFor="allocation-description">Description</FieldLabel>
               <Textarea
                 id="allocation-description"
                 value={allocationDescription}
+                aria-invalid={!!fieldErrors.description}
                 onChange={(e) => setAllocationDescription(e.target.value)}
               />
+              <FieldError>{fieldErrors.description}</FieldError>
             </Field>
             <div className="space-y-2 border-t pt-3">
               <p className="text-sm font-medium">Required documents</p>
@@ -801,6 +799,7 @@ export function BudgetModule() {
                 multiple
                 files={moaFiles}
                 onChange={setMoaFiles}
+                error={fieldErrors.moa_file}
               />
               <DocumentUploadField
                 id="allocation-resolution"
@@ -808,6 +807,7 @@ export function BudgetModule() {
                 multiple
                 files={resolutionFiles}
                 onChange={setResolutionFiles}
+                error={fieldErrors.resolution_file}
               />
               <DocumentUploadField
                 id="allocation-supporting"
@@ -815,6 +815,7 @@ export function BudgetModule() {
                 multiple
                 files={supportingFiles}
                 onChange={setSupportingFiles}
+                error={fieldErrors.supporting_docs}
               />
             </div>
           </FieldGroup>

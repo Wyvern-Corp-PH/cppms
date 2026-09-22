@@ -172,6 +172,18 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(await screen.findByRole("option", { name: "Bridge" }))
     await user.clear(screen.getByLabelText(/total allocated budget amount/i))
     await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
+    await user.type(screen.getByLabelText(/^description$/i), "FY2026 allocation")
+    await user.upload(screen.getByTestId("document-upload-input-allocation-moa"), [
+      new File(["moa"], "moa.pdf", { type: "application/pdf" }),
+    ])
+    await user.upload(
+      screen.getByTestId("document-upload-input-allocation-resolution"),
+      [new File(["res"], "res.pdf", { type: "application/pdf" })]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-allocation-supporting"),
+      [new File(["sup"], "sup.pdf", { type: "application/pdf" })]
+    )
   }
 
   function seedReleasedAmountTable() {
@@ -228,13 +240,21 @@ describe("BudgetModule (V9, V10, V24)", () => {
         account_status: "Active",
       },
     ]
-    createMock.mockImplementation(async (payload: Record<string, unknown>) => {
-      store.allocations.push({
+    createMock.mockImplementation(async (payload: FormData | Record<string, unknown>) => {
+      const row: Record<string, unknown> = {
         id: "a-new",
         collectionId: "a",
         collectionName: "budget_allocations",
-        ...payload,
-      })
+      }
+      if (payload instanceof FormData) {
+        for (const [key, value] of payload.entries()) {
+          if (value instanceof File) continue
+          row[key] = value
+        }
+      } else {
+        Object.assign(row, payload)
+      }
+      store.allocations.push(row)
     })
 
     render(<BudgetModule />)
@@ -243,9 +263,10 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({ allocated_by: "current-user" })
-      )
+      expect(createMock).toHaveBeenCalled()
+      const payload = createMock.mock.calls[0]?.[0]
+      expect(payload).toBeInstanceOf(FormData)
+      expect((payload as FormData).get("allocated_by")).toBe("current-user")
       expect(screen.getByText("Current Province User")).toBeInTheDocument()
       expect(screen.queryByText("current-user")).not.toBeInTheDocument()
     })
@@ -272,14 +293,17 @@ describe("BudgetModule (V9, V10, V24)", () => {
     await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          project: "p1",
-          amount: 100000,
-          allocated_by: "current-user",
-        })
-      )
+      expect(createMock).toHaveBeenCalled()
     })
+    const payload = createMock.mock.calls[0]?.[0]
+    expect(payload).toBeInstanceOf(FormData)
+    expect((payload as FormData).get("project")).toBe("p1")
+    expect((payload as FormData).get("amount")).toBe("100000")
+    expect((payload as FormData).get("description")).toBe("FY2026 allocation")
+    expect((payload as FormData).get("allocated_by")).toBe("current-user")
+    expect((payload as FormData).getAll("moa_file")).toHaveLength(1)
+    expect((payload as FormData).getAll("resolution_file")).toHaveLength(1)
+    expect((payload as FormData).getAll("supporting_docs")).toHaveLength(1)
   })
 
   it("should block allocate save when the amount would exceed the project's bid price", async () => {
@@ -336,11 +360,24 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     render(<BudgetModule />)
 
-    await fillAllocationForm(user)
+    await user.click(await screen.findByTestId("allocate-budget"))
+    await user.click((await screen.findAllByRole("combobox"))[0]!)
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
+    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
+    await user.type(screen.getByLabelText(/^description$/i), "FY2026 allocation")
     await user.upload(screen.getByTestId("document-upload-input-allocation-moa"), [
       new File(["moa"], "moa.pdf", { type: "application/pdf" }),
       new File(["moa 2"], "moa-2.pdf", { type: "application/pdf" }),
     ])
+    await user.upload(
+      screen.getByTestId("document-upload-input-allocation-resolution"),
+      [new File(["res"], "res.pdf", { type: "application/pdf" })]
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-allocation-supporting"),
+      [new File(["sup"], "sup.pdf", { type: "application/pdf" })]
+    )
     await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
 
     await waitFor(() => {
@@ -352,6 +389,39 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect((payload as FormData).get("amount")).toBe("100000")
     expect((payload as FormData).get("allocated_by")).toBe("current-user")
     expect((payload as FormData).getAll("moa_file")).toHaveLength(2)
+  })
+
+  it("should show field errors when allocation description and documents are missing", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByTestId("allocate-budget"))
+    await user.click((await screen.findAllByRole("combobox"))[0]!)
+    await user.click(await screen.findByRole("option", { name: "Bridge" }))
+    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
+    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
+    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
+
+    expect(await screen.findByText("Description is required.")).toBeInTheDocument()
+    expect(screen.getByText("MOA document is required.")).toBeInTheDocument()
+    expect(screen.getByText("Resolution document is required.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Supporting documents are required.")
+    ).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("renders allocation and expense amounts as signed single values", async () => {

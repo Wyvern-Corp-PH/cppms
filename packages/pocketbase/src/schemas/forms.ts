@@ -343,14 +343,83 @@ export function projectMutateSchemaForActor(
     )
 }
 
-export const budgetAllocationMutateSchema = z.object({
+/** Requires trimmed non-blank text (mutate forms). */
+const requiredTrimmedText = (message: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" ? value : ""),
+    z.string().trim().min(1, message)
+  )
+
+const budgetAllocationBaseSchema = z.object({
   project: z.string().min(1, "Project is required."),
   amount: z.coerce.number().positive("Amount must be greater than zero."),
   year: z.coerce.number().int().min(2000).max(2100),
   date: z.string().min(1),
-  description: z.string().optional(),
+  description: requiredTrimmedText("Description is required."),
   allocated_by: z.string().optional(),
+  moa_file: optionalFileListInput.optional(),
+  resolution_file: optionalFileListInput.optional(),
+  supporting_docs: optionalFileListInput.optional(),
+  existing_moa_file: z.array(z.string()).optional(),
+  existing_resolution_file: z.array(z.string()).optional(),
+  existing_supporting_docs: z.array(z.string()).optional(),
 })
+
+export function budgetAllocationMutateSchemaForMode(isCreate: boolean) {
+  return budgetAllocationBaseSchema
+    .superRefine((value, ctx) => {
+      if (
+        !attachmentSatisfied(isCreate, value.moa_file, value.existing_moa_file)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["moa_file"],
+          message: "MOA document is required.",
+        })
+      }
+      if (
+        !attachmentSatisfied(
+          isCreate,
+          value.resolution_file,
+          value.existing_resolution_file
+        )
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["resolution_file"],
+          message: "Resolution document is required.",
+        })
+      }
+      if (
+        !attachmentSatisfied(
+          isCreate,
+          value.supporting_docs,
+          value.existing_supporting_docs
+        )
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["supporting_docs"],
+          message: "Supporting documents are required.",
+        })
+      }
+    })
+    .transform(
+      ({
+        moa_file: _moa,
+        resolution_file: _resolution,
+        supporting_docs: _supporting,
+        existing_moa_file: _existingMoa,
+        existing_resolution_file: _existingResolution,
+        existing_supporting_docs: _existingSupporting,
+        ...rest
+      }) => rest
+    )
+}
+
+/** Allocate dialog is create-only; use ForMode(false) for edit retention. */
+export const budgetAllocationMutateSchema =
+  budgetAllocationMutateSchemaForMode(true)
 
 const budgetExpenseBaseSchema = z.object({
   project: z.string().min(1, "Project is required."),
@@ -370,13 +439,6 @@ export const budgetExpenseMutateSchema = budgetExpenseBaseSchema.superRefine(
 export const releasedAmountInputSchema = budgetExpenseBaseSchema
   .omit({ project: true })
   .superRefine(refineBudgetExpenseSubAccount)
-
-/** Progress-with-released only — requires trimmed non-blank receipt + description. */
-const requiredTrimmedText = (message: string) =>
-  z.preprocess(
-    (value) => (typeof value === "string" ? value : ""),
-    z.string().trim().min(1, message)
-  )
 
 export const progressReleasedAmountInputSchema = budgetExpenseBaseSchema
   .omit({ project: true })
