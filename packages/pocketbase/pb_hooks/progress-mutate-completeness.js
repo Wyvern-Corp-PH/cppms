@@ -44,6 +44,13 @@ function trimText(value) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function unwrapDateValue(value) {
+  if (value && typeof value.string === "function") {
+    return String(value.string()).trim()
+  }
+  return value
+}
+
 function validateProgressMutateCompleteness(input) {
   const submitted = input.submitted
   const original = input.original
@@ -154,8 +161,9 @@ function recordToObject(record, fields) {
   if (!record) return {}
   const submitted = {}
   for (const field of fields) {
-    submitted[field] =
+    const value =
       typeof record.get === "function" ? record.get(field) : record[field]
+    submitted[field] = field === "date" ? unwrapDateValue(value) : value
   }
   return submitted
 }

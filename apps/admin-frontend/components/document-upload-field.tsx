@@ -38,6 +38,7 @@ type DocumentUploadFieldProps = {
   helperText?: string
   dropZoneText?: string
   error?: string
+  required?: boolean
 }
 
 export function DocumentUploadField({
@@ -55,6 +56,7 @@ export function DocumentUploadField({
   dropZoneText = "Click to upload or drag files here",
   error,
   disabled = false,
+  required = false,
 }: DocumentUploadFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -111,7 +113,7 @@ export function DocumentUploadField({
 
   return (
     <Field data-invalid={!!error}>
-      <FieldLabel id={labelId} htmlFor={id}>
+      <FieldLabel id={labelId} htmlFor={id} required={required}>
         {label}
       </FieldLabel>
       {existingNames.length > 0 ? (

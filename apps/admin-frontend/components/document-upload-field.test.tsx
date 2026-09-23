@@ -57,6 +57,37 @@ describe("DocumentUploadField", () => {
     expect(screen.getByRole("button", { name: /memorandum of agreement/i })).toBeInTheDocument()
   })
 
+  it("should show a required mark on a required upload label", () => {
+    render(
+      <DocumentUploadField
+        id="moa"
+        label="Memorandum of Agreement"
+        required
+        files={[]}
+        onChange={vi.fn()}
+      />
+    )
+
+    const label = screen.getByText("Memorandum of Agreement").closest("[data-slot=field-label]")
+    expect(label).not.toBeNull()
+    expect(label).toHaveAttribute("data-required", "true")
+  })
+
+  it("should show no required mark on an optional upload label", () => {
+    render(
+      <DocumentUploadField
+        id="photos"
+        label="Project photos"
+        files={[]}
+        onChange={vi.fn()}
+      />
+    )
+
+    const label = screen.getByText("Project photos").closest("[data-slot=field-label]")
+    expect(label).not.toBeNull()
+    expect(label).not.toHaveAttribute("data-required")
+  })
+
   it("shows existing server filenames", () => {
     render(
       <DocumentUploadField

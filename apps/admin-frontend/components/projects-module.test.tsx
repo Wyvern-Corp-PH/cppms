@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -83,6 +83,26 @@ vi.mock("xlsx", () => ({
 
 import * as XLSX from "xlsx"
 import { ProjectsModule } from "./projects-module"
+
+function expectRequiredMark(
+  labelText: string | RegExp,
+  root: HTMLElement = document.body
+) {
+  const text = within(root).getByText(labelText)
+  const label = text.closest("[data-slot=field-label]")
+  expect(label, `required mark for ${String(labelText)}`).not.toBeNull()
+  expect(label).toHaveAttribute("data-required", "true")
+}
+
+function expectNoRequiredMark(
+  labelText: string | RegExp,
+  root: HTMLElement = document.body
+) {
+  const text = within(root).getByText(labelText)
+  const label = text.closest("[data-slot=field-label]")
+  expect(label, `label for ${String(labelText)}`).not.toBeNull()
+  expect(label).not.toHaveAttribute("data-required")
+}
 
 async function fillOwnedFundSource(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByLabelText(/^funding year$/i))
@@ -286,6 +306,33 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         screen.getByRole("button", { name: /^save$/i })
       ).toBeInTheDocument()
     })
+  })
+
+  it("should show a required mark on required project name", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    expectRequiredMark("Project name")
+    expectRequiredMark("Description")
+    expectRequiredMark("Memorandum of Agreement")
+    expectNoRequiredMark("Contractor")
+    expectNoRequiredMark("Project photos")
+  })
+
+  it("should show a required mark on Sub Account only when Main Account needs it", async () => {
+    const user = userEvent.setup()
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "Special Education Fund" }))
+    expect(screen.queryByText("Sub account")).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "General Fund" }))
+    expectRequiredMark("Sub account")
   })
 
   it("shows the LGU/DPWH start-within-15-days note under Period of Implementation", async () => {
@@ -921,6 +968,52 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.queryByText(/location is required/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/funding year is required/i)).not.toBeInTheDocument()
+  })
+
+  it("should show a required mark on Status even when the default is Planning", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        description: "",
+        category: "Infrastructure",
+        status: "Planning",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "",
+        contractor: "",
+        start_date: "",
+        target_end_date: "",
+        budget_year: 2026,
+        bid_price: 0,
+        progress_pct: 0,
+        project_photos: [],
+      },
+    ]
+    store.authRecord = {
+      id: "m1",
+      role: "Municipality",
+      account_status: "Active",
+      municipality: "Tuguegarao City",
+    }
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByRole("combobox", { name: /^status$/i })).toBeInTheDocument()
+    expectRequiredMark("Status", dialog)
+    expectRequiredMark("Contractor", dialog)
+    expectRequiredMark("Project photos", dialog)
+    expectNoRequiredMark("Description", dialog)
+    expectNoRequiredMark("Memorandum of Agreement", dialog)
   })
 
   it("hides project mutation controls for users without project policy", async () => {

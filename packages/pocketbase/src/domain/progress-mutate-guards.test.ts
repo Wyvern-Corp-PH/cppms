@@ -223,6 +223,60 @@ describe("validateProgressLinkedExpenseCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
+  it("should treat expense date DateTime as filled", () => {
+    const result = validateProgressLinkedExpenseCompleteness({
+      submitted: {
+        ...expenseComplete,
+        date: {
+          string() {
+            return "2026-07-09 00:00:00.000Z"
+          },
+        },
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject blank expense date", () => {
+    const result = validateProgressLinkedExpenseCompleteness({
+      submitted: { ...expenseComplete, date: "" },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "date",
+      message: "Expense date is required.",
+    })
+  })
+
+  it("should reject whitespace-only expense date", () => {
+    const result = validateProgressLinkedExpenseCompleteness({
+      submitted: { ...expenseComplete, date: "   " },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "date",
+      message: "Expense date is required.",
+    })
+  })
+
+  it("should reject empty DateTime expense date", () => {
+    const result = validateProgressLinkedExpenseCompleteness({
+      submitted: {
+        ...expenseComplete,
+        date: {
+          string() {
+            return ""
+          },
+        },
+      },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "date",
+      message: "Expense date is required.",
+    })
+  })
+
   it("should reject progress-linked update when receipt number is cleared", () => {
     const result = validateProgressLinkedExpenseCompleteness({
       submitted: { ...expenseComplete, receipt_number: "" },

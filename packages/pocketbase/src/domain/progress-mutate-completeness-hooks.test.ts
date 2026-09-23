@@ -56,6 +56,28 @@ function recordGet(fields: Record<string, unknown>) {
   }
 }
 
+function dateTime(iso: string) {
+  return {
+    string() {
+      return iso
+    },
+  }
+}
+
+function expenseRecordFields(overrides: Record<string, unknown> = {}) {
+  return {
+    project: "p1",
+    progress_update: "pu1",
+    amount: 1500,
+    year: 2026,
+    main_account: "Special Education Fund",
+    date: dateTime("2026-07-09 00:00:00.000Z"),
+    receipt_number: "OR-1",
+    description: "Materials",
+    ...overrides,
+  }
+}
+
 describe("progress-mutate-completeness hook helper", () => {
   it("should reject API progress create when notes are omitted", () => {
     const result = completenessHook.validateProgressMutateCompleteness({
@@ -185,6 +207,37 @@ describe("progress-mutate-completeness hook entrypoint", () => {
     )
     expect(updateExpenseHooks?.length).toBeGreaterThanOrEqual(1)
     expect(entry).toContain("applyProgressLinkedExpenseCompleteness")
+  })
+
+  it("should accept expense date DateTime as filled", () => {
+    const next = vi.fn()
+    completenessHook.applyProgressLinkedExpenseCompleteness({
+      next,
+      record: recordGet(expenseRecordFields()),
+    })
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should reject blank expense date", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProgressLinkedExpenseCompleteness({
+        next,
+        record: recordGet(expenseRecordFields({ date: "" })),
+      })
+    ).toThrow(/Expense date is required/)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should reject empty DateTime expense date", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProgressLinkedExpenseCompleteness({
+        next,
+        record: recordGet(expenseRecordFields({ date: dateTime("") })),
+      })
+    ).toThrow(/Expense date is required/)
+    expect(next).not.toHaveBeenCalled()
   })
 
   it("should throw BadRequestError when progress-linked expense update clears receipt", () => {

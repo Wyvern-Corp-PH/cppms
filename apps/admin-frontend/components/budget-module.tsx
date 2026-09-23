@@ -740,7 +740,7 @@ export function BudgetModule() {
           </DialogHeader>
           <FieldGroup>
             <Field data-invalid={!!fieldErrors.project}>
-              <FieldLabel>Project</FieldLabel>
+              <FieldLabel required>Project</FieldLabel>
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger aria-invalid={!!fieldErrors.project}>
                   <SelectValue placeholder="Select project" />
@@ -756,7 +756,9 @@ export function BudgetModule() {
               <FieldError>{fieldErrors.project}</FieldError>
             </Field>
             <Field data-invalid={!!fieldErrors.amount}>
-              <FieldLabel htmlFor="allocation-amount">Total allocated budget amount</FieldLabel>
+              <FieldLabel htmlFor="allocation-amount" required>
+                Total allocated budget amount
+              </FieldLabel>
               <Input
                 id="allocation-amount"
                 type="number"
@@ -767,7 +769,7 @@ export function BudgetModule() {
               <FieldError>{fieldErrors.amount}</FieldError>
             </Field>
             <Field>
-              <FieldLabel>Year</FieldLabel>
+              <FieldLabel required>Year</FieldLabel>
               <Select value={allocationYear} onValueChange={setAllocationYear}>
                 <SelectTrigger>
                   <SelectValue />
@@ -782,7 +784,9 @@ export function BudgetModule() {
               </Select>
             </Field>
             <Field data-invalid={!!fieldErrors.description}>
-              <FieldLabel htmlFor="allocation-description">Description</FieldLabel>
+              <FieldLabel htmlFor="allocation-description" required>
+                Description
+              </FieldLabel>
               <Textarea
                 id="allocation-description"
                 value={allocationDescription}
@@ -796,6 +800,7 @@ export function BudgetModule() {
               <DocumentUploadField
                 id="allocation-moa"
                 label="Memorandum of Agreement"
+                required
                 multiple
                 files={moaFiles}
                 onChange={setMoaFiles}
@@ -804,6 +809,7 @@ export function BudgetModule() {
               <DocumentUploadField
                 id="allocation-resolution"
                 label="Resolution"
+                required
                 multiple
                 files={resolutionFiles}
                 onChange={setResolutionFiles}
@@ -812,6 +818,7 @@ export function BudgetModule() {
               <DocumentUploadField
                 id="allocation-supporting"
                 label="Supporting project documents"
+                required
                 multiple
                 files={supportingFiles}
                 onChange={setSupportingFiles}

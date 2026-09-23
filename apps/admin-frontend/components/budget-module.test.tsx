@@ -424,6 +424,52 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(createMock).not.toHaveBeenCalled()
   })
 
+  it("should show a required mark on allocate budget controls", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await user.click(await screen.findByTestId("allocate-budget"))
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText("Project").closest("[data-slot=field-label]")).toHaveAttribute(
+      "data-required",
+      "true"
+    )
+    expect(
+      within(dialog).getByText("Total allocated budget amount").closest("[data-slot=field-label]")
+    ).toHaveAttribute("data-required", "true")
+    expect(within(dialog).getByText("Year").closest("[data-slot=field-label]")).toHaveAttribute(
+      "data-required",
+      "true"
+    )
+    expect(within(dialog).getByText("Description").closest("[data-slot=field-label]")).toHaveAttribute(
+      "data-required",
+      "true"
+    )
+    expect(
+      within(dialog).getByText("Memorandum of Agreement").closest("[data-slot=field-label]")
+    ).toHaveAttribute("data-required", "true")
+    expect(within(dialog).getByText("Resolution").closest("[data-slot=field-label]")).toHaveAttribute(
+      "data-required",
+      "true"
+    )
+    expect(
+      within(dialog).getByText("Supporting project documents").closest("[data-slot=field-label]")
+    ).toHaveAttribute("data-required", "true")
+  })
+
   it("renders allocation and expense amounts as signed single values", async () => {
     const user = userEvent.setup()
     store.projects = [

@@ -346,6 +346,26 @@ describe("ProgressModule (V81, V84)", () => {
     }
   }
 
+  function expectRequiredMark(
+    labelText: string | RegExp,
+    root: HTMLElement = document.body
+  ) {
+    const text = within(root).getByText(labelText)
+    const label = text.closest("[data-slot=field-label]")
+    expect(label, `required mark for ${String(labelText)}`).not.toBeNull()
+    expect(label).toHaveAttribute("data-required", "true")
+  }
+
+  function expectNoRequiredMark(
+    labelText: string | RegExp,
+    root: HTMLElement = document.body
+  ) {
+    const text = within(root).getByText(labelText)
+    const label = text.closest("[data-slot=field-label]")
+    expect(label, `label for ${String(labelText)}`).not.toBeNull()
+    expect(label).not.toHaveAttribute("data-required")
+  }
+
   it("shows drag-and-drop site photo upload in update modal", async () => {
     const user = userEvent.setup()
     useBarangayActor()
@@ -4333,6 +4353,10 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
+    const dialog = screen.getByRole("dialog")
+    expectRequiredMark("Update notes", dialog)
+    expectRequiredMark("Site photo", dialog)
+    expectNoRequiredMark("Amount (PHP)", dialog)
     await user.upload(
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
@@ -4522,6 +4546,11 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
+    const dialog = screen.getByRole("dialog")
+    expectRequiredMark("Update notes", dialog)
+    expectRequiredMark("Site photo", dialog)
+    expectRequiredMark("Amount (PHP)", dialog)
+    expectRequiredMark("Expense date", dialog)
     await user.upload(
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")

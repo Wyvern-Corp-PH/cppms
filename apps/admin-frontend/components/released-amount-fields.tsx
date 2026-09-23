@@ -82,6 +82,7 @@ export type FundSourceFieldsProps = {
   disabled?: boolean
   loadOptions?: boolean
   yearLabel?: string
+  required?: boolean
 }
 
 export function FundSourceFields({
@@ -92,6 +93,7 @@ export function FundSourceFields({
   disabled = false,
   loadOptions = true,
   yearLabel = "Year",
+  required = false,
 }: FundSourceFieldsProps) {
   const [fundingYearOptions, setFundingYearOptions] = useState<BudgetFundOptionRecord[]>([])
   const [fundMainAccountOptions, setFundMainAccountOptions] = useState<BudgetFundOptionRecord[]>([])
@@ -153,7 +155,9 @@ export function FundSourceFields({
     <FieldSet className="space-y-3 rounded-md border p-3">
       <p className="text-sm font-medium">Fund Source</p>
       <Field data-invalid={!!fieldErrors.year}>
-        <FieldLabel htmlFor={`${idPrefix}-year-trigger`}>{yearLabel}</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-year-trigger`} required={required}>
+          {yearLabel}
+        </FieldLabel>
         <Select
           value={value.year}
           onValueChange={(year) => patchValue({ year })}
@@ -177,7 +181,7 @@ export function FundSourceFields({
         <FieldError>{fieldErrors.year}</FieldError>
       </Field>
       <Field data-invalid={!!fieldErrors.main_account}>
-        <FieldLabel htmlFor={`${idPrefix}-main-account-trigger`}>
+        <FieldLabel htmlFor={`${idPrefix}-main-account-trigger`} required={required}>
           Main account
         </FieldLabel>
         <Select
@@ -206,7 +210,10 @@ export function FundSourceFields({
       </Field>
       {showsOtherAccountText ? (
         <Field data-invalid={!!fieldErrors.sub_account}>
-          <FieldLabel htmlFor={`${idPrefix}-other-account-purpose`}>
+          <FieldLabel
+            htmlFor={`${idPrefix}-other-account-purpose`}
+            required={required}
+          >
             Other purpose
           </FieldLabel>
           <Input
@@ -220,7 +227,7 @@ export function FundSourceFields({
         </Field>
       ) : showsSubAccountDropdown ? (
         <Field data-invalid={!!fieldErrors.sub_account}>
-          <FieldLabel htmlFor={`${idPrefix}-sub-account-trigger`}>
+          <FieldLabel htmlFor={`${idPrefix}-sub-account-trigger`} required={required}>
             Sub account
           </FieldLabel>
           <Select
@@ -283,6 +290,7 @@ export type ReleasedAmountFieldsProps = {
   onProjectChange?: (projectId: string) => void
   loadOptions?: boolean
   sectionTestId?: string
+  required?: boolean
 }
 
 export function ReleasedAmountFields({
@@ -296,6 +304,7 @@ export function ReleasedAmountFields({
   onProjectChange,
   loadOptions = true,
   sectionTestId = "released-amount-fields",
+  required = false,
 }: ReleasedAmountFieldsProps) {
   function patchValue(patch: Partial<ReleasedAmountFormValue>) {
     onChange({ ...value, ...patch })
@@ -305,7 +314,7 @@ export function ReleasedAmountFields({
     <FieldGroup data-testid={sectionTestId}>
       {projects.length > 0 ? (
         <Field data-invalid={!!fieldErrors.project}>
-          <FieldLabel>Project</FieldLabel>
+          <FieldLabel required={required}>Project</FieldLabel>
           <Select
             value={projectId}
             onValueChange={onProjectChange}
@@ -329,7 +338,9 @@ export function ReleasedAmountFields({
         </Field>
       ) : null}
       <Field data-invalid={!!fieldErrors.amount}>
-        <FieldLabel htmlFor={`${idPrefix}-amount`}>Amount (PHP)</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-amount`} required={required}>
+          Amount (PHP)
+        </FieldLabel>
         <Input
           id={`${idPrefix}-amount`}
           type="number"
@@ -340,7 +351,9 @@ export function ReleasedAmountFields({
         <FieldError>{fieldErrors.amount}</FieldError>
       </Field>
       <Field data-invalid={!!fieldErrors.receipt_number}>
-        <FieldLabel htmlFor={`${idPrefix}-receipt-number`}>Receipt number</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-receipt-number`} required={required}>
+          Receipt number
+        </FieldLabel>
         <Input
           id={`${idPrefix}-receipt-number`}
           value={value.receiptNumber}
@@ -365,9 +378,12 @@ export function ReleasedAmountFields({
         fieldErrors={fieldErrors}
         idPrefix={idPrefix}
         loadOptions={loadOptions}
+        required={required}
       />
       <Field>
-        <FieldLabel htmlFor={`${idPrefix}-expense-date`}>Expense date</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}-expense-date`} required={required}>
+          Expense date
+        </FieldLabel>
         <Input
           id={`${idPrefix}-expense-date`}
           type="date"
@@ -376,7 +392,7 @@ export function ReleasedAmountFields({
         />
       </Field>
       <Field data-invalid={!!fieldErrors.description}>
-        <FieldLabel htmlFor={`${idPrefix}-expense-description`}>
+        <FieldLabel htmlFor={`${idPrefix}-expense-description`} required={required}>
           Description
         </FieldLabel>
         <Textarea

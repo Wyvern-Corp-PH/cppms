@@ -1024,6 +1024,10 @@ export function ProjectsModule() {
     const label = projectFieldFilledByLabel(field)
     return label ? <FieldDescription>{label}</FieldDescription> : null
   }
+  const requirePpdo =
+    actorRole === "Province" || actorRole === "Super Admin"
+  const requireLgu =
+    actorRole === "Municipality" || actorRole === "Barangay"
   const formStatusOptions = statusOptionsForActor(
     actorRole,
     form.status,
@@ -1300,7 +1304,9 @@ export function ProjectsModule() {
             {formError ? <FieldError>{formError}</FieldError> : null}
             <FieldSet>
               <Field data-invalid={Boolean(fieldErrors.name)}>
-                <FieldLabel htmlFor="project-name">Project name</FieldLabel>
+                <FieldLabel htmlFor="project-name" required>
+                  Project name
+                </FieldLabel>
                 <FieldOwnerHint field="name" />
                 <Input
                   id="project-name"
@@ -1314,7 +1320,9 @@ export function ProjectsModule() {
                 <FieldError>{fieldErrors.name}</FieldError>
               </Field>
               <Field data-invalid={Boolean(fieldErrors.description)}>
-                <FieldLabel htmlFor="project-description">Description</FieldLabel>
+                <FieldLabel htmlFor="project-description" required={requirePpdo}>
+                  Description
+                </FieldLabel>
                 <FieldOwnerHint field="description" />
                 <Textarea
                   id="project-description"
@@ -1329,7 +1337,7 @@ export function ProjectsModule() {
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.category)}>
-                  <FieldLabel>Category</FieldLabel>
+                  <FieldLabel required>Category</FieldLabel>
                   <FieldOwnerHint field="category" />
                   <Select
                     value={form.category}
@@ -1363,7 +1371,7 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.category}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.status)}>
-                  <FieldLabel>Status</FieldLabel>
+                  <FieldLabel required>Status</FieldLabel>
                   <FieldOwnerHint field="status" />
                   <Select
                     value={form.status}
@@ -1395,7 +1403,7 @@ export function ProjectsModule() {
               </div>
               {form.category === "Scholarship" ? (
                 <Field data-invalid={Boolean(fieldErrors.number_of_students)}>
-                  <FieldLabel htmlFor="project-number-of-students">
+                  <FieldLabel htmlFor="project-number-of-students" required>
                     Number of Students
                   </FieldLabel>
                   <FieldOwnerHint field="number_of_students" />
@@ -1418,7 +1426,7 @@ export function ProjectsModule() {
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.municipality)}>
-                  <FieldLabel>Municipality</FieldLabel>
+                  <FieldLabel required={requirePpdo}>Municipality</FieldLabel>
                   <FieldOwnerHint field="municipality" />
                   <LocationCombobox
                     label="Municipality"
@@ -1442,7 +1450,7 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.municipality}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.barangay)}>
-                  <FieldLabel>Barangay</FieldLabel>
+                  <FieldLabel required={requirePpdo}>Barangay</FieldLabel>
                   <FieldOwnerHint field="barangay" />
                   <LocationCombobox
                     label="Barangay"
@@ -1469,7 +1477,9 @@ export function ProjectsModule() {
                 </Field>
               </div>
               <Field data-invalid={Boolean(fieldErrors.location)}>
-                <FieldLabel htmlFor="project-location">Location</FieldLabel>
+                <FieldLabel htmlFor="project-location" required={requirePpdo}>
+                  Location
+                </FieldLabel>
                 <FieldOwnerHint field="location" />
                 <Input
                   id="project-location"
@@ -1504,10 +1514,11 @@ export function ProjectsModule() {
                 idPrefix="project"
                 yearLabel="Funding Year"
                 disabled={fieldLocked("fund_source")}
+                required={requirePpdo}
               />
               <FieldOwnerHint field="fund_source" />
               <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
-                <FieldLabel htmlFor="project-period">
+                <FieldLabel htmlFor="project-period" required={requirePpdo}>
                   Period of Implementation
                 </FieldLabel>
                 <FieldOwnerHint field="period_of_implementation" />
@@ -1530,7 +1541,9 @@ export function ProjectsModule() {
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.start_date)}>
-                  <FieldLabel htmlFor="project-start-date">Start Date</FieldLabel>
+                  <FieldLabel htmlFor="project-start-date" required={requireLgu}>
+                    Start Date
+                  </FieldLabel>
                   <FieldOwnerHint field="start_date" />
                   <Input
                     id="project-start-date"
@@ -1545,7 +1558,9 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.start_date}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.target_end_date)}>
-                  <FieldLabel htmlFor="project-end-date">End Date</FieldLabel>
+                  <FieldLabel htmlFor="project-end-date" required={requireLgu}>
+                    End Date
+                  </FieldLabel>
                   <FieldOwnerHint field="target_end_date" />
                   <Input
                     id="project-end-date"
@@ -1564,7 +1579,9 @@ export function ProjectsModule() {
                 </Field>
               </div>
               <Field data-invalid={Boolean(fieldErrors.contractor)}>
-                <FieldLabel htmlFor="project-contractor">Contractor</FieldLabel>
+                <FieldLabel htmlFor="project-contractor" required={requireLgu}>
+                  Contractor
+                </FieldLabel>
                 <FieldOwnerHint field="contractor" />
                 <Input
                   id="project-contractor"
@@ -1579,7 +1596,9 @@ export function ProjectsModule() {
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.budget_year)}>
-                  <FieldLabel htmlFor="project-year">Budget year</FieldLabel>
+                  <FieldLabel htmlFor="project-year" required>
+                    Budget year
+                  </FieldLabel>
                   <FieldOwnerHint field="budget_year" />
                   <Input
                     id="project-year"
@@ -1594,7 +1613,9 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.budget_year}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.bid_price)}>
-                  <FieldLabel htmlFor="project-bid-price">Bid price (PHP)</FieldLabel>
+                  <FieldLabel htmlFor="project-bid-price" required={requireLgu}>
+                    Bid price (PHP)
+                  </FieldLabel>
                   <FieldOwnerHint field="bid_price" />
                   <Input
                     id="project-bid-price"
@@ -1619,6 +1640,7 @@ export function ProjectsModule() {
                   <DocumentUploadField
                     id="moa-file"
                     label="Memorandum of Agreement"
+                    required={requirePpdo}
                     files={moaFiles}
                     existingNames={retainedMoaNames}
                     existingFileHref={
@@ -1637,6 +1659,7 @@ export function ProjectsModule() {
                   <DocumentUploadField
                     id="project-photos"
                     label="Project photos"
+                    required={requireLgu}
                     files={projectPhotoFiles}
                     existingNames={retainedPhotoNames}
                     existingFileHref={
@@ -1655,6 +1678,7 @@ export function ProjectsModule() {
                   <DocumentUploadField
                     id="resolution-file"
                     label="Resolution"
+                    required={requirePpdo}
                     files={resolutionFiles}
                     existingNames={retainedResolutionNames}
                     existingFileHref={
@@ -1673,6 +1697,7 @@ export function ProjectsModule() {
                   <DocumentUploadField
                     id="supporting-file"
                     label="Supporting project documents"
+                    required={requirePpdo}
                     multiple
                     files={supportingFiles}
                     existingNames={retainedSupportingNames}

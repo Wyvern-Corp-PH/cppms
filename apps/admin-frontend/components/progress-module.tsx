@@ -1827,7 +1827,9 @@ export function ProgressModule() {
                   <FieldError>{fieldErrors.toPct}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(fieldErrors.notes)}>
-                  <FieldLabel htmlFor="update-notes">Update notes</FieldLabel>
+                  <FieldLabel htmlFor="update-notes" required>
+                    Update notes
+                  </FieldLabel>
                   <Textarea
                     id="update-notes"
                     value={notes}
@@ -1838,7 +1840,8 @@ export function ProgressModule() {
                 </Field>
                 <DocumentUploadField
                   id="site-photo"
-                  label="Site photo (required)"
+                  label="Site photo"
+                  required
                   multiple
                   files={photos}
                   onChange={setPhotos}
@@ -1887,6 +1890,7 @@ export function ProgressModule() {
                     idPrefix="progress-released"
                     sectionTestId="progress-released-amount-fields"
                     loadOptions={dialogOpen}
+                    required={includeReleasedAmount}
                   />
                 </FieldSet>
               </FieldSet>

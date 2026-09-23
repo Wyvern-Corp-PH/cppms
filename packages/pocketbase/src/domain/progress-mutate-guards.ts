@@ -18,6 +18,14 @@ function trimText(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function presentDate(value: unknown): string {
+  if (typeof value === "string") return value.trim()
+  if (value && typeof (value as { string?: unknown }).string === "function") {
+    return String((value as { string: () => unknown }).string()).trim()
+  }
+  return ""
+}
+
 /**
  * Effective site photos that will persist.
  * Absent field on update keeps original; explicit "" / [] clears.
@@ -131,7 +139,7 @@ export function validateProgressLinkedExpenseCompleteness(input: {
     }
   }
 
-  if (!trimText(submitted.date)) {
+  if (!presentDate(submitted.date)) {
     return { ok: false, field: "date", message: "Expense date is required." }
   }
 
