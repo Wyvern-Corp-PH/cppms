@@ -1862,6 +1862,7 @@ export function ProgressModule() {
                           key={doc.field}
                           id={`completion-${doc.field}`}
                           label={doc.label}
+                          required
                           multiple={doc.multiple}
                           files={completionDocs[doc.field]}
                           onChange={(files) =>
