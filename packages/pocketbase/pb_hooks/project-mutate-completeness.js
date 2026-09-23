@@ -180,8 +180,17 @@ function recordToObject(record) {
   if (!record) return {}
   const submitted = {}
   for (const field of PROJECT_FIELDS) {
-    submitted[field] =
+    const value =
       typeof record.get === "function" ? record.get(field) : record[field]
+    if (
+      (field === "start_date" || field === "target_end_date") &&
+      value &&
+      typeof value.string === "function"
+    ) {
+      submitted[field] = String(value.string()).trim()
+      continue
+    }
+    submitted[field] = value
   }
   return submitted
 }

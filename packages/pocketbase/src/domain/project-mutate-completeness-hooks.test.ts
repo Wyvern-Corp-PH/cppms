@@ -52,6 +52,26 @@ function recordGet(fields: Record<string, unknown>) {
   }
 }
 
+function dateTime(iso: string) {
+  return {
+    string() {
+      return iso
+    },
+  }
+}
+
+function lguRecordFields(overrides: Record<string, unknown> = {}) {
+  return {
+    status: "Ongoing",
+    contractor: "Builder",
+    bid_price: 100,
+    start_date: dateTime("2026-09-01 00:00:00.000Z"),
+    target_end_date: dateTime("2026-12-23 00:00:00.000Z"),
+    project_photos: ["photo.jpg"],
+    ...overrides,
+  }
+}
+
 describe("project-mutate-completeness hook helper", () => {
   it("should reject API project create when moa_file omitted", () => {
     const result = completenessHook.validateProjectMutateCompleteness({
@@ -113,6 +133,56 @@ describe("project-mutate-completeness hook entrypoint", () => {
     expect(entry).toContain("project-mutate-completeness.js")
     expect(entry).toContain("onRecordCreateRequest")
     expect(entry).toContain("onRecordUpdateRequest")
+  })
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should accept LGU update when dates are DateTime objects (%s)",
+    (role) => {
+      const next = vi.fn()
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          auth: { get: (field: string) => (field === "role" ? role : "") },
+          record: recordGet(lguRecordFields()),
+        },
+        false
+      )
+      expect(next).toHaveBeenCalledOnce()
+    }
+  )
+
+  it("should throw Start date is required when DateTime start date is empty", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          auth: {
+            get: (field: string) => (field === "role" ? "Municipality" : ""),
+          },
+          record: recordGet(lguRecordFields({ start_date: dateTime("") })),
+        },
+        false
+      )
+    ).toThrow(/Start date is required/)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should throw End date is required when DateTime end date is empty", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          auth: {
+            get: (field: string) => (field === "role" ? "Municipality" : ""),
+          },
+          record: recordGet(lguRecordFields({ target_end_date: dateTime("") })),
+        },
+        false
+      )
+    ).toThrow(/End date is required/)
+    expect(next).not.toHaveBeenCalled()
   })
 
   it("should throw BadRequestError when municipality create omits photos", () => {
