@@ -487,6 +487,149 @@ describe("sync-project-progress history-edit revert", () => {
   })
 })
 
+describe("sync-project-progress afterCreate latest pick", () => {
+  function row(
+    id: string,
+    toPct: number,
+    fields: { created?: string; updated?: string; expense_date?: string } = {}
+  ) {
+    return {
+      id,
+      get(field: string) {
+        if (field === "to_pct") return toPct
+        if (field === "created") return fields.created ?? "2026-06-01 00:00:00.000Z"
+        if (field === "updated") return fields.updated ?? ""
+        if (field === "expense_date") return fields.expense_date ?? ""
+        if (field === "project") return "proj-1"
+        return ""
+      },
+    }
+  }
+
+  function projectState(status: string, progressPct: number) {
+    const state = { status, progress_pct: progressPct }
+    return {
+      state,
+      record: {
+        get(field: string) {
+          if (field === "status") return state.status
+          if (field === "progress_pct") return state.progress_pct
+          return ""
+        },
+        set(field: string, value: string | number) {
+          if (field === "status") state.status = String(value)
+          if (field === "progress_pct") state.progress_pct = Number(value)
+        },
+      },
+    }
+  }
+
+  function appFor(
+    project: ReturnType<typeof projectState>,
+    rows: ReturnType<typeof row>[]
+  ) {
+    const saved: { status: string; progress_pct: number }[] = []
+    return {
+      saved,
+      app: {
+        findRecordById(collection: string, id: string) {
+          if (collection === "projects" && id === "proj-1") return project.record
+          throw new Error("missing record")
+        },
+        findRecordsByFilter() {
+          return rows
+        },
+        save() {
+          saved.push({
+            status: project.state.status,
+            progress_pct: project.state.progress_pct,
+          })
+        },
+      },
+    }
+  }
+
+  it("should set For Completion when the just-saved 100% row is missing from the query", () => {
+    const project = projectState("Ongoing", 70)
+    const event = row("just-saved", 100, {
+      created: "2026-08-01 00:00:00.000Z",
+    })
+    const { app, saved } = appFor(project, [
+      row("older", 70, { created: "2026-05-01 00:00:00.000Z" }),
+    ])
+    progressHook.syncProjectFromProgressUpdate(app, event)
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
+  it("should set For Completion when the 100% row has empty timestamps and a losing id", () => {
+    const datedOlderKey = "2026-08-01 00:00:00.000Z"
+    const losingId = "100-row"
+    expect(losingId.localeCompare(datedOlderKey)).toBeLessThan(0)
+    expect("newest".localeCompare(datedOlderKey)).toBeGreaterThan(0)
+
+    const project = projectState("Ongoing", 70)
+    const event = row(losingId, 100, { created: "", updated: "" })
+    const older = row("older", 70, { created: datedOlderKey })
+    const { app, saved } = appFor(project, [older, event])
+    progressHook.syncProjectFromProgressUpdate(app, event)
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
+  it("should keep Ongoing when a newer 70% row is later than an older 100% row", () => {
+    const project = projectState("Ongoing", 40)
+    const olderHundred = row("older-hundred", 100, {
+      created: "2026-05-01 00:00:00.000Z",
+    })
+    const event = row("later-70", 70, {
+      created: "2026-08-01 00:00:00.000Z",
+    })
+    const { app, saved } = appFor(project, [olderHundred, event])
+    progressHook.syncProjectFromProgressUpdate(app, event)
+    expect(saved).toEqual([{ status: "Ongoing", progress_pct: 70 }])
+  })
+
+  it("should set For Completion at 100% even when expense_date is present", () => {
+    const hookSource = readFileSync(
+      resolve(hooksDir, "sync-project-progress.js"),
+      "utf8"
+    )
+    expect(hookSource).not.toMatch(/expense_date/)
+
+    const project = projectState("Ongoing", 70)
+    const event = row("just-saved", 100, {
+      created: "2026-08-01 00:00:00.000Z",
+      expense_date: "2026-08-01",
+    })
+    const { app, saved } = appFor(project, [
+      row("older", 70, {
+        created: "2026-05-01 00:00:00.000Z",
+        expense_date: "2026-04-01",
+      }),
+    ])
+    progressHook.syncProjectFromProgressUpdate(app, event)
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
+  it("should leave the client progress save belt as progress percent only", () => {
+    const clientSource = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../../../apps/admin-frontend/components/progress-module.tsx"
+      ),
+      "utf8"
+    )
+    const start = clientSource.indexOf(
+      "async function patchProjectAfterProgressSave"
+    )
+    const belt = clientSource.slice(start, start + 520)
+    expect(belt).toContain("progress_pct: options.toPct")
+    expect(belt).toMatch(
+      /collection\("projects"\)\.update\([^,]+,\s*\{\s*progress_pct: options\.toPct,\s*\}\)/
+    )
+    expect(belt).not.toMatch(/\bstatus\s*:/)
+  })
+})
+
 describe("sync-project-procurement hook", () => {
   it("should set Ongoing from Planning or Procurement when count is 1", () => {
     expect(allocationHook.projectStatusAfterAllocation("Planning", 1)).toBe(

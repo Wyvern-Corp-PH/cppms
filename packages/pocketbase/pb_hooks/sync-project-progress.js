@@ -213,7 +213,13 @@ function syncProjectFromProgressUpdate(app, progressRecord) {
     const projectId = progressRecord.get("project")
     if (!projectId) return
 
-    const source = latestProgressUpdate(app, projectId) ?? progressRecord
+    const queried = progressRowsForProject(app, projectId)
+    const hasEventStamp =
+      progressRecord.get("created") || progressRecord.get("updated")
+    const source = hasEventStamp
+      ? pickLatestProgressUpdate(queried.concat([progressRecord])) ??
+        progressRecord
+      : progressRecord
     const project = app.findRecordById("projects", projectId)
     const patch = projectProgressPatch(
       source.get("to_pct"),
