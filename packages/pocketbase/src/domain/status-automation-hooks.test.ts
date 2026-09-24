@@ -575,6 +575,15 @@ describe("sync-project-progress afterCreate latest pick", () => {
     expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
   })
 
+  it("should set For Completion when a same-id query row ties created with a 100% event", () => {
+    const created = "2026-08-01 00:00:00.000Z"
+    const project = projectState("Ongoing", 70)
+    const event = row("same-id", 100, { created })
+    const { app, saved } = appFor(project, [row("same-id", 70, { created })])
+    progressHook.syncProjectFromProgressUpdate(app, event)
+    expect(saved).toEqual([{ status: "For Completion", progress_pct: 100 }])
+  })
+
   it("should keep Ongoing when a newer 70% row is later than an older 100% row", () => {
     const project = projectState("Ongoing", 40)
     const olderHundred = row("older-hundred", 100, {
