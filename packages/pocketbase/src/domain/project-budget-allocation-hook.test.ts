@@ -78,6 +78,7 @@ describe("createBudgetAllocationForProject", () => {
       project: "project-1",
       amount: 750_000,
       year: 2026,
+      description: "System-generated from Provincial project creation.",
     })
   })
 

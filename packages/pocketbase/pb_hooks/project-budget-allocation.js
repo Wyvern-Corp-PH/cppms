@@ -25,6 +25,7 @@ function createBudgetAllocationForProject(event) {
       allocation.set("amount", amount)
       allocation.set("year", project.get("budget_year"))
       allocation.set("date", new Date().toISOString().slice(0, 10))
+      allocation.set("description", "System-generated from Provincial project creation.")
       txApp.save(allocation)
     })
   } finally {
