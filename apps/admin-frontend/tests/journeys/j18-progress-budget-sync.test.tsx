@@ -86,13 +86,31 @@ vi.mock("@/lib/pocketbase", () => ({
         }
 
         if (name === "projects") {
+          const projectFields: Record<string, unknown> = {}
+          if (payload instanceof FormData) {
+            payload.forEach((value, key) => {
+              if (value instanceof File) {
+                const current = projectFields[key]
+                const names = Array.isArray(current)
+                  ? current
+                  : current === undefined
+                    ? []
+                    : [current]
+                projectFields[key] = [...names, value.name]
+              } else {
+                projectFields[key] = value
+              }
+            })
+          } else {
+            Object.assign(projectFields, payload)
+          }
           const project: Record<string, unknown> = {
             id: "p-created",
             collectionId: "p",
             collectionName: "projects",
             created: "2026-07-09T00:00:00.000Z",
             updated: "2026-07-09T00:00:00.000Z",
-            ...(payload as Record<string, unknown>),
+            ...projectFields,
           }
           store.projects.unshift(project)
           if (project.source_of_fund) {
@@ -309,6 +327,10 @@ describe("J18 progress update syncs released amount to budget module", () => {
         screen.getByTestId("document-upload-input-site-photo"),
         makeFile("site.jpg", "image/jpeg")
       )
+      await user.type(
+        screen.getByLabelText(/^update notes$/i),
+        "J18 progress update"
+      )
       await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
       await user.type(screen.getByLabelText(/^description$/i), "J18 release")
       await user.click(screen.getByLabelText(/^main account$/i))
@@ -369,6 +391,37 @@ describe("J18 progress update syncs released amount to budget module", () => {
     store.projects = []
     store.allocations = []
     store.expenses = []
+    store.locations = [
+      {
+        id: "loc-municipality",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City",
+        slug: "tuguegarao-city",
+        level: "Municipality",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
+        active: true,
+        sort_order: 1,
+      },
+      {
+        id: "loc-barangay",
+        collectionId: "locations",
+        collectionName: "locations",
+        created: "",
+        updated: "",
+        name: "Tuguegarao City / Centro 01 (Bagumbayan)",
+        slug: "tuguegarao-city/centro-01-bagumbayan",
+        level: "Barangay",
+        municipality_name: "Tuguegarao City",
+        municipality_slug: "tuguegarao-city",
+        barangay_name: "Centro 01 (Bagumbayan)",
+        active: true,
+        sort_order: 2,
+      },
+    ]
     const user = userEvent.setup()
 
     render(<ProjectsModule />)
@@ -377,6 +430,12 @@ describe("J18 progress update syncs released amount to budget module", () => {
     await user.type(screen.getByLabelText(/project name/i), "J18 Provincial Road")
     await user.type(screen.getByLabelText(/^description$/i), "J18 allocation")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial Hall")
+    await user.click(screen.getByRole("combobox", { name: /^municipality$/i }))
+    await user.click(await screen.findByRole("option", { name: "Tuguegarao City" }))
+    await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
+    await user.click(
+      await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
+    )
     await user.click(screen.getByLabelText(/^funding year$/i))
     await user.click(
       await screen.findByRole("option", { name: String(new Date().getFullYear()) })
@@ -384,6 +443,18 @@ describe("J18 progress update syncs released amount to budget module", () => {
     await user.click(screen.getByLabelText(/^source of fund$/i))
     await user.click(await screen.findByRole("option", { name: "1 General Fund" }))
     await user.type(screen.getByLabelText(/^total budget$/i), "75000")
+    await user.upload(
+      screen.getByTestId("document-upload-input-moa-file"),
+      makeFile("moa.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-resolution-file"),
+      makeFile("resolution.pdf")
+    )
+    await user.upload(
+      screen.getByTestId("document-upload-input-supporting-file"),
+      makeFile("supporting.pdf")
+    )
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => expect(store.projects).toHaveLength(1))
