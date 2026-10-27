@@ -286,7 +286,28 @@ export function ReportsModule() {
     for (const tab of tabs) {
       let rows: Record<string, unknown>[] = []
       if (tab === "projects") {
-        rows = filteredProjects.map((project) => reportProjectRow(project))
+        const projectsWithLiquidationCertificate = new Set(
+          updates
+            .filter((update) => update.certificate_of_liquidation.length > 0)
+            .map((update) => update.project)
+        )
+        rows = filteredProjects.map((project) => {
+          const {
+            name,
+            category,
+            status,
+            ...remaining
+          } = reportProjectRow(project)
+          return {
+            name,
+            category,
+            "Completion Status": status,
+            "Liquidation Status": projectsWithLiquidationCertificate.has(project.id)
+              ? "Liquidated"
+              : "—",
+            ...remaining,
+          }
+        })
       } else if (tab === "budget") {
         rows = breakdown.map((row) => {
           const project = filteredProjects.find((item) => item.id === row.projectId)

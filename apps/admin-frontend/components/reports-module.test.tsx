@@ -1183,12 +1183,112 @@ describe("ReportsModule (V12)", () => {
       expect.objectContaining({
         name: "Bridge",
         category: "Infrastructure",
-        status: "Ongoing",
+        "Completion Status": "Ongoing",
         lgu: "Barangay",
         location: "Tuguegarao City / Centro 01 (Bagumbayan)",
         budget: formatPhp(200_000),
         progress: "75%",
       }),
+    ])
+  })
+
+  it("exports completion and certificate-based liquidation status on the projects sheet", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p-certified",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Certified Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+      },
+      {
+        id: "p-no-certificate",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Uncertified Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+      },
+      {
+        id: "p-generic-only",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Other Documents Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+      },
+    ]
+    store.updates = [
+      {
+        id: "upd-certified",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-certified",
+        from_pct: 75,
+        to_pct: 100,
+        site_photo: [],
+        certificate_of_liquidation: ["liquidation-certificate.pdf"],
+      },
+      {
+        id: "upd-no-certificate",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-no-certificate",
+        from_pct: 75,
+        to_pct: 100,
+        site_photo: [],
+      },
+      {
+        id: "upd-generic-only",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-generic-only",
+        from_pct: 75,
+        to_pct: 100,
+        site_photo: [],
+        liquidation_documents: ["other-liquidation-document.pdf"],
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByText("Certified Bridge"))
+    await user.click(screen.getByTestId("export-current-tab"))
+
+    const rows = vi.mocked(XLSX.utils.json_to_sheet).mock.calls[0]?.[0] as Array<
+      Record<string, unknown>
+    >
+    expect(Object.keys(rows[0] ?? {})).toEqual([
+      "name",
+      "category",
+      "Completion Status",
+      "Liquidation Status",
+      "deadline",
+      "lgu",
+      "location",
+      "budget",
+      "progress",
+    ])
+    expect(
+      rows.map((row) => [
+        row.name,
+        row["Completion Status"],
+        row["Liquidation Status"],
+      ])
+    ).toEqual([
+      ["Certified Bridge", "Completed", "Liquidated"],
+      ["Uncertified Bridge", "Completed", "—"],
+      ["Other Documents Bridge", "Completed", "—"],
     ])
   })
 
