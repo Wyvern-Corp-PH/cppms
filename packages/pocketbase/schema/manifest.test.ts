@@ -495,6 +495,14 @@ describe("pb migration file", () => {
     expect(migrationSource).toContain('"certificate_of_liquidation"')
     expect(migrationSource).toContain("maxSelect: 10")
   })
+
+  it("adds missing progress document fields when PocketBase returns no field model", () => {
+    const migrationSource = readFileSync(progressDocumentsMigrationPath, "utf8")
+
+    expect(migrationSource).toContain(
+      "return Boolean(collection.fields.getByName(name))"
+    )
+  })
 })
 
 describe("collection access rules (V14, T8)", () => {

@@ -17,8 +17,7 @@ const progressDocumentFields = [
 
 function fieldExists(collection, name) {
   try {
-    collection.fields.getByName(name)
-    return true
+    return Boolean(collection.fields.getByName(name))
   } catch {
     return false
   }
