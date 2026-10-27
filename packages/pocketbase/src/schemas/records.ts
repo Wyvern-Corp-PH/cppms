@@ -150,6 +150,7 @@ export const progressUpdateRecordSchema = baseRecordSchema.extend({
   to_pct: z.number().min(0).max(100),
   notes: z.string().optional(),
   site_photo: pbFileList,
+  completion_site_photo: pbFileList,
   certification_completion: pbFileList,
   certificate_acceptance: pbFileList,
   proof_payment_barangay: pbFileList,
@@ -157,6 +158,7 @@ export const progressUpdateRecordSchema = baseRecordSchema.extend({
   audit_documents: pbFileList,
   verification_documents: pbFileList,
   liquidation_documents: pbFileList,
+  certificate_of_liquidation: pbFileList,
   updated_by: pbEmptyAsUndefined(z.string().optional()),
   updated_at: z.string().optional(),
 })

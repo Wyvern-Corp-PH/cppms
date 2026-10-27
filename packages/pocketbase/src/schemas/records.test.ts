@@ -408,12 +408,19 @@ describe("collection record schemas (V33, V36)", () => {
       audit_documents: ["audit.pdf"],
       verification_documents: ["verification.pdf"],
       liquidation_documents: ["liquidation.pdf"],
+      completion_site_photo: ["completion-site.jpg"],
+      certificate_of_liquidation: ["certificate-of-liquidation.pdf"],
     })
     expect(progress.success).toBe(true)
     if (progress.success) {
       expect(progress.data.site_photo).toEqual(["photo.jpg"])
       expect(progress.data.certification_completion).toEqual(["certification.pdf"])
       expect(progress.data.audit_documents).toEqual(["audit.pdf"])
+      expect(progress.data.completion_site_photo).toEqual(["completion-site.jpg"])
+      expect(progress.data.certificate_of_liquidation).toEqual([
+        "certificate-of-liquidation.pdf",
+      ])
+      expect(progress.data.liquidation_documents).toEqual(["liquidation.pdf"])
     }
 
     expect(

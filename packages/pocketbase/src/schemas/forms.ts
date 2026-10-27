@@ -74,10 +74,66 @@ export const REQUIRED_COMPLETION_DOCUMENTS = [
   },
 ] as const
 
+export const COMPLETION_DOCUMENTS = [
+  {
+    field: "completion_site_photo",
+    label: "Site Photo",
+    multiple: true,
+  },
+  {
+    field: "certification_completion",
+    label: "Certificate of Completion",
+    multiple: true,
+  },
+  {
+    field: "certificate_acceptance",
+    label: "Certificate of Acceptance",
+    multiple: true,
+  },
+  {
+    field: "proof_payment_barangay",
+    label: "Proof of Payment from Barangay",
+    multiple: true,
+  },
+  {
+    field: "acknowledgment_completion",
+    label: "Acknowledgment of Completion",
+    multiple: true,
+  },
+  {
+    field: "audit_documents",
+    label: "Audit Documents",
+    multiple: true,
+  },
+  {
+    field: "verification_documents",
+    label: "Verification Documents",
+    multiple: true,
+  },
+] as const
+
+export const LIQUIDATION_DOCUMENTS = [
+  {
+    field: "liquidation_documents",
+    label: "Other Liquidation Documents",
+    multiple: true,
+  },
+  {
+    field: "certificate_of_liquidation",
+    label: "Certificate of Liquidation",
+    multiple: true,
+  },
+] as const
+
 export type CompletionDocumentField =
   (typeof REQUIRED_COMPLETION_DOCUMENTS)[number]["field"]
 
+export type ProgressDocumentField =
+  | (typeof COMPLETION_DOCUMENTS)[number]["field"]
+  | (typeof LIQUIDATION_DOCUMENTS)[number]["field"]
+
 const completionDocsSchema = z.object({
+  completion_site_photo: optionalUploadedFileListSchema,
   certification_completion: optionalUploadedFileListSchema,
   certificate_acceptance: optionalUploadedFileListSchema,
   proof_payment_barangay: optionalUploadedFileListSchema,
@@ -85,6 +141,7 @@ const completionDocsSchema = z.object({
   audit_documents: optionalUploadedFileListSchema,
   verification_documents: optionalUploadedFileListSchema,
   liquidation_documents: optionalUploadedFileListSchema,
+  certificate_of_liquidation: optionalUploadedFileListSchema,
 })
 
 export const loginFormSchema = z.object({
@@ -539,27 +596,6 @@ export const progressUpdateFormSchema = z
     sitePhoto: sitePhotoListSchema,
     completionDocs: completionDocsSchema.optional(),
   })
-  .superRefine((value, ctx) => {
-    if (value.toPct < 100) {
-      return
-    }
-
-    for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
-      const fieldValue = value.completionDocs?.[doc.field]
-      const missing = Array.isArray(fieldValue)
-        ? fieldValue.length === 0
-        : !fieldValue
-      if (missing) {
-        ctx.addIssue({
-          code: "custom",
-          path: [doc.field],
-          message: doc.label.endsWith("Documents")
-            ? `${doc.label} are required.`
-            : `${doc.label} is required.`,
-        })
-      }
-    }
-  })
 
 export const progressUpdateWithReleasedAmountFormSchema =
   progressUpdateFormSchema.extend({
@@ -573,6 +609,7 @@ const revisionSitePhotoListSchema = z.preprocess(
 
 const existingCompletionDocNamesSchema = z
   .object({
+    completion_site_photo: z.array(z.string()).optional(),
     certification_completion: z.array(z.string()).optional(),
     certificate_acceptance: z.array(z.string()).optional(),
     proof_payment_barangay: z.array(z.string()).optional(),
@@ -580,6 +617,7 @@ const existingCompletionDocNamesSchema = z
     audit_documents: z.array(z.string()).optional(),
     verification_documents: z.array(z.string()).optional(),
     liquidation_documents: z.array(z.string()).optional(),
+    certificate_of_liquidation: z.array(z.string()).optional(),
   })
   .optional()
 
@@ -604,27 +642,6 @@ export const progressUpdateRevisionFormSchema = z
       })
     }
 
-    if (value.toPct < 100) {
-      return
-    }
-
-    for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
-      const fieldValue = value.completionDocs?.[doc.field]
-      const hasNew = Array.isArray(fieldValue)
-        ? fieldValue.length > 0
-        : Boolean(fieldValue)
-      const hasExisting =
-        (value.existingCompletionDocNames?.[doc.field]?.length ?? 0) > 0
-      if (!hasNew && !hasExisting) {
-        ctx.addIssue({
-          code: "custom",
-          path: [doc.field],
-          message: doc.label.endsWith("Documents")
-            ? `${doc.label} are required.`
-            : `${doc.label} is required.`,
-        })
-      }
-    }
   })
 
 export const progressUpdateRevisionWithReleasedAmountFormSchema =

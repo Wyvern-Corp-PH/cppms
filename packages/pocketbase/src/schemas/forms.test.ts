@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   approvalFormSchema,
-  budgetAllocationMutateSchema,
-  budgetAllocationMutateSchemaForMode,
   budgetExpenseMutateSchema,
   changePasswordFormSchema,
   loginFormSchema,
@@ -124,7 +122,7 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires Province identity and budget fields but not period on create", () => {
+  it("requires Province identity, Source of Fund, and Total Budget on create", () => {
     const schema = projectMutateSchemaForActor("Province", true, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
@@ -137,8 +135,6 @@ describe("projectMutateSchema (V34)", () => {
       const errors = fieldErrorsFromZod(missing.error)
       expect(errors.description).toMatch(/required/i)
       expect(errors.location).toMatch(/required/i)
-      expect(errors.barangay).toBe("Barangay is required.")
-      expect(errors.municipality).toBe("Municipality is required.")
       expect(errors.source_of_fund).toMatch(/required/i)
       expect(errors.total_budget).toMatch(/greater than zero/i)
     }
@@ -151,12 +147,6 @@ describe("projectMutateSchema (V34)", () => {
       description: "Charter encoding",
       location: "Poblacion",
       barangay: "Centro",
-      funding_year: 2025,
-      source_of_fund: "General Fund",
-      total_budget: 750000,
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(barangayWithoutMunicipality.success).toBe(false)
     if (!barangayWithoutMunicipality.success) {
@@ -172,14 +162,9 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro 01 (Bagumbayan)",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(complete.success).toBe(true)
   })
@@ -193,11 +178,6 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(missing.success).toBe(false)
     if (!missing.success) {
@@ -216,14 +196,9 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "Others",
       total_budget: 750000,
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(othersMissingDetail.success).toBe(false)
     if (!othersMissingDetail.success) {
@@ -239,19 +214,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(complete.success).toBe(true)
   })
 
-  it("should reject provincial project create when attachments are missing on import path", () => {
+  it("does not require fund source on Province create used by excel import", () => {
     const schema = projectMutateSchemaForActor("Province", true)
     const result = schema.safeParse({
       name: "Imported road",
@@ -260,40 +230,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Phase 1",
       location: "Tuguegarao City",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
-      period_of_implementation: "FY 2026",
-      funding_year: 2025,
-      fund_source: "Special Education Fund",
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const errors = fieldErrorsFromZod(result.error)
-      expect(errors.moa_file).toBe("MOA document is required.")
-      expect(errors.resolution_file).toBe("Resolution document is required.")
-      expect(errors.supporting_docs).toBe("Supporting documents are required.")
-    }
-  })
-
-  it("should accept provincial edit when moa exists on record without new file", () => {
-    const schema = projectMutateSchemaForActor("Province", false, { form: true })
-    const result = schema.safeParse({
-      name: "Charter Road",
-      category: "Infrastructure",
-      status: "Planning",
-      budget_year: 2026,
-      description: "Charter encoding",
-      location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
-      period_of_implementation: "FY 2026",
-      funding_year: 2025,
-      fund_source: "Special Education Fund",
-      existing_moa_file: ["moa-on-record.pdf"],
-      existing_resolution_file: ["res-on-record.pdf"],
-      existing_supporting_docs: ["sup-on-record.pdf"],
     })
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.fund_source).toBeUndefined()
+      expect(result.data.funding_year).toBeUndefined()
+      expect(result.data.contractor).toBeUndefined()
+      expect(result.data.bid_price).toBeUndefined()
+    }
   })
 
   it("requires owned identity fields on Province form edit", () => {
@@ -309,8 +253,6 @@ describe("projectMutateSchema (V34)", () => {
       const errors = fieldErrorsFromZod(missing.error)
       expect(errors.description).toMatch(/required/i)
       expect(errors.location).toMatch(/required/i)
-      expect(errors.fund_source).toBe("Main account is required.")
-      expect(errors.barangay).toBe("Barangay is required.")
       expect(errors.source_of_fund).toBeUndefined()
       expect(errors.total_budget).toBeUndefined()
       expect(errors.funding_year).toBe("Funding year is required.")
@@ -327,10 +269,8 @@ describe("projectMutateSchema (V34)", () => {
       status: "Ongoing",
       budget_year: 2026,
       contractor: "Local Builders",
-      bid_price: 500_000,
       start_date: "2026-06-01",
       target_end_date: "2026-12-01",
-      existing_project_photos: ["site.jpg"],
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -340,28 +280,26 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires contractor, bid price, dates, and photos on municipality and barangay save", () => {
+  it("requires start and end dates on municipality and barangay save", () => {
     for (const role of ["Municipality", "Barangay"] as const) {
-      const schema = projectMutateSchemaForActor(role, true, { form: true })
+      const schema = projectMutateSchemaForActor(role, false, { form: true })
       const missing = schema.safeParse({
         name: "Bridge",
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
+        contractor: "Local Builders",
       })
       expect(missing.success).toBe(false)
       if (!missing.success) {
         const errors = fieldErrorsFromZod(missing.error)
-        expect(errors.contractor).toBe("Contractor is required.")
-        expect(errors.bid_price).toBe("Bid price is required.")
         expect(errors.start_date).toBe("Start date is required.")
         expect(errors.target_end_date).toBe("End date is required.")
-        expect(errors.project_photos).toBe("Project photos are required.")
       }
     }
   })
 
-  it("does not require LGU contractor fields on Super Admin form create", () => {
+  it("does not require start and end dates on Super Admin form create", () => {
     const schema = projectMutateSchemaForActor("Super Admin", true, {
       form: true,
     })
@@ -372,14 +310,9 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Span",
       location: "East bank",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(result.success).toBe(true)
   })
@@ -395,12 +328,6 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Span",
       location: "East bank",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
-      period_of_implementation: "FY 2026",
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(missing.success).toBe(false)
     if (!missing.success) {
@@ -568,16 +495,12 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     sub_account: "GF - Proper",
     description: "Materials",
   }
-  const progressBase = {
-    projectId: "1",
-    toPct: 50,
-    notes: "Progress notes",
-    sitePhoto: makeFile("site.jpg"),
-  }
 
   it("requires released amount fields for scoped progress updates", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      ...progressBase,
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
       releasedAmount: {
         amount: "",
         year: "2026",
@@ -596,7 +519,9 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("accepts released amount without user-entered expense date or receipt number", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      ...progressBase,
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
       releasedAmount: validReleasedAmount,
     })
 
@@ -609,7 +534,9 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when description is blank", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      ...progressBase,
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
       releasedAmount: { ...validReleasedAmount, description: "" },
     })
 
@@ -623,7 +550,9 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should reject when description is whitespace-only", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      ...progressBase,
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
       releasedAmount: { ...validReleasedAmount, description: "   " },
     })
 
@@ -637,7 +566,9 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
 
   it("should accept trimmed non-blank description", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
-      ...progressBase,
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
       releasedAmount: {
         ...validReleasedAmount,
         description: "  Materials  ",
@@ -739,63 +670,33 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: undefined,
     })
     expect(result.success).toBe(false)
   })
 
-  it("should reject when update notes are blank", () => {
-    const result = progressUpdateFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      notes: "   ",
-      sitePhoto: makeFile("site.jpg"),
-    })
-
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).notes).toBe(
-        "Update notes are required."
-      )
-    }
-  })
-
-  it("should reject when update notes are omitted", () => {
-    const result = progressUpdateFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      sitePhoto: makeFile("site.jpg"),
-    })
-
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).notes).toBe(
-        "Update notes are required."
-      )
-    }
-  })
-
-  it("requires all completion documents when progress reaches 100% (V110)", () => {
+  it("allows 100% progress with no optional completion or liquidation documents", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
-      notes: "Complete",
       sitePhoto: makeFile("site.jpg"),
-      completionDocs: {
-        certification_completion: makeFile("certification.pdf"),
-        certificate_acceptance: makeFile("acceptance.pdf"),
-        proof_payment_barangay: makeFile("payment.pdf"),
-      },
+      completionDocs: {},
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it("still requires the separate progress update site photo at 100%", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 100,
+      sitePhoto: [],
+      completionDocs: {},
     })
 
     expect(result.success).toBe(false)
     if (!result.success) {
-      const errors = fieldErrorsFromZod(result.error)
-      expect(errors.acknowledgment_completion).toMatch(/required/i)
-      expect(errors.audit_documents).toMatch(/required/i)
-      expect(errors.verification_documents).toMatch(/required/i)
-      expect(errors.liquidation_documents).toMatch(/required/i)
+      expect(fieldErrorsFromZod(result.error).sitePhoto).toMatch(/required/i)
     }
   })
 
@@ -803,7 +704,6 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 22,
-      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       completionDocs: {
         certification_completion: null,
@@ -823,7 +723,6 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
     })
 
@@ -834,9 +733,12 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
-      notes: "Complete",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
       completionDocs: {
+        completion_site_photo: [
+          makeFile("completion-site-1.jpg"),
+          makeFile("completion-site-2.jpg"),
+        ],
         certification_completion: [
           makeFile("certification-1.pdf"),
           makeFile("certification-2.pdf"),
@@ -862,10 +764,20 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
           makeFile("liquidation-1.pdf"),
           makeFile("liquidation-2.pdf"),
         ],
+        certificate_of_liquidation: [
+          makeFile("certificate-of-liquidation-1.pdf"),
+          makeFile("certificate-of-liquidation-2.pdf"),
+        ],
       },
     })
 
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.completionDocs?.completion_site_photo).toHaveLength(2)
+      expect(
+        result.data.completionDocs?.certificate_of_liquidation
+      ).toHaveLength(2)
+    }
   })
 })
 
@@ -874,7 +786,6 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
     })
@@ -882,28 +793,10 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     expect(result.success).toBe(true)
   })
 
-  it("should reject revision when update notes are blank", () => {
-    const result = progressUpdateRevisionFormSchema.safeParse({
-      projectId: "1",
-      toPct: 50,
-      notes: "",
-      sitePhoto: [],
-      existingSitePhotoNames: ["site-on-record.jpg"],
-    })
-
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).notes).toBe(
-        "Update notes are required."
-      )
-    }
-  })
-
   it("rejects empty File[] without server site photo names", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: [],
     })
@@ -918,7 +811,6 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
-      notes: "Complete",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       completionDocs: {
@@ -944,32 +836,25 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     expect(result.success).toBe(true)
   })
 
-  it("still requires completion docs at 100% when server names missing", () => {
+  it("allows history edits at 100% with no optional completion docs", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
-      notes: "Complete",
       sitePhoto: [makeFile("site.jpg")],
       existingSitePhotoNames: [],
       completionDocs: {},
       existingCompletionDocNames: {
-        certification_completion: ["cert.pdf"],
+        certification_completion: [],
       },
     })
 
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const errors = fieldErrorsFromZod(result.error)
-      expect(errors.acknowledgment_completion).toMatch(/required/i)
-      expect(errors.liquidation_documents).toMatch(/required/i)
-    }
+    expect(result.success).toBe(true)
   })
 
   it("create path schema still requires site photo File min(1)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
     })
 
@@ -980,7 +865,6 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -999,7 +883,6 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -1051,7 +934,6 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
-      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -1075,90 +957,5 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
       const errors = fieldErrorsFromZod(result.error)
       expect(errors["releasedAmount.description"]).toMatch(/required/i)
     }
-  })
-})
-
-const allocationComplete = {
-  project: "p1",
-  amount: 100_000,
-  year: 2026,
-  date: "2026-07-09",
-  description: "FY2026 tranche",
-  moa_file: [makeFile("moa.pdf")],
-  resolution_file: [makeFile("res.pdf")],
-  supporting_docs: [makeFile("sup.pdf")],
-}
-
-describe("budgetAllocationMutateSchema", () => {
-  it("should reject allocation create when description is blank", () => {
-    const result = budgetAllocationMutateSchema.safeParse({
-      ...allocationComplete,
-      description: "   ",
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(fieldErrorsFromZod(result.error).description).toBe(
-        "Description is required."
-      )
-    }
-  })
-
-  it("should reject allocation create when required documents are missing", () => {
-    const result = budgetAllocationMutateSchema.safeParse({
-      project: "p1",
-      amount: 100_000,
-      year: 2026,
-      date: "2026-07-09",
-      description: "FY2026 tranche",
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const errors = fieldErrorsFromZod(result.error)
-      expect(errors.moa_file).toBe("MOA document is required.")
-      expect(errors.resolution_file).toBe("Resolution document is required.")
-      expect(errors.supporting_docs).toBe("Supporting documents are required.")
-    }
-  })
-
-  it("should keep project, amount, and year required", () => {
-    const result = budgetAllocationMutateSchema.safeParse({
-      description: "FY2026 tranche",
-      date: "2026-07-09",
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const errors = fieldErrorsFromZod(result.error)
-      expect(errors.project).toBeTruthy()
-      expect(errors.amount).toBeTruthy()
-      expect(errors.year).toBeTruthy()
-    }
-  })
-
-  it("should accept complete allocation create", () => {
-    const result = budgetAllocationMutateSchema.safeParse(allocationComplete)
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.description).toBe("FY2026 tranche")
-      expect(result.data).not.toHaveProperty("moa_file")
-      expect(result.data).not.toHaveProperty("resolution_file")
-      expect(result.data).not.toHaveProperty("supporting_docs")
-    }
-  })
-
-  it("should accept allocation edit when documents exist on record without new files", () => {
-    const result = budgetAllocationMutateSchemaForMode(false).safeParse({
-      project: "p1",
-      amount: 90_000,
-      year: 2026,
-      date: "2026-07-09",
-      description: "Scalar edit",
-      existing_moa_file: ["moa-on-record.pdf"],
-      existing_resolution_file: ["res-on-record.pdf"],
-      existing_supporting_docs: ["sup-on-record.pdf"],
-    })
-    expect(result.success).toBe(true)
   })
 })

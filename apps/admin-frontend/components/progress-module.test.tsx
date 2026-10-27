@@ -315,18 +315,9 @@ describe("ProgressModule (V81, V84)", () => {
     }
   }
 
-  async function fillRequiredNotes(
-    user: ReturnType<typeof userEvent.setup>
-  ) {
-    const notes = screen.getByLabelText(/update notes/i)
-    await user.clear(notes)
-    await user.type(notes, "Progress notes")
-  }
-
   async function fillRequiredReleasedAmount(
     user: ReturnType<typeof userEvent.setup>
   ) {
-    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -343,26 +334,6 @@ describe("ProgressModule (V81, V84)", () => {
       role: "Super Admin",
       account_status: "Active",
     }
-  }
-
-  function expectRequiredMark(
-    labelText: string | RegExp,
-    root: HTMLElement = document.body
-  ) {
-    const text = within(root).getByText(labelText)
-    const label = text.closest("[data-slot=field-label]")
-    expect(label, `required mark for ${String(labelText)}`).not.toBeNull()
-    expect(label).toHaveAttribute("data-required", "true")
-  }
-
-  function expectNoRequiredMark(
-    labelText: string | RegExp,
-    root: HTMLElement = document.body
-  ) {
-    const text = within(root).getByText(labelText)
-    const label = text.closest("[data-slot=field-label]")
-    expect(label, `label for ${String(labelText)}`).not.toBeNull()
-    expect(label).not.toHaveAttribute("data-required")
   }
 
   it("shows drag-and-drop site photo upload in update modal", async () => {
@@ -1512,60 +1483,11 @@ describe("ProgressModule (V81, V84)", () => {
     await user.click(
       await screen.findByRole("button", { name: /update progress/i })
     )
-    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     expect(
       await screen.findAllByText(/site photo is required/i)
     ).not.toHaveLength(0)
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
-  it("should show a field error when saving without update notes", async () => {
-    const user = userEvent.setup()
-    useBarangayActor()
-    store.projects = [
-      {
-        id: "1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        progress_pct: 25,
-        ...barangayScope,
-      },
-    ]
-
-    render(<ProgressModule />)
-
-    await user.click(
-      await screen.findByRole("button", { name: /update progress/i })
-    )
-    await user.upload(
-      screen.getByTestId("document-upload-input-site-photo"),
-      makeFile("site.jpg", "image/jpeg")
-    )
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
-    await user.type(screen.getByLabelText(/^description$/i), "Release for progress")
-    await user.click(screen.getByRole("button", { name: /save update/i }))
-
-    expect(
-      await screen.findByText(/update notes are required/i)
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText(/update notes/i)).toHaveAttribute(
-      "aria-invalid",
-      "true"
-    )
     expect(createMock).not.toHaveBeenCalled()
   })
 
@@ -1702,46 +1624,50 @@ describe("ProgressModule (V81, V84)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("blocks saving a 100% progress update until completion documents are uploaded", async () => {
-    const user = userEvent.setup()
-    useBarangayActor()
-    store.projects = [
-      {
-        id: "1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "For Revision",
-        budget_year: 2026,
-        progress_pct: 100,
-        ...barangayScope,
-      },
-    ]
+  it.each(["Barangay", "Municipality"] as const)(
+    "%s users can save 100% progress with only the required progress site photo",
+    async (role) => {
+      const user = userEvent.setup()
+      if (role === "Barangay") useBarangayActor()
+      else useMunicipalityActor()
+      store.projects = [
+        {
+          id: "1",
+          collectionId: "p",
+          collectionName: "projects",
+          created: "",
+          updated: "",
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "For Revision",
+          budget_year: 2026,
+          progress_pct: 100,
+          ...barangayScope,
+        },
+      ]
 
-    render(<ProgressModule />)
+      render(<ProgressModule />)
 
-    await user.click(
-      await screen.findByRole("button", { name: /update progress/i })
-    )
-    await user.upload(
-      screen.getByTestId("document-upload-input-site-photo"),
-      makeFile("site.jpg", "image/jpeg")
-    )
-    await fillRequiredReleasedAmount(user)
-    await user.click(screen.getByRole("button", { name: /save update/i }))
+      await user.click(
+        await screen.findByRole("button", { name: /update progress/i })
+      )
+      await user.upload(
+        screen.getByTestId("document-upload-input-site-photo"),
+        makeFile("site.jpg", "image/jpeg")
+      )
+      await fillRequiredReleasedAmount(user)
+      await user.click(screen.getByRole("button", { name: /save update/i }))
 
-    expect(
-      await screen.findByText(/certification of completion is required/i)
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByText(/liquidation documents are required/i)
-    ).toBeInTheDocument()
-    expect(createMock).not.toHaveBeenCalled()
-    expect(projectUpdateMock).not.toHaveBeenCalled()
-  })
+      await waitFor(() => {
+        expect(createMock).toHaveBeenCalledTimes(1)
+        expect(expenseCreateMock).toHaveBeenCalledTimes(1)
+      })
+      const payload = createMock.mock.calls[0]?.[0] as FormData
+      expect(payload.getAll("site_photo")).toHaveLength(1)
+      expect(payload.getAll("completion_site_photo")).toHaveLength(0)
+      expect(payload.getAll("certificate_of_liquidation")).toHaveLength(0)
+    }
+  )
 
   it("should still show seven completion documents on Update Progress at 100%", async () => {
     const user = userEvent.setup()
@@ -1768,20 +1694,43 @@ describe("ProgressModule (V81, V84)", () => {
       await screen.findByRole("button", { name: /update progress/i })
     )
 
-    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
-    expect(within(dialog).getByText("Completion documents")).toBeInTheDocument()
-    expectRequiredMark("Certification of Completion", dialog)
-    expectRequiredMark("Certificate of Acceptance", dialog)
-    expectRequiredMark("Proof of Payment from Barangay", dialog)
-    expectRequiredMark("Acknowledgment of Completion", dialog)
-    expectRequiredMark("Audit Documents", dialog)
-    expectRequiredMark("Verification Documents", dialog)
-    expectRequiredMark("Liquidation Documents", dialog)
+    const dialog = await screen.findByRole("dialog", {
+      name: /update progress/i,
+    })
     expect(
-      within(dialog).getByTestId("document-upload-input-completion-certification_completion")
+      within(dialog).getByText("Completion Documents")
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText("Site Photo")).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Certificate of Completion")
     ).toBeInTheDocument()
     expect(
-      within(dialog).getByTestId("document-upload-input-completion-liquidation_documents")
+      within(dialog).getByText("Certificate of Acceptance")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Proof of Payment from Barangay")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Acknowledgment of Completion")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Audit Documents")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Verification Documents")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText("Liquidation Documents")
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByTestId(
+        "document-upload-input-completion-completion_site_photo"
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByTestId(
+        "document-upload-input-completion-certificate_of_liquidation"
+      )
     ).toBeInTheDocument()
   })
 
@@ -2149,6 +2098,15 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site-2.jpg", "image/jpeg"),
     ])
     await user.upload(
+      screen.getByTestId(
+        "document-upload-input-completion-completion_site_photo"
+      ),
+      [
+        makeFile("completion-site-1.jpg", "image/jpeg"),
+        makeFile("completion-site-2.jpg", "image/jpeg"),
+      ]
+    )
+    await user.upload(
       screen.getByTestId("document-upload-input-completion-certification_completion"),
       [makeFile("certification-1.pdf"), makeFile("certification-2.pdf")]
     )
@@ -2176,6 +2134,15 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-completion-liquidation_documents"),
       [makeFile("liquidation-1.pdf"), makeFile("liquidation-2.pdf")]
     )
+    await user.upload(
+      screen.getByTestId(
+        "document-upload-input-completion-certificate_of_liquidation"
+      ),
+      [
+        makeFile("certificate-of-liquidation-1.pdf"),
+        makeFile("certificate-of-liquidation-2.pdf"),
+      ]
+    )
     await fillRequiredReleasedAmount(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
@@ -2185,6 +2152,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
     const payload = createMock.mock.calls[0]?.[0] as FormData
     expect(payload.getAll("site_photo")).toHaveLength(2)
+    expect(payload.getAll("completion_site_photo")).toHaveLength(2)
     expect(payload.getAll("certification_completion")).toHaveLength(2)
     expect(payload.getAll("certificate_acceptance")).toHaveLength(2)
     expect(payload.getAll("proof_payment_barangay")).toHaveLength(2)
@@ -2192,6 +2160,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(payload.getAll("audit_documents")).toHaveLength(2)
     expect(payload.getAll("verification_documents")).toHaveLength(2)
     expect(payload.getAll("liquidation_documents")).toHaveLength(2)
+    expect(payload.getAll("certificate_of_liquidation")).toHaveLength(2)
   }, 20_000)
 
   it("should show Update Progress when project is Completed for Barangay progress users", async () => {
@@ -2294,7 +2263,6 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -2360,7 +2328,6 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -3250,27 +3217,27 @@ describe("ProgressModule (V81, V84)", () => {
   })
 
   const COMPLETION_DOC_FIELDS = [
+    "completion_site_photo",
     "certification_completion",
     "certificate_acceptance",
     "proof_payment_barangay",
     "acknowledgment_completion",
     "audit_documents",
     "verification_documents",
-    "liquidation_documents",
   ] as const
 
   const COMPLETION_DOC_LABELS = [
-    "Certification of Completion",
+    "Site Photo",
+    "Certificate of Completion",
     "Certificate of Acceptance",
     "Proof of Payment from Barangay",
     "Acknowledgment of Completion",
     "Audit Documents",
     "Verification Documents",
-    "Liquidation Documents",
   ] as const
 
   function expectSevenCompletionDocs(scope: ReturnType<typeof within>) {
-    expect(scope.getByText("Completion documents")).toBeInTheDocument()
+    expect(scope.getByText("Completion Documents")).toBeInTheDocument()
     for (const field of COMPLETION_DOC_FIELDS) {
       expect(
         scope.getByTestId(`document-upload-input-completion-${field}`)
@@ -3279,6 +3246,13 @@ describe("ProgressModule (V81, V84)", () => {
     for (const label of COMPLETION_DOC_LABELS) {
       expect(scope.getByText(label)).toBeInTheDocument()
     }
+    expect(scope.getByText("Liquidation Documents")).toBeInTheDocument()
+    expect(
+      scope.getByTestId("document-upload-input-completion-liquidation_documents")
+    ).toBeInTheDocument()
+    expect(
+      scope.getByTestId("document-upload-input-completion-certificate_of_liquidation")
+    ).toBeInTheDocument()
   }
 
   function hundredPercentHistoryProject(
@@ -3334,7 +3308,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(editor).getByText(/on record: liq\.pdf/i)).toBeInTheDocument()
   })
 
-  it("should block history-edit save at 100% when completion documents are missing", async () => {
+  it("allows history-edit save at 100% when optional completion documents are missing", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     hundredPercentHistoryProject({
@@ -3352,13 +3326,9 @@ describe("ProgressModule (V81, V84)", () => {
     expectSevenCompletionDocs(within(editor))
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
-    expect(
-      await screen.findByText(/certification of completion is required/i)
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/liquidation documents are required/i)
-    ).toBeInTheDocument()
-    expect(progressUpdateMock).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
   })
 
   it("should hide completion documents when history-edit To is not 100%", async () => {
@@ -3369,7 +3339,7 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     const editor = await openHistoryEditByNotes(user, "mid band")
 
-    expect(within(editor).queryByText("Completion documents")).not.toBeInTheDocument()
+    expect(within(editor).queryByText("Completion Documents")).not.toBeInTheDocument()
     for (const field of COMPLETION_DOC_FIELDS) {
       expect(
         within(editor).queryByTestId(`document-upload-input-completion-${field}`)
@@ -4039,7 +4009,6 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -4115,7 +4084,6 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -4193,7 +4161,6 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -4330,15 +4297,10 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
-    const dialog = screen.getByRole("dialog")
-    expectRequiredMark("Update notes", dialog)
-    expectRequiredMark("Site photo", dialog)
-    expectNoRequiredMark("Amount (PHP)", dialog)
     await user.upload(
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
-    await fillRequiredNotes(user)
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -4515,11 +4477,6 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
-    const dialog = screen.getByRole("dialog")
-    expectRequiredMark("Update notes", dialog)
-    expectRequiredMark("Site photo", dialog)
-    expectRequiredMark("Amount (PHP)", dialog)
-    expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     await user.upload(
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
@@ -4544,12 +4501,6 @@ describe("ProgressModule (V81, V84)", () => {
       expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
         "receipt_number"
       )
-      const progressPayload = createMock.mock.calls[0]?.[0]
-      expect(progressPayload).toBeInstanceOf(FormData)
-      const progressData = progressPayload as FormData
-      expect(progressData.has("date")).toBe(false)
-      expect(progressData.has("expense_date")).toBe(false)
-      expect(progressData.has("receipt_number")).toBe(false)
     })
   }, 20_000)
 

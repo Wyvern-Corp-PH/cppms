@@ -33,8 +33,9 @@ import {
 } from "@workspace/pocketbase/domain/progress-summary"
 import { persistErrorMessage } from "@workspace/pocketbase/domain/upload-size"
 import {
-  REQUIRED_COMPLETION_DOCUMENTS,
-  type CompletionDocumentField,
+  COMPLETION_DOCUMENTS,
+  LIQUIDATION_DOCUMENTS,
+  type ProgressDocumentField,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
   fieldErrorsFromZod,
@@ -148,6 +149,7 @@ function recordInDateRange(date: string | undefined, from: string, to: string) {
 }
 
 type CompletionDocumentState = {
+  completion_site_photo: File[]
   certification_completion: File[]
   certificate_acceptance: File[]
   proof_payment_barangay: File[]
@@ -155,9 +157,11 @@ type CompletionDocumentState = {
   audit_documents: File[]
   verification_documents: File[]
   liquidation_documents: File[]
+  certificate_of_liquidation: File[]
 }
 
 const emptyCompletionDocuments = (): CompletionDocumentState => ({
+  completion_site_photo: [],
   certification_completion: [],
   certificate_acceptance: [],
   proof_payment_barangay: [],
@@ -165,6 +169,7 @@ const emptyCompletionDocuments = (): CompletionDocumentState => ({
   audit_documents: [],
   verification_documents: [],
   liquidation_documents: [],
+  certificate_of_liquidation: [],
 })
 
 function parseHistoryPctBound(value: string): number | undefined {
@@ -479,6 +484,7 @@ function existingCompletionDocNamesFromUpdate(
 ) {
   if (!update) return undefined
   return {
+    completion_site_photo: namesOnRecord(update.completion_site_photo),
     certification_completion: namesOnRecord(update.certification_completion),
     certificate_acceptance: namesOnRecord(update.certificate_acceptance),
     proof_payment_barangay: namesOnRecord(update.proof_payment_barangay),
@@ -486,6 +492,9 @@ function existingCompletionDocNamesFromUpdate(
     audit_documents: namesOnRecord(update.audit_documents),
     verification_documents: namesOnRecord(update.verification_documents),
     liquidation_documents: namesOnRecord(update.liquidation_documents),
+    certificate_of_liquidation: namesOnRecord(
+      update.certificate_of_liquidation
+    ),
   }
 }
 
@@ -843,7 +852,7 @@ export function ProgressModule() {
   }
 
   function setCompletionDocument(
-    field: CompletionDocumentField,
+    field: ProgressDocumentField,
     files: File[]
   ) {
     setCompletionDocs((current) => ({
@@ -853,7 +862,7 @@ export function ProgressModule() {
   }
 
   function appendCompletionDocuments(formData: FormData) {
-    for (const doc of REQUIRED_COMPLETION_DOCUMENTS) {
+    for (const doc of [...COMPLETION_DOCUMENTS, ...LIQUIDATION_DOCUMENTS]) {
       for (const file of completionDocs[doc.field]) {
         formData.append(doc.field, file)
       }
@@ -952,7 +961,7 @@ export function ProgressModule() {
   ): boolean {
     if (sitePhoto.length > 0) return true
     if (toPct < 100) return false
-    return REQUIRED_COMPLETION_DOCUMENTS.some(
+    return [...COMPLETION_DOCUMENTS, ...LIQUIDATION_DOCUMENTS].some(
       (doc) => completionDocs[doc.field].length > 0
     )
   }
@@ -1775,7 +1784,7 @@ export function ProgressModule() {
               <DialogDescription>
                 {dialogMode === "history-edit"
                   ? "Correct this submitted range. Overall progress follows the newest saved range."
-                  : "Add a site update, progress percentage, and required completion documents."}
+                  : "Add a site update, progress percentage, and supporting documents."}
               </DialogDescription>
             </DialogHeader>
             <FieldGroup>
@@ -1840,12 +1849,9 @@ export function ProgressModule() {
                 {toPct >= 100 ? (
                   <FieldSet className="space-y-2 border-t pt-3">
                     <FieldDescription className="text-sm font-medium text-foreground">
-                      Completion documents
+                      Completion Documents
                     </FieldDescription>
-                    <FieldDescription>
-                      Required before saving a 100% progress update.
-                    </FieldDescription>
-                    {REQUIRED_COMPLETION_DOCUMENTS.map((doc) => {
+                    {COMPLETION_DOCUMENTS.map((doc) => {
                       return (
                         <DocumentUploadField
                           key={doc.field}
@@ -1864,6 +1870,29 @@ export function ProgressModule() {
                         />
                       )
                     })}
+                  </FieldSet>
+                ) : null}
+                {toPct >= 100 ? (
+                  <FieldSet className="space-y-2 border-t pt-3">
+                    <FieldDescription className="text-sm font-medium text-foreground">
+                      Liquidation Documents
+                    </FieldDescription>
+                    {LIQUIDATION_DOCUMENTS.map((doc) => (
+                      <DocumentUploadField
+                        key={doc.field}
+                        id={`completion-${doc.field}`}
+                        label={doc.label}
+                        multiple={doc.multiple}
+                        files={completionDocs[doc.field]}
+                        onChange={(files) =>
+                          setCompletionDocument(doc.field, files)
+                        }
+                        existingNames={
+                          existingCompletionDocNames?.[doc.field] ?? []
+                        }
+                        error={fieldErrors[doc.field]}
+                      />
+                    ))}
                   </FieldSet>
                 ) : null}
                 {requiresReleasedAmount && dialogProject ? (

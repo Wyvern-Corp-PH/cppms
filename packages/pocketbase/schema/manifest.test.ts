@@ -179,6 +179,11 @@ const projectSourceOfFundMigrationPath = resolve(
   "pb_migrations",
   "1740000041_project_source_of_fund.js"
 )
+const progressDocumentsMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000042_progress_documents.js"
+)
 const raiseFileMaxSizeMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -309,6 +314,17 @@ describe("schema manifest (SPEC §I)", () => {
     expect(AUDIT_ACTION).toContain("reset_password")
   })
 
+  it("declares separate progress-site-photo and liquidation-certificate fields", () => {
+    const progressFields = COLLECTION_MANIFEST.find(
+      (collection) => collection.name === "progress_updates"
+    )?.fields
+
+    expect(progressFields).toContain("site_photo")
+    expect(progressFields).toContain("completion_site_photo")
+    expect(progressFields).toContain("liquidation_documents")
+    expect(progressFields).toContain("certificate_of_liquidation")
+  })
+
   it("declares completion document and scholarship fields (V110, V112)", () => {
     const projects = COLLECTION_MANIFEST.find(
       (collection) => collection.name === "projects"
@@ -412,6 +428,7 @@ describe("pb migration file", () => {
     projectFundSourceFieldsMigrationPath,
     projectSourceOfFundMigrationPath,
     budgetExpenseProgressUpdateMigrationPath,
+    progressDocumentsMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n")
@@ -469,6 +486,14 @@ describe("pb migration file", () => {
     expect(migrationSource).toContain(
       "return Boolean(collection.fields.getByName(name))"
     )
+  })
+
+  it("adds multi-file completion and separate liquidation certificate fields", () => {
+    const migrationSource = readFileSync(progressDocumentsMigrationPath, "utf8")
+
+    expect(migrationSource).toContain('"completion_site_photo"')
+    expect(migrationSource).toContain('"certificate_of_liquidation"')
+    expect(migrationSource).toContain("maxSelect: 10")
   })
 })
 
