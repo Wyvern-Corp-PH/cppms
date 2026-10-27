@@ -8,12 +8,14 @@ import {
   LGU_LEVEL,
   LGU_PHASE_STATUS,
   PROJECT_CATEGORY,
+  PROJECT_SOURCE_OF_FUND,
   PROJECT_STATUS,
   ROLE,
 } from "../../schema/manifest"
 
 export const projectStatusSchema = z.enum(PROJECT_STATUS)
 export const projectCategorySchema = z.enum(PROJECT_CATEGORY)
+export const projectSourceOfFundSchema = z.enum(PROJECT_SOURCE_OF_FUND)
 export const lguLevelSchema = z.enum(LGU_LEVEL)
 export const fundTypeSchema = z.enum(FUND_TYPE)
 export const lguPhaseStatusSchema = z.enum(LGU_PHASE_STATUS)
@@ -25,6 +27,7 @@ export const approvalStatusSchema = z.enum(["pending", "approved", "rejected"])
 
 export type ProjectStatus = z.infer<typeof projectStatusSchema>
 export type ProjectCategory = z.infer<typeof projectCategorySchema>
+export type ProjectSourceOfFund = z.infer<typeof projectSourceOfFundSchema>
 export type LguLevel = z.infer<typeof lguLevelSchema>
 export type FundType = z.infer<typeof fundTypeSchema>
 export type LguPhaseStatus = z.infer<typeof lguPhaseStatusSchema>

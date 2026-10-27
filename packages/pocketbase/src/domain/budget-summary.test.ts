@@ -9,6 +9,23 @@ import {
 } from "./budget-summary"
 
 describe("computeBudgetSummary", () => {
+  it("uses Total Budget for marked projects and Bid Price for legacy projects", () => {
+    expect(
+      computeBudgetSummary(
+        [
+          {
+            source_of_fund: "General Fund",
+            total_budget: 750_000,
+            bid_price: 1_000_000,
+          },
+          { total_budget: 2_000_000, bid_price: 500_000 },
+        ],
+        [],
+        []
+      ).totalBudget
+    ).toBe(1_250_000)
+  })
+
   it("should aggregate money from bid_price only", () => {
     expect(
       computeBudgetSummary(

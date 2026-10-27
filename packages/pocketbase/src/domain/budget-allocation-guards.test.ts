@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
+  ALLOCATION_EXCEEDS_BUDGET_MESSAGE,
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
   COMPLETED_PROJECT_ALLOCATION_MESSAGE,
   INCOMPLETE_PROJECT_ALLOCATION_MESSAGE,
@@ -11,6 +12,7 @@ import {
   filterProjectsForBudgetAllocation,
   isEligibleForBudgetAllocation,
   validateAllocationAgainstBidPrice,
+  validateAllocationAgainstProjectBudget,
   validateReleasedAmountCreate,
 } from "./budget-allocation-guards"
 
@@ -297,6 +299,42 @@ describe("validateAllocationAgainstBidPrice", () => {
       ok: false,
       message: ALLOCATION_AMOUNT_INVALID_MESSAGE,
     })
+  })
+})
+
+describe("validateAllocationAgainstProjectBudget", () => {
+  it("uses Total Budget as the cap for projects with Source of Fund", () => {
+    expect(
+      validateAllocationAgainstProjectBudget({
+        newAmount: 750_001,
+        existingAllocations: [],
+        project: {
+          source_of_fund: "General Fund",
+          total_budget: 750_000,
+          bid_price: 1_000_000,
+        },
+      })
+    ).toEqual({ ok: false, message: ALLOCATION_EXCEEDS_BUDGET_MESSAGE })
+  })
+
+  it("keeps Bid Price as the cap for legacy projects without Source of Fund", () => {
+    expect(
+      validateAllocationAgainstProjectBudget({
+        newAmount: 150_000,
+        existingAllocations: [],
+        project: { total_budget: 1_000_000, bid_price: 100_000 },
+      })
+    ).toEqual({ ok: false, message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE })
+  })
+
+  it("fails closed when a marked project's Total Budget is missing", () => {
+    expect(
+      validateAllocationAgainstProjectBudget({
+        newAmount: 1,
+        existingAllocations: [],
+        project: { source_of_fund: "General Fund", bid_price: 100_000 },
+      })
+    ).toEqual({ ok: false, message: ALLOCATION_EXCEEDS_BUDGET_MESSAGE })
   })
 })
 

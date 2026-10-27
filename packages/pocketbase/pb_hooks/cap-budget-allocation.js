@@ -5,6 +5,8 @@
 
 const ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE =
   "Allocation amount exceeds the project's bid price."
+const ALLOCATION_EXCEEDS_BUDGET_MESSAGE =
+  "Allocation amount exceeds the project's Total Budget."
 const ALLOCATION_AMOUNT_INVALID_MESSAGE =
   "Allocation amount must be a valid number."
 const ALLOCATION_LIST_TRUNCATED_MESSAGE =
@@ -28,6 +30,13 @@ function bidPriceCap(bidPrice) {
 }
 
 function validateAllocationAgainstBidPrice(input) {
+  return validateAllocationAgainstProjectBudget({
+    ...input,
+    project: { bid_price: input.bidPrice },
+  })
+}
+
+function validateAllocationAgainstProjectBudget(input) {
   const existingTotal = sumAmounts(input.existingAllocations)
   const newAmount = Number(input.newAmount)
   const replaceOld =
@@ -39,8 +48,17 @@ function validateAllocationAgainstBidPrice(input) {
   ) {
     return { ok: false, message: ALLOCATION_AMOUNT_INVALID_MESSAGE }
   }
-  if (existingTotal - replaceOld + newAmount > bidPriceCap(input.bidPrice)) {
-    return { ok: false, message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE }
+  const usesTotalBudget = Boolean(input.project.source_of_fund)
+  const cap = bidPriceCap(
+    usesTotalBudget ? input.project.total_budget : input.project.bid_price
+  )
+  if (existingTotal - replaceOld + newAmount > cap) {
+    return {
+      ok: false,
+      message: usesTotalBudget
+        ? ALLOCATION_EXCEEDS_BUDGET_MESSAGE
+        : ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+    }
   }
   return { ok: true }
 }
@@ -76,11 +94,16 @@ function applyAllocationBidPriceCap(event) {
 
   const app = event.app
   lockProjectRow(app, projectId)
-  let bidPrice = 0
+  let project = { bid_price: 0 }
   try {
-    bidPrice = app.findRecordById("projects", projectId).get("bid_price")
+    const projectRecord = app.findRecordById("projects", projectId)
+    project = {
+      source_of_fund: projectRecord.get("source_of_fund"),
+      total_budget: projectRecord.get("total_budget"),
+      bid_price: projectRecord.get("bid_price"),
+    }
   } catch {
-    bidPrice = 0
+    project = { bid_price: 0 }
   }
 
   const currentId = recordId(record)
@@ -101,10 +124,10 @@ function applyAllocationBidPriceCap(event) {
     existingAllocations.push({ amount: Number(row.get("amount")) })
   }
 
-  const result = validateAllocationAgainstBidPrice({
+  const result = validateAllocationAgainstProjectBudget({
     newAmount: record.get("amount"),
     existingAllocations,
-    bidPrice,
+    project,
   })
   if (!result.ok) {
     throw new BadRequestError(result.message)
@@ -116,10 +139,12 @@ function applyAllocationBidPriceCap(event) {
 
 module.exports = {
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+  ALLOCATION_EXCEEDS_BUDGET_MESSAGE,
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
   ALLOCATION_LIST_TRUNCATED_MESSAGE,
   PROJECT_ROW_LOCK_SQL,
   lockProjectRow,
   validateAllocationAgainstBidPrice,
+  validateAllocationAgainstProjectBudget,
   applyAllocationBidPriceCap,
 }

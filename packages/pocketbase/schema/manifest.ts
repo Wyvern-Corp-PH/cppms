@@ -31,6 +31,12 @@ export const FUND_TYPE = [
   "Others",
 ] as const
 
+export const PROJECT_SOURCE_OF_FUND = [
+  "General Fund",
+  "20% LDF (Local Development Fund)",
+  "Others",
+] as const
+
 export const APPROVAL_ACTION = ["approve", "reject", "request_revision"] as const
 export const ROLE = ["Super Admin", "Province", "Municipality", "Barangay"] as const
 
@@ -76,6 +82,8 @@ export const COLLECTION_MANIFEST: readonly CollectionManifest[] = [
       "total_budget",
       "number_of_students",
       "fund_source",
+      "source_of_fund",
+      "source_of_fund_other",
       "funding_year",
       "sub_account",
       "period_of_implementation",

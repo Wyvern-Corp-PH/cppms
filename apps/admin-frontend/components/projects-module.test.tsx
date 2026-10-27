@@ -104,15 +104,16 @@ function expectNoRequiredMark(
   expect(label).not.toHaveAttribute("data-required")
 }
 
-async function fillOwnedFundSource(user: ReturnType<typeof userEvent.setup>) {
+async function fillProvincialBudget(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByLabelText(/^funding year$/i))
   await user.click(
     await screen.findByRole("option", { name: String(new Date().getFullYear()) })
   )
-  await user.click(screen.getByLabelText(/^main account$/i))
+  await user.click(screen.getByLabelText(/^source of fund$/i))
   await user.click(
-    await screen.findByRole("option", { name: "Special Education Fund" })
+    await screen.findByRole("option", { name: "1 General Fund" })
   )
+  await user.type(screen.getByLabelText(/^total budget$/i), "750000")
 }
 
 async function fillPpdoRequiredAttachments(user: ReturnType<typeof userEvent.setup>) {
@@ -133,10 +134,6 @@ async function fillPpdoRequiredScalars(user: ReturnType<typeof userEvent.setup>)
   await user.click(screen.getByRole("combobox", { name: /^barangay$/i }))
   await user.click(
     await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
-  )
-  await user.type(
-    screen.getByLabelText(/period of implementation/i),
-    "FY 2026 Q1–Q4"
   )
 }
 
@@ -317,40 +314,86 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expectRequiredMark("Project name")
     expectRequiredMark("Description")
     expectRequiredMark("Memorandum of Agreement")
+    expectRequiredMark("Funding Year")
+    expectRequiredMark("Source of Fund")
+    expectRequiredMark("Total Budget")
     expectNoRequiredMark("Contractor")
-    expectNoRequiredMark("Project photos")
+    expect(screen.queryByLabelText(/project photos/i)).not.toBeInTheDocument()
   })
 
-  it("should show a required mark on Sub Account only when Main Account needs it", async () => {
-    const user = userEvent.setup()
-    render(<ProjectsModule />)
-
-    await user.click(await screen.findByTestId("create-project"))
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "Special Education Fund" }))
-    expect(screen.queryByText("Sub account")).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "General Fund" }))
-    expectRequiredMark("Sub account")
-  })
-
-  it("shows the LGU/DPWH start-within-15-days note under Period of Implementation", async () => {
+  it("does not show Period of Implementation on Provincial project creation", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
 
     await user.click(await screen.findByTestId("create-project"))
 
-    const period = await screen.findByLabelText(/period of implementation/i)
-    expect(period).toHaveAttribute("id", "project-period")
-    expect(period.tagName).toBe("INPUT")
-    expect(period).not.toHaveAttribute("type", "date")
+    expect(screen.queryByLabelText(/period of implementation/i)).not.toBeInTheDocument()
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA."
       )
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
   })
+
+  it("creates Provincial projects with distinct Source of Fund and Total Budget fields", async () => {
+    const user = userEvent.setup()
+    store.authRecord = {
+      id: "province1",
+      role: "Province",
+      account_status: "Active",
+    }
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+
+    expect(screen.queryByLabelText(/period of implementation/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^project photos$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^source of fund$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^total budget$/i)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/project name/i), "Provincial Bridge")
+    await user.type(screen.getByLabelText(/^description$/i), "Bridge repairs")
+    await user.type(screen.getByLabelText(/^location$/i), "Provincial road")
+    await user.click(screen.getByLabelText(/^funding year$/i))
+    await user.click(
+      await screen.findByRole("option", { name: String(new Date().getFullYear()) })
+    )
+    await user.click(screen.getByLabelText(/^source of fund$/i))
+    expect(
+      await screen.findByRole("option", { name: "1 General Fund" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("option", {
+        name: "2 20% LDF (Local Development Fund)",
+      })
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole("option", { name: "3 Others (Specify)" })
+    )
+    await user.type(
+      screen.getByLabelText(/specify source of fund/i),
+      "Provincial share"
+    )
+    await user.type(screen.getByLabelText(/^total budget$/i), "750000")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Provincial Bridge",
+          source_of_fund: "Others",
+          source_of_fund_other: "Provincial share",
+          total_budget: 750000,
+        })
+      )
+    })
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty("fund_source")
+    expect(payload).not.toHaveProperty("sub_account")
+    expect(payload).not.toHaveProperty("period_of_implementation")
+    expect(payload).not.toHaveProperty("project_photos")
+  }, 20_000)
 
   it("loads project status and category dropdown options from PocketBase fields", async () => {
     const user = userEvent.setup()
@@ -692,11 +735,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       await screen.findByRole("option", { name: "Centro 01 (Bagumbayan)" })
     )
     await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
-    await fillOwnedFundSource(user)
-    await user.type(
-      screen.getByLabelText(/period of implementation/i),
-      "FY 2026 Q1–Q4"
-    )
+    await fillProvincialBudget(user)
     await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
@@ -910,7 +949,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.getByText(/description is required/i)).toBeInTheDocument()
     expect(screen.getByText(/location is required/i)).toBeInTheDocument()
     expect(screen.getByText(/funding year is required/i)).toBeInTheDocument()
-    expect(screen.getByText(/main account is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/source of fund is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/total budget must be greater than zero/i)).toBeInTheDocument()
     expect(screen.queryByText(/contractor is required/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/bid price is required/i)).not.toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
@@ -1475,7 +1515,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(card).not.toHaveTextContent("50%")
   })
 
-  it("locks LGU-owned fields for Province and keeps Period of Implementation with start/end dates read-only", async () => {
+  it("shows Provincial budget fields and omits Period of Implementation", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
@@ -1488,12 +1528,13 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.click(await screen.findByTestId("create-project"))
 
     expect(screen.getByLabelText(/project name/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/period of implementation/i)).not.toBeDisabled()
+    expect(screen.queryByLabelText(/period of implementation/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^contractor$/i)).toBeDisabled()
     expect(screen.getAllByText(/filled by lgu\/barangay/i).length).toBeGreaterThan(0)
     expect(screen.getByLabelText(/^start date$/i)).toBeDisabled()
     expect(screen.getByLabelText(/^end date$/i)).toBeDisabled()
-    expect(screen.queryByLabelText(/total budget/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^source of fund$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^total budget$/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/moa details/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/bid price/i)).toBeDisabled()
 
@@ -1501,7 +1542,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText(/^description$/i), "Charter encoding")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial hall")
     await fillPpdoRequiredScalars(user)
-    await fillOwnedFundSource(user)
+    await fillProvincialBudget(user)
     await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
@@ -1513,16 +1554,11 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       status: "Planning",
       description: "Charter encoding",
       location: "Provincial hall",
+      total_budget: 750000,
     })
-    const payload = createMock.mock.calls[0]?.[0]
-    if (payload instanceof FormData) {
-      expect(payload.get("total_budget")).toBeNull()
-    } else {
-      expect(payload).not.toHaveProperty("total_budget")
-    }
   })
 
-  it("matches Released Amount fund source year, main, and sub on New Project", async () => {
+  it("offers only the three Source of Fund choices on New Project", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
 
@@ -1530,82 +1566,19 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
 
     expect(screen.getByLabelText(/^funding year$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^budget year$/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^main account$/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/^fund source$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^source of fund$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^other purpose$/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    expect(
-      await screen.findByRole("option", { name: "General Fund" })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "Special Education Fund" })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "Special Health Fund" })
-    ).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Trust Fund" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Others" })).toBeInTheDocument()
-    await user.click(await screen.findByRole("option", { name: "General Fund" }))
-
-    expect(screen.getByLabelText(/^sub account$/i)).toBeInTheDocument()
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    expect(
-      await screen.findByRole("option", { name: "GF - Proper" })
-    ).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "20% DF" })).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "Hospital Serv." })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "Econ. Enterp." })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "Bayanihan Fund" })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "SA - Excise Tax" })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole("option", { name: "GT - Proper" })
-    ).not.toBeInTheDocument()
-    await user.click(await screen.findByRole("option", { name: "GF - Proper" }))
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "Trust Fund" }))
-    expect(screen.getByLabelText(/^sub account$/i)).not.toHaveTextContent(
-      "GF - Proper"
-    )
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    expect(
-      await screen.findByRole("option", { name: "Trust Fund - Proper" })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("option", { name: "LDRRMF - SA" })
-    ).toBeInTheDocument()
-    await user.keyboard("{Escape}")
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(
-      await screen.findByRole("option", { name: "Special Education Fund" })
-    )
-    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^other purpose$/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(
-      await screen.findByRole("option", { name: "Special Health Fund" })
-    )
-    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "Others" }))
-    expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^other purpose$/i)).toBeInTheDocument()
+    await user.click(screen.getByLabelText(/^source of fund$/i))
+    expect(await screen.findByRole("option", { name: "1 General Fund" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "2 20% LDF (Local Development Fund)" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "3 Others (Specify)" })).toBeInTheDocument()
+    expect(screen.getAllByRole("option")).toHaveLength(3)
+    await user.click(screen.getByRole("option", { name: "3 Others (Specify)" }))
+    expect(screen.getByLabelText(/specify source of fund/i)).toBeInTheDocument()
   })
 
-  it("persists funding year, main account, and sub account separately from budget year", async () => {
+  it("persists Source of Fund and Total Budget separately from Budget Year", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
 
@@ -1616,10 +1589,9 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await fillPpdoRequiredScalars(user)
     await user.click(screen.getByLabelText(/^funding year$/i))
     await user.click(await screen.findByRole("option", { name: "2024" }))
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(await screen.findByRole("option", { name: "GF - Proper" }))
+    await user.click(screen.getByLabelText(/^source of fund$/i))
+    await user.click(await screen.findByRole("option", { name: "1 General Fund" }))
+    await user.type(screen.getByLabelText(/^total budget$/i), "750000")
     await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
@@ -1629,17 +1601,19 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expectCreatePayloadContaining({
       name: "Funded Road",
       funding_year: 2024,
-      fund_source: "General Fund",
-      sub_account: "GF - Proper",
+      source_of_fund: "General Fund",
+      total_budget: 750000,
       budget_year: new Date().getFullYear(),
     })
     const fundedPayload = createMock.mock.calls[0]?.[0]
     if (fundedPayload instanceof FormData) {
-      expect(fundedPayload.get("main_account")).toBeNull()
+      expect(fundedPayload.get("fund_source")).toBeNull()
+      expect(fundedPayload.get("sub_account")).toBeNull()
     } else {
-      expect(fundedPayload).not.toHaveProperty("main_account")
+      expect(fundedPayload).not.toHaveProperty("fund_source")
+      expect(fundedPayload).not.toHaveProperty("sub_account")
     }
-  })
+  }, 20_000)
 
   it("locks status for Province after LGU encoding and keeps name editable", async () => {
     const user = userEvent.setup()
@@ -1711,6 +1685,27 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       ...overrides,
     }
   }
+
+  it("keeps creation-only budget fields out of existing project edits", async () => {
+    const user = userEvent.setup()
+    store.projects = [catalogProject()]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.queryByLabelText(/^source of fund$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^total budget$/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+    await waitFor(() => expect(updateMock).toHaveBeenCalled())
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).not.toHaveProperty("source_of_fund")
+    expect(payload).not.toHaveProperty("source_of_fund_other")
+    expect(payload).not.toHaveProperty("total_budget")
+  })
 
   it.each([
     { role: "Super Admin", progress_pct: 50, status: "Ongoing" },
@@ -2460,7 +2455,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText(/^description$/i), "Span repair")
     await user.type(screen.getByLabelText(/^location$/i), "East bank approach")
     await fillPpdoRequiredScalars(user)
-    await fillOwnedFundSource(user)
+    await fillProvincialBudget(user)
     await user.upload(screen.getByTestId("document-upload-input-moa-file"), [
       new File(["moa"], "new-moa.pdf", { type: "application/pdf" }),
     ])
@@ -2486,19 +2481,19 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(formData.getAll("moa_file+")).toEqual([])
   })
 
-  it("should keep all four empty upload slots visible on New Project", async () => {
+  it("should keep the three non-photo upload slots visible on Provincial New Project", async () => {
     const user = userEvent.setup()
     render(<ProjectsModule />)
 
     await user.click(await screen.findByTestId("create-project"))
 
     expect(screen.getByText("Memorandum of Agreement")).toBeInTheDocument()
-    expect(screen.getByText("Project photos")).toBeInTheDocument()
+    expect(screen.queryByText("Project photos")).not.toBeInTheDocument()
     expect(screen.getByText("Resolution")).toBeInTheDocument()
     expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
     expect(
       screen.getAllByText(/click to upload or drag files here/i).length
-    ).toBeGreaterThanOrEqual(4)
+    ).toBeGreaterThanOrEqual(3)
     expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
   })
 
@@ -2662,7 +2657,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
-    "should show all four project uploads as writable for %s on New Project",
+    "should show the three non-photo project uploads as writable for %s on New Project",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2685,13 +2680,13 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         screen.getByTestId("document-upload-input-supporting-file")
       ).not.toBeDisabled()
       expect(
-        screen.getByTestId("document-upload-input-project-photos")
-      ).not.toBeDisabled()
+        screen.queryByTestId("document-upload-input-project-photos")
+      ).not.toBeInTheDocument()
     }
   )
 
   it.each(["Super Admin", "Province"] as const)(
-    "should accept the same document types on Project photos as other slots when %s opens New Project",
+    "should omit Project Photos while preserving other upload slots when %s opens New Project",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2705,8 +2700,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       await user.click(await screen.findByTestId("create-project"))
 
       expect(
-        screen.getByTestId("document-upload-input-project-photos")
-      ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")
+        screen.queryByTestId("document-upload-input-project-photos")
+      ).not.toBeInTheDocument()
       expect(
         screen.getByTestId("document-upload-input-moa-file")
       ).toHaveAttribute("accept", ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png")

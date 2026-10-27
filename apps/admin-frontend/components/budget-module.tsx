@@ -9,7 +9,7 @@ import {
 import {
   budgetAllocationIneligibilityMessage,
   filterProjectsForBudgetAllocation,
-  validateAllocationAgainstBidPrice,
+  validateAllocationAgainstProjectBudget,
   validateReleasedAmountCreate,
 } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import {
@@ -481,15 +481,15 @@ export function BudgetModule() {
       return
     }
 
-    const bidCap = validateAllocationAgainstBidPrice({
+    const budgetCap = validateAllocationAgainstProjectBudget({
       newAmount: parsed.data.amount,
       existingAllocations: allocations.filter(
         (row) => row.project === parsed.data.project
       ),
-      bidPrice: targetProject?.bid_price,
+      project: targetProject ?? {},
     })
-    if (!bidCap.ok) {
-      setFieldErrors({ amount: bidCap.message })
+    if (!budgetCap.ok) {
+      setFieldErrors({ amount: budgetCap.message })
       return
     }
 

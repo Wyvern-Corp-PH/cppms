@@ -27,7 +27,10 @@ export const PROVINCIAL_OWNED_FIELDS = [
   "barangay",
   "location",
   "budget_year",
+  "total_budget",
   "fund_source",
+  "source_of_fund",
+  "source_of_fund_other",
   "funding_year",
   "sub_account",
   "period_of_implementation",
@@ -76,6 +79,11 @@ const SYSTEM_FIELDS = new Set([
 ])
 
 const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level", "bid_price"])
+const PROJECT_CREATE_ONLY_FIELDS = new Set([
+  "source_of_fund",
+  "source_of_fund_other",
+  "total_budget",
+])
 
 export type ProjectWriteActor = {
   role?: Role | string
@@ -256,6 +264,7 @@ export function projectPayloadForActor(
   const payload: ProjectFieldMap = {}
   for (const [field, value] of Object.entries(submitted)) {
     if (value === undefined) continue
+    if (!isCreate && PROJECT_CREATE_ONLY_FIELDS.has(field)) continue
     const allowed =
       (owned.has("*") && (isCreate || !isLguOverrideLocked(field))) ||
       owned.has(field) ||
@@ -273,6 +282,7 @@ export function isProjectFieldEditable(
   isCreate: boolean
 ): boolean {
   if (field === "lgu_encoded_at") return false
+  if (!isCreate && PROJECT_CREATE_ONLY_FIELDS.has(field)) return false
   if (isProvincialOverride(role)) return !isLguOverrideLocked(field)
   const owned = ownedProjectFieldsForActor(role, original, isCreate)
   if (!owned.has(field)) return false
@@ -333,6 +343,7 @@ export function evaluateProjectFieldWrite(options: {
   if (isProvincialOverride(role)) {
     if (!isCreate) {
       for (const field of changed) {
+        if (PROJECT_CREATE_ONLY_FIELDS.has(field)) return reject(field)
         if (
           field === "status" &&
           (isApprovalWorkflowStatusWrite(changed, submitted, original) ||

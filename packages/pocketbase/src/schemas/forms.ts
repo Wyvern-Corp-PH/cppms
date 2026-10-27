@@ -7,6 +7,7 @@ import {
   fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
+  projectSourceOfFundSchema,
   projectStatusSchema,
   roleSchema,
 } from "@workspace/pocketbase/schemas/enums"
@@ -126,7 +127,10 @@ export const projectMutateSchema = z
     start_date: z.string().optional(),
     target_end_date: z.string().optional(),
     budget_year: z.coerce.number().int().min(2000).max(2100),
+    total_budget: z.coerce.number().min(0).optional(),
     fund_source: fundTypeSchema.optional(),
+    source_of_fund: projectSourceOfFundSchema.optional(),
+    source_of_fund_other: z.string().optional(),
     funding_year: pbEmptyAsUndefined(
       z.coerce.number().int().min(2000).max(2100).optional()
     ),
@@ -206,8 +210,12 @@ function requireTrimmed(
 export function projectMutateSchemaForActor(
   role: string | undefined,
   isCreate: boolean,
-  _options?: { form?: boolean }
+  options?: { form?: boolean }
 ) {
+  const requireNewBudgetFields =
+    Boolean(options?.form) &&
+    PROJECT_FORM_OWNERS.has(role ?? "") &&
+    isCreate
   const requirePpdo = PROJECT_FORM_OWNERS.has(role ?? "")
   const requireLgu = LGU_DATE_OWNERS.has(role ?? "")
 
@@ -267,12 +275,14 @@ export function projectMutateSchemaForActor(
       )
       requireTrimmed(value.barangay, "barangay", "Barangay is required.", ctx)
       requireTrimmed(value.location, "location", "Location is required.", ctx)
-      requireTrimmed(
-        value.period_of_implementation,
-        "period_of_implementation",
-        "Period of implementation is required.",
-        ctx
-      )
+      if (!options?.form || !isCreate) {
+        requireTrimmed(
+          value.period_of_implementation,
+          "period_of_implementation",
+          "Period of implementation is required.",
+          ctx
+        )
+      }
       if (value.funding_year == null) {
         ctx.addIssue({
           code: "custom",
@@ -280,7 +290,32 @@ export function projectMutateSchemaForActor(
           message: "Funding year is required.",
         })
       }
-      if (!value.fund_source) {
+      if (requireNewBudgetFields) {
+        if (!value.source_of_fund) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["source_of_fund"],
+            message: "Source of Fund is required.",
+          })
+        }
+        if (value.total_budget === undefined || value.total_budget <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["total_budget"],
+            message: "Total Budget must be greater than zero.",
+          })
+        }
+        if (
+          value.source_of_fund === "Others" &&
+          !value.source_of_fund_other?.trim()
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["source_of_fund_other"],
+            message: "Specify the source of fund.",
+          })
+        }
+      } else if (!value.fund_source) {
         ctx.addIssue({
           code: "custom",
           path: ["fund_source"],

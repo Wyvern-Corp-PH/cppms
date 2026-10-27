@@ -17,6 +17,7 @@ import {
   LGU_PHASE_STATUS,
   MIGRATION_FILE,
   PROJECT_CATEGORY,
+  PROJECT_SOURCE_OF_FUND,
   PROJECT_STATUS,
   PUBLIC_READ_RULE,
   ROLE,
@@ -173,6 +174,11 @@ const projectFundSourceFieldsMigrationPath = resolve(
   "pb_migrations",
   "1740000033_project_fund_source_fields.js"
 )
+const projectSourceOfFundMigrationPath = resolve(
+  packageRoot,
+  "pb_migrations",
+  "1740000041_project_source_of_fund.js"
+)
 const raiseFileMaxSizeMigrationPath = resolve(
   packageRoot,
   "pb_migrations",
@@ -187,6 +193,16 @@ const projectFieldOwnershipHookEntrypointPath = resolve(
   packageRoot,
   "pb_hooks",
   "project-field-ownership.pb.js"
+)
+const projectBudgetAllocationHookPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "project-budget-allocation.js"
+)
+const projectBudgetAllocationHookEntrypointPath = resolve(
+  packageRoot,
+  "pb_hooks",
+  "project-budget-allocation.pb.js"
 )
 const syncProcurementHookPath = resolve(
   packageRoot,
@@ -271,6 +287,11 @@ describe("schema manifest (SPEC §I)", () => {
     expect(PROJECT_STATUS).not.toContain("Ready for Review")
     expect(PROJECT_STATUS).not.toContain("On")
     expect(PROJECT_CATEGORY).toContain("Infrastructure")
+    expect(PROJECT_SOURCE_OF_FUND).toEqual([
+      "General Fund",
+      "20% LDF (Local Development Fund)",
+      "Others",
+    ])
     expect(LGU_LEVEL).toContain("Municipality")
     expect(FUND_TYPE).toEqual([
       "General Fund",
@@ -389,6 +410,7 @@ describe("pb migration file", () => {
     usersPasswordResetMigrationPath,
     ppdoLguOwnershipMigrationPath,
     projectFundSourceFieldsMigrationPath,
+    projectSourceOfFundMigrationPath,
     budgetExpenseProgressUpdateMigrationPath,
   ]
     .map((path) => readFileSync(path, "utf8"))
@@ -439,6 +461,14 @@ describe("pb migration file", () => {
     expect(migrationSource).toContain("fieldExists")
     expect(migrationSource).toContain('fieldExists(projects, "number_of_students")')
     expect(migrationSource).toContain("fieldExists(progressUpdates, field.name)")
+  })
+
+  it("checks field lookup results before skipping the Source of Fund migration", () => {
+    const migrationSource = readFileSync(projectSourceOfFundMigrationPath, "utf8")
+
+    expect(migrationSource).toContain(
+      "return Boolean(collection.fields.getByName(name))"
+    )
   })
 })
 
@@ -1059,6 +1089,24 @@ describe("project funding year and sub account fields", () => {
     expect(migrationSource).toContain("onlyInt")
     expect(hookSource).toContain('"funding_year"')
     expect(hookSource).toContain('"sub_account"')
+  })
+})
+
+describe("PocketBase project budget allocation hook", () => {
+  const hookSource = readFileSync(projectBudgetAllocationHookPath, "utf8")
+  const hookEntrypointSource = readFileSync(
+    projectBudgetAllocationHookEntrypointPath,
+    "utf8"
+  )
+
+  it("creates allocations in the project create transaction only for marked projects", () => {
+    expect(hookEntrypointSource).toContain("onRecordCreate")
+    expect(hookEntrypointSource).toContain('"projects"')
+    expect(hookEntrypointSource).not.toContain("onRecordAfterCreateSuccess")
+    expect(hookSource).toContain('"source_of_fund"')
+    expect(hookSource).toContain("runInTransaction")
+    expect(hookSource).toContain("txApp.save(allocation)")
+    expect(hookSource).toContain("event.next()")
   })
 })
 

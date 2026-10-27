@@ -83,6 +83,7 @@ export type FundSourceFieldsProps = {
   loadOptions?: boolean
   yearLabel?: string
   required?: boolean
+  showAccountFields?: boolean
 }
 
 export function FundSourceFields({
@@ -94,6 +95,7 @@ export function FundSourceFields({
   loadOptions = true,
   yearLabel = "Year",
   required = false,
+  showAccountFields = true,
 }: FundSourceFieldsProps) {
   const [fundingYearOptions, setFundingYearOptions] = useState<BudgetFundOptionRecord[]>([])
   const [fundMainAccountOptions, setFundMainAccountOptions] = useState<BudgetFundOptionRecord[]>([])
@@ -152,8 +154,16 @@ export function FundSourceFields({
   }
 
   return (
-    <FieldSet className="space-y-3 rounded-md border p-3">
-      <p className="text-sm font-medium">Fund Source</p>
+    <FieldSet
+      className={
+        showAccountFields
+          ? "space-y-3 rounded-md border p-3"
+          : "space-y-3"
+      }
+    >
+      {showAccountFields ? (
+        <p className="text-sm font-medium">Fund Source</p>
+      ) : null}
       <Field data-invalid={!!fieldErrors.year}>
         <FieldLabel htmlFor={`${idPrefix}-year-trigger`} required={required}>
           {yearLabel}
@@ -180,8 +190,12 @@ export function FundSourceFields({
         </Select>
         <FieldError>{fieldErrors.year}</FieldError>
       </Field>
-      <Field data-invalid={!!fieldErrors.main_account}>
-        <FieldLabel htmlFor={`${idPrefix}-main-account-trigger`} required={required}>
+      {showAccountFields ? (
+        <Field data-invalid={!!fieldErrors.main_account}>
+          <FieldLabel
+            htmlFor={`${idPrefix}-main-account-trigger`}
+            required={required}
+          >
           Main account
         </FieldLabel>
         <Select
@@ -207,8 +221,9 @@ export function FundSourceFields({
           </SelectContent>
         </Select>
         <FieldError>{fieldErrors.main_account}</FieldError>
-      </Field>
-      {showsOtherAccountText ? (
+        </Field>
+      ) : null}
+      {showAccountFields && showsOtherAccountText ? (
         <Field data-invalid={!!fieldErrors.sub_account}>
           <FieldLabel
             htmlFor={`${idPrefix}-other-account-purpose`}
@@ -225,7 +240,7 @@ export function FundSourceFields({
           />
           <FieldError>{fieldErrors.sub_account}</FieldError>
         </Field>
-      ) : showsSubAccountDropdown ? (
+      ) : showAccountFields && showsSubAccountDropdown ? (
         <Field data-invalid={!!fieldErrors.sub_account}>
           <FieldLabel htmlFor={`${idPrefix}-sub-account-trigger`} required={required}>
             Sub account

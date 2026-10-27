@@ -17,7 +17,11 @@ import {
   projectPayloadForActor,
   statusOptionsForActor,
 } from "@workspace/pocketbase/domain/project-field-ownership"
-import { PROJECT_CATEGORY, PROJECT_STATUS } from "@workspace/pocketbase/schema"
+import {
+  PROJECT_CATEGORY,
+  PROJECT_SOURCE_OF_FUND,
+  PROJECT_STATUS,
+} from "@workspace/pocketbase/schema"
 import { effectiveProgressPct } from "@workspace/pocketbase/domain/progress-summary"
 import {
   filterProjects,
@@ -105,9 +109,10 @@ type ProjectFormState = {
   budget_year: string
   number_of_students: string
   funding_year: string
-  fund_source: string
-  sub_account: string
+  source_of_fund: string
+  source_of_fund_other: string
   period_of_implementation: string
+  total_budget: string
   bid_price: string
   start_date: string
   target_end_date: string
@@ -123,6 +128,15 @@ const PROJECT_IMPORT_HEADERS = [
   "Project Name",
   "Description",
   "Location",
+] as const
+
+const PROJECT_SOURCE_OF_FUND_OPTIONS = [
+  { value: PROJECT_SOURCE_OF_FUND[0], label: "1 General Fund" },
+  {
+    value: PROJECT_SOURCE_OF_FUND[1],
+    label: "2 20% LDF (Local Development Fund)",
+  },
+  { value: PROJECT_SOURCE_OF_FUND[2], label: "3 Others (Specify)" },
 ] as const
 
 function importCellText(row: Record<string, unknown>, header: string) {
@@ -163,9 +177,10 @@ const emptyForm = (): ProjectFormState => ({
   budget_year: String(new Date().getFullYear()),
   number_of_students: "",
   funding_year: "",
-  fund_source: "",
-  sub_account: "",
+  source_of_fund: "",
+  source_of_fund_other: "",
   period_of_implementation: "",
+  total_budget: "",
   bid_price: "",
   start_date: "",
   target_end_date: "",
@@ -698,9 +713,13 @@ export function ProjectsModule() {
         ? String(project.number_of_students)
         : "",
       funding_year: project.funding_year ? String(project.funding_year) : "",
-      fund_source: project.fund_source ?? "",
-      sub_account: project.sub_account ?? "",
+      source_of_fund: "",
+      source_of_fund_other: "",
       period_of_implementation: project.period_of_implementation ?? "",
+      total_budget:
+        project.total_budget === undefined || project.total_budget === null
+          ? ""
+          : "",
       bid_price:
         project.bid_price === undefined || project.bid_price === null
           ? ""
@@ -740,9 +759,13 @@ export function ProjectsModule() {
           ? form.number_of_students || undefined
           : undefined,
       funding_year: form.funding_year || undefined,
-      fund_source: form.fund_source || undefined,
-      sub_account: form.sub_account || undefined,
-      period_of_implementation: form.period_of_implementation || undefined,
+      source_of_fund: editing ? undefined : form.source_of_fund || undefined,
+      source_of_fund_other: editing
+        ? undefined
+        : form.source_of_fund_other || undefined,
+      period_of_implementation:
+        form.period_of_implementation || undefined,
+      total_budget: editing ? undefined : form.total_budget || undefined,
       bid_price: form.bid_price || undefined,
       start_date: form.start_date || undefined,
       target_end_date: form.target_end_date || undefined,
@@ -1495,50 +1518,126 @@ export function ProjectsModule() {
               <FundSourceFields
                 value={{
                   year: form.funding_year,
-                  mainAccount: form.fund_source,
-                  subAccount: form.sub_account,
+                  mainAccount: "",
+                  subAccount: "",
                 }}
                 onChange={(fundSource) =>
                   setForm({
                     ...form,
                     funding_year: fundSource.year,
-                    fund_source: fundSource.mainAccount,
-                    sub_account: fundSource.subAccount,
                   })
                 }
-                fieldErrors={{
-                  year: fieldErrors.funding_year,
-                  main_account: fieldErrors.fund_source,
-                  sub_account: fieldErrors.sub_account,
-                }}
+                fieldErrors={{ year: fieldErrors.funding_year }}
                 idPrefix="project"
                 yearLabel="Funding Year"
-                disabled={fieldLocked("fund_source")}
+                disabled={fieldLocked("funding_year")}
                 required={requirePpdo}
+                showAccountFields={false}
               />
-              <FieldOwnerHint field="fund_source" />
-              <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
-                <FieldLabel htmlFor="project-period" required={requirePpdo}>
-                  Period of Implementation
-                </FieldLabel>
-                <FieldOwnerHint field="period_of_implementation" />
-                <Input
-                  id="project-period"
-                  value={form.period_of_implementation}
-                  disabled={fieldLocked("period_of_implementation")}
-                  aria-invalid={Boolean(fieldErrors.period_of_implementation)}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      period_of_implementation: event.target.value,
-                    })
-                  }
-                />
-                <FieldError>{fieldErrors.period_of_implementation}</FieldError>
-                <FieldDescription>
-                  Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
-                </FieldDescription>
-              </Field>
+              {!editing ? (
+                <Field data-invalid={Boolean(fieldErrors.source_of_fund)}>
+                  <FieldLabel htmlFor="project-source-of-fund">
+                    Source of Fund
+                  </FieldLabel>
+                  <FieldOwnerHint field="source_of_fund" />
+                  <Select
+                    value={form.source_of_fund}
+                    onValueChange={(source_of_fund) =>
+                      setForm({
+                        ...form,
+                        source_of_fund,
+                        source_of_fund_other:
+                          source_of_fund === "Others"
+                            ? form.source_of_fund_other
+                            : "",
+                      })
+                    }
+                    disabled={fieldLocked("source_of_fund")}
+                  >
+                    <SelectTrigger
+                      id="project-source-of-fund"
+                      aria-label="Source of Fund"
+                      aria-invalid={Boolean(fieldErrors.source_of_fund)}
+                    >
+                      <SelectValue placeholder="Select source of fund" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_SOURCE_OF_FUND_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{fieldErrors.source_of_fund}</FieldError>
+                </Field>
+              ) : null}
+              {!editing && form.source_of_fund === "Others" ? (
+                <Field data-invalid={Boolean(fieldErrors.source_of_fund_other)}>
+                  <FieldLabel htmlFor="project-source-of-fund-other">
+                    Specify Source of Fund
+                  </FieldLabel>
+                  <Input
+                    id="project-source-of-fund-other"
+                    value={form.source_of_fund_other}
+                    disabled={fieldLocked("source_of_fund_other")}
+                    aria-invalid={Boolean(fieldErrors.source_of_fund_other)}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        source_of_fund_other: event.target.value,
+                      })
+                    }
+                  />
+                  <FieldError>{fieldErrors.source_of_fund_other}</FieldError>
+                </Field>
+              ) : null}
+              {editing ? (
+                <Field>
+                  <FieldLabel htmlFor="project-period">
+                    Period of Implementation
+                  </FieldLabel>
+                  <FieldOwnerHint field="period_of_implementation" />
+                  <Input
+                    id="project-period"
+                    value={form.period_of_implementation}
+                    disabled={fieldLocked("period_of_implementation")}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        period_of_implementation: event.target.value,
+                      })
+                    }
+                  />
+                  <FieldDescription>
+                    Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
+                  </FieldDescription>
+                </Field>
+              ) : null}
+              {editing ? (
+                <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
+                  <FieldLabel htmlFor="project-period">
+                    Period of Implementation
+                  </FieldLabel>
+                  <FieldOwnerHint field="period_of_implementation" />
+                  <Input
+                    id="project-period"
+                    value={form.period_of_implementation}
+                    disabled={fieldLocked("period_of_implementation")}
+                    aria-invalid={Boolean(fieldErrors.period_of_implementation)}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        period_of_implementation: event.target.value,
+                      })
+                    }
+                  />
+                  <FieldError>{fieldErrors.period_of_implementation}</FieldError>
+                  <FieldDescription>
+                    Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
+                  </FieldDescription>
+                </Field>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.start_date)}>
                   <FieldLabel htmlFor="project-start-date" required={requireLgu}>
@@ -1612,6 +1711,28 @@ export function ProjectsModule() {
                   />
                   <FieldError>{fieldErrors.budget_year}</FieldError>
                 </Field>
+                {!editing ? (
+                  <Field data-invalid={Boolean(fieldErrors.total_budget)}>
+                    <FieldLabel htmlFor="project-total-budget">
+                      Total Budget
+                    </FieldLabel>
+                    <FieldOwnerHint field="total_budget" />
+                    <Input
+                      id="project-total-budget"
+                      type="number"
+                      min={0}
+                      value={form.total_budget}
+                      disabled={fieldLocked("total_budget")}
+                      aria-invalid={Boolean(fieldErrors.total_budget)}
+                      onChange={(event) =>
+                        setForm({ ...form, total_budget: event.target.value })
+                      }
+                    />
+                    <FieldError>{fieldErrors.total_budget}</FieldError>
+                  </Field>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.bid_price)}>
                   <FieldLabel htmlFor="project-bid-price" required={requireLgu}>
                     Bid price (PHP)
@@ -1654,25 +1775,27 @@ export function ProjectsModule() {
                     error={fieldErrors.moa_file}
                   />
                 </div>
-                <div className="space-y-1">
-                  <FieldOwnerHint field="project_photos" />
-                  <DocumentUploadField
-                    id="project-photos"
-                    label="Project photos"
-                    required={requireLgu}
-                    files={projectPhotoFiles}
-                    existingNames={retainedPhotoNames}
-                    existingFileHref={
-                      editing
-                        ? (name) => recordFileUrl(editing, name)
-                        : undefined
-                    }
-                    onExistingNamesChange={setRetainedPhotoNames}
-                    onChange={setProjectPhotoFiles}
-                    disabled={fieldLocked("project_photos")}
-                    error={fieldErrors.project_photos}
-                  />
-                </div>
+                {requireLgu || editing ? (
+                  <div className="space-y-1">
+                    <FieldOwnerHint field="project_photos" />
+                    <DocumentUploadField
+                      id="project-photos"
+                      label="Project photos"
+                      required={requireLgu}
+                      files={projectPhotoFiles}
+                      existingNames={retainedPhotoNames}
+                      existingFileHref={
+                        editing
+                          ? (name) => recordFileUrl(editing, name)
+                          : undefined
+                      }
+                      onExistingNamesChange={setRetainedPhotoNames}
+                      onChange={setProjectPhotoFiles}
+                      disabled={fieldLocked("project_photos")}
+                      error={fieldErrors.project_photos}
+                    />
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <FieldOwnerHint field="resolution_file" />
                   <DocumentUploadField

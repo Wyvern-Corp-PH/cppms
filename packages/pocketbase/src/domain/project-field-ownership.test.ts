@@ -530,6 +530,40 @@ describe("project field ownership", () => {
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
+  it.each(["Province", "Super Admin"] as const)(
+    "rejects %s changing Source of Fund or Total Budget after project creation",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        source_of_fund: "General Fund",
+        source_of_fund_other: "",
+        total_budget: 750_000,
+      }
+      for (const [field, value] of [
+        ["source_of_fund", "20% LDF (Local Development Fund)"],
+        ["source_of_fund_other", "New source"],
+        ["total_budget", 800_000],
+      ] as const) {
+        const options = {
+          role,
+          isCreate: false,
+          original,
+          submitted: { [field]: value },
+        }
+        const result = evaluateProjectFieldWrite(options)
+        expect(result).toEqual({
+          ok: false,
+          error: `You cannot update field '${field}'.`,
+        })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+        expect(
+          projectPayloadForActor(role, original, false, { [field]: value })
+        ).toEqual({})
+        expect(isProjectFieldEditable(role, field, original, false)).toBe(false)
+      }
+    }
+  )
+
   it("lets LGU write start and end dates", () => {
     const original = {
       ...ppdoCreate,
@@ -907,7 +941,8 @@ describe("project field ownership", () => {
   it("should assign Period of Implementation to Province and drop schedule/phase/moa text ownership", () => {
     expect(PROVINCIAL_OWNED_FIELDS).toContain("period_of_implementation")
     expect(PROVINCIAL_OWNED_FIELDS).toContain("moa_file")
-    expect(PROVINCIAL_OWNED_FIELDS).not.toContain("total_budget")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("total_budget")
+    expect(PROVINCIAL_OWNED_FIELDS).toContain("source_of_fund")
     expect(PROVINCIAL_OWNED_FIELDS).not.toContain("moa_details")
     expect(LGU_OWNED_FIELDS).toEqual([
       "contractor",

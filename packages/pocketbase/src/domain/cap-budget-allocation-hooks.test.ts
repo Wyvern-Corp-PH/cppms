@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
+  ALLOCATION_EXCEEDS_BUDGET_MESSAGE,
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
 } from "./budget-allocation-guards"
 
@@ -34,6 +35,7 @@ function loadHook<T extends Record<string, unknown>>(fileName: string): T {
 
 const capHook = loadHook<{
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE: string
+  ALLOCATION_EXCEEDS_BUDGET_MESSAGE: string
   ALLOCATION_AMOUNT_INVALID_MESSAGE: string
   ALLOCATION_LIST_TRUNCATED_MESSAGE: string
   PROJECT_ROW_LOCK_SQL: string
@@ -80,6 +82,8 @@ function capEvent(options: {
   amount: unknown
   project?: string
   bidPrice?: unknown
+  totalBudget?: unknown
+  sourceOfFund?: unknown
   existing?: Array<{ id: string; amount: number }>
   missingProject?: boolean
   omitDb?: boolean
@@ -118,7 +122,14 @@ function capEvent(options: {
         findRecordById(collection: string, id: string) {
           if (options.missingProject) throw new Error("missing")
           if (collection === "projects" && id === "proj1") {
-            return { get: (field: string) => (field === "bid_price" ? options.bidPrice : "") }
+            return {
+              get: (field: string) => {
+                if (field === "bid_price") return options.bidPrice
+                if (field === "total_budget") return options.totalBudget
+                if (field === "source_of_fund") return options.sourceOfFund
+                return ""
+              },
+            }
           }
           throw new Error("missing record")
         },
@@ -174,6 +185,20 @@ describe("applyAllocationBidPriceCap", () => {
 
     expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
       ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
+    )
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it("should use Total Budget as the cap for marked projects", () => {
+    const { next, event } = capEvent({
+      amount: 750_001,
+      bidPrice: 1_000_000,
+      totalBudget: 750_000,
+      sourceOfFund: "General Fund",
+    })
+
+    expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
+      ALLOCATION_EXCEEDS_BUDGET_MESSAGE
     )
     expect(next).not.toHaveBeenCalled()
   })

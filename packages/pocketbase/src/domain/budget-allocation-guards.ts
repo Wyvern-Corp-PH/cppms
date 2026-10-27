@@ -14,6 +14,8 @@ export const RELEASED_AMOUNT_INVALID_MESSAGE =
 /** Exact copy for allocation-vs-bid-price create/update failures (all wired paths). */
 export const ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE =
   "Allocation amount exceeds the project's bid price."
+export const ALLOCATION_EXCEEDS_BUDGET_MESSAGE =
+  "Allocation amount exceeds the project's Total Budget."
 
 /** Distinct copy when newAmount is not a finite number (not a cap breach). */
 export const ALLOCATION_AMOUNT_INVALID_MESSAGE =
@@ -42,6 +44,7 @@ export type AllocationBidPriceValidation =
       ok: false
       message:
         | typeof ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
+        | typeof ALLOCATION_EXCEEDS_BUDGET_MESSAGE
         | typeof ALLOCATION_AMOUNT_INVALID_MESSAGE
     }
 
@@ -94,6 +97,22 @@ export function validateAllocationAgainstBidPrice(input: {
   bidPrice: unknown
   replaceOldAmount?: number
 }): AllocationBidPriceValidation {
+  return validateAllocationAgainstProjectBudget({
+    ...input,
+    project: { bid_price: input.bidPrice },
+  })
+}
+
+export function validateAllocationAgainstProjectBudget(input: {
+  newAmount: number | string
+  existingAllocations: readonly { amount: number }[]
+  project: {
+    source_of_fund?: unknown
+    total_budget?: unknown
+    bid_price?: unknown
+  }
+  replaceOldAmount?: number
+}): AllocationBidPriceValidation {
   const existingTotal = sumAmounts(input.existingAllocations)
   const newAmount = Number(input.newAmount)
   const replaceOld =
@@ -105,8 +124,17 @@ export function validateAllocationAgainstBidPrice(input: {
   ) {
     return { ok: false, message: ALLOCATION_AMOUNT_INVALID_MESSAGE }
   }
-  if (existingTotal - replaceOld + newAmount > bidPriceCap(input.bidPrice)) {
-    return { ok: false, message: ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE }
+  const usesTotalBudget = Boolean(input.project.source_of_fund)
+  const cap = bidPriceCap(
+    usesTotalBudget ? input.project.total_budget : input.project.bid_price
+  )
+  if (existingTotal - replaceOld + newAmount > cap) {
+    return {
+      ok: false,
+      message: usesTotalBudget
+        ? ALLOCATION_EXCEEDS_BUDGET_MESSAGE
+        : ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
+    }
   }
   return { ok: true }
 }

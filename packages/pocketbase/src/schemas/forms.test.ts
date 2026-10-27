@@ -124,7 +124,7 @@ describe("projectMutateSchema (V34)", () => {
     }
   })
 
-  it("requires Province identity fields including barangay and period", () => {
+  it("requires Province identity and budget fields but not period on create", () => {
     const schema = projectMutateSchemaForActor("Province", true, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
@@ -139,10 +139,30 @@ describe("projectMutateSchema (V34)", () => {
       expect(errors.location).toMatch(/required/i)
       expect(errors.barangay).toBe("Barangay is required.")
       expect(errors.municipality).toBe("Municipality is required.")
-      expect(errors.period_of_implementation).toBe(
-        "Period of implementation is required."
+      expect(errors.source_of_fund).toMatch(/required/i)
+      expect(errors.total_budget).toMatch(/greater than zero/i)
+    }
+
+    const barangayWithoutMunicipality = schema.safeParse({
+      name: "Charter Road",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      description: "Charter encoding",
+      location: "Poblacion",
+      barangay: "Centro",
+      funding_year: 2025,
+      source_of_fund: "General Fund",
+      total_budget: 750000,
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
+    })
+    expect(barangayWithoutMunicipality.success).toBe(false)
+    if (!barangayWithoutMunicipality.success) {
+      expect(fieldErrorsFromZod(barangayWithoutMunicipality.error).municipality).toMatch(
+        /required/i
       )
-      expect(errors.total_budget).toBeUndefined()
     }
 
     const complete = schema.safeParse({
@@ -154,9 +174,9 @@ describe("projectMutateSchema (V34)", () => {
       location: "Provincial hall",
       municipality: "Tuguegarao City",
       barangay: "Centro 01 (Bagumbayan)",
-      period_of_implementation: "FY 2026 Q1–Q4",
       funding_year: 2025,
-      fund_source: "Special Education Fund",
+      source_of_fund: "General Fund",
+      total_budget: 750000,
       moa_file: [makeFile("moa.pdf")],
       resolution_file: [makeFile("res.pdf")],
       supporting_docs: [makeFile("sup.pdf")],
@@ -164,7 +184,7 @@ describe("projectMutateSchema (V34)", () => {
     expect(complete.success).toBe(true)
   })
 
-  it("requires fund source on Province create including import path", () => {
+  it("requires distinct Source of Fund and Other detail on Province create", () => {
     const schema = projectMutateSchemaForActor("Province", true, { form: true })
     const missing = schema.safeParse({
       name: "Charter Road",
@@ -175,7 +195,6 @@ describe("projectMutateSchema (V34)", () => {
       location: "Provincial hall",
       municipality: "Tuguegarao City",
       barangay: "Centro",
-      period_of_implementation: "FY 2026",
       moa_file: [makeFile("moa.pdf")],
       resolution_file: [makeFile("res.pdf")],
       supporting_docs: [makeFile("sup.pdf")],
@@ -183,13 +202,14 @@ describe("projectMutateSchema (V34)", () => {
     expect(missing.success).toBe(false)
     if (!missing.success) {
       const errors = fieldErrorsFromZod(missing.error)
-      expect(errors.fund_source).toBe("Main account is required.")
+      expect(errors.source_of_fund).toBe("Source of Fund is required.")
+      expect(errors.total_budget).toBe("Total Budget must be greater than zero.")
       expect(errors.funding_year).toBe("Funding year is required.")
       expect(errors.contractor).toBeUndefined()
       expect(errors.bid_price).toBeUndefined()
     }
 
-    const gfMissingSub = schema.safeParse({
+    const othersMissingDetail = schema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
       status: "Planning",
@@ -198,21 +218,21 @@ describe("projectMutateSchema (V34)", () => {
       location: "Provincial hall",
       municipality: "Tuguegarao City",
       barangay: "Centro",
-      period_of_implementation: "FY 2026",
       funding_year: 2025,
-      fund_source: "General Fund",
+      source_of_fund: "Others",
+      total_budget: 750000,
       moa_file: [makeFile("moa.pdf")],
       resolution_file: [makeFile("res.pdf")],
       supporting_docs: [makeFile("sup.pdf")],
     })
-    expect(gfMissingSub.success).toBe(false)
-    if (!gfMissingSub.success) {
-      expect(fieldErrorsFromZod(gfMissingSub.error).sub_account).toBe(
-        "Sub account is required."
-      )
+    expect(othersMissingDetail.success).toBe(false)
+    if (!othersMissingDetail.success) {
+      expect(
+        fieldErrorsFromZod(othersMissingDetail.error).source_of_fund_other
+      ).toBe("Specify the source of fund.")
     }
 
-    const othersMissingPurpose = schema.safeParse({
+    const complete = schema.safeParse({
       name: "Charter Road",
       category: "Infrastructure",
       status: "Planning",
@@ -221,37 +241,14 @@ describe("projectMutateSchema (V34)", () => {
       location: "Provincial hall",
       municipality: "Tuguegarao City",
       barangay: "Centro",
-      period_of_implementation: "FY 2026",
       funding_year: 2025,
-      fund_source: "Others",
+      source_of_fund: "General Fund",
+      total_budget: 750000,
       moa_file: [makeFile("moa.pdf")],
       resolution_file: [makeFile("res.pdf")],
       supporting_docs: [makeFile("sup.pdf")],
     })
-    expect(othersMissingPurpose.success).toBe(false)
-    if (!othersMissingPurpose.success) {
-      expect(fieldErrorsFromZod(othersMissingPurpose.error).sub_account).toBe(
-        "Other purpose is required."
-      )
-    }
-
-    const sef = schema.safeParse({
-      name: "Charter Road",
-      category: "Infrastructure",
-      status: "Planning",
-      budget_year: 2026,
-      description: "Charter encoding",
-      location: "Provincial hall",
-      municipality: "Tuguegarao City",
-      barangay: "Centro",
-      period_of_implementation: "FY 2026",
-      funding_year: 2025,
-      fund_source: "Special Education Fund",
-      moa_file: [makeFile("moa.pdf")],
-      resolution_file: [makeFile("res.pdf")],
-      supporting_docs: [makeFile("sup.pdf")],
-    })
-    expect(sef.success).toBe(true)
+    expect(complete.success).toBe(true)
   })
 
   it("should reject provincial project create when attachments are missing on import path", () => {
@@ -314,6 +311,9 @@ describe("projectMutateSchema (V34)", () => {
       expect(errors.location).toMatch(/required/i)
       expect(errors.fund_source).toBe("Main account is required.")
       expect(errors.barangay).toBe("Barangay is required.")
+      expect(errors.source_of_fund).toBeUndefined()
+      expect(errors.total_budget).toBeUndefined()
+      expect(errors.funding_year).toBe("Funding year is required.")
     }
   })
 
@@ -374,9 +374,9 @@ describe("projectMutateSchema (V34)", () => {
       location: "East bank",
       municipality: "Tuguegarao City",
       barangay: "Centro",
-      period_of_implementation: "FY 2026",
       funding_year: 2025,
-      fund_source: "Special Education Fund",
+      source_of_fund: "General Fund",
+      total_budget: 750000,
       moa_file: [makeFile("moa.pdf")],
       resolution_file: [makeFile("res.pdf")],
       supporting_docs: [makeFile("sup.pdf")],
@@ -384,7 +384,7 @@ describe("projectMutateSchema (V34)", () => {
     expect(result.success).toBe(true)
   })
 
-  it("requires fund source on Super Admin form create", () => {
+  it("requires Source of Fund and Total Budget on Super Admin form create", () => {
     const schema = projectMutateSchemaForActor("Super Admin", true, {
       form: true,
     })
@@ -404,9 +404,9 @@ describe("projectMutateSchema (V34)", () => {
     })
     expect(missing.success).toBe(false)
     if (!missing.success) {
-      expect(fieldErrorsFromZod(missing.error).fund_source).toBe(
-        "Main account is required."
-      )
+      const errors = fieldErrorsFromZod(missing.error)
+      expect(errors.source_of_fund).toBe("Source of Fund is required.")
+      expect(errors.total_budget).toBe("Total Budget must be greater than zero.")
     }
   })
 

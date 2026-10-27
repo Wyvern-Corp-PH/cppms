@@ -15,7 +15,10 @@ const PROVINCIAL_OWNED_FIELDS = [
   "barangay",
   "location",
   "budget_year",
+  "total_budget",
   "fund_source",
+  "source_of_fund",
+  "source_of_fund_other",
   "funding_year",
   "sub_account",
   "period_of_implementation",
@@ -61,6 +64,11 @@ const SYSTEM_FIELDS = new Set([
   "expand",
 ])
 const CREATE_DEFAULT_FIELDS = new Set(["progress_pct", "lgu_level", "bid_price"])
+const PROJECT_CREATE_ONLY_FIELDS = new Set([
+  "source_of_fund",
+  "source_of_fund_other",
+  "total_budget",
+])
 
 function isEmptyValue(value) {
   if (value === null || value === undefined || value === "") return true
@@ -195,6 +203,7 @@ function evaluateProjectFieldWrite(options) {
   if (isProvincialOverride(role)) {
     if (!isCreate) {
       for (const field of changed) {
+        if (PROJECT_CREATE_ONLY_FIELDS.has(field)) return reject(field)
         if (
           field === "status" &&
           (isApprovalWorkflowStatusWrite(changed, submitted, original) ||

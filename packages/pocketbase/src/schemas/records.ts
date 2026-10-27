@@ -8,6 +8,7 @@ import {
   fundTypeSchema,
   lguLevelSchema,
   projectCategorySchema,
+  projectSourceOfFundSchema,
   projectStatusSchema,
   roleSchema,
 } from "./enums"
@@ -71,6 +72,8 @@ export const projectRecordSchema = baseRecordSchema.extend({
   budget_year: pbNumber,
   total_budget: pbNumber.optional(),
   fund_source: pbEmptyAsUndefined(fundTypeSchema.optional()),
+  source_of_fund: pbEmptyAsUndefined(projectSourceOfFundSchema.optional()),
+  source_of_fund_other: pbEmptyAsUndefined(z.string().optional()),
   funding_year: pbZeroAsUndefined(
     pbNumber.pipe(z.number().int().min(2000).max(2100)).optional()
   ),
