@@ -1059,7 +1059,8 @@ export function ProjectsModule() {
   )
   const statusLocked =
     fieldLocked("status") ||
-    (editing && (actorRole === "Barangay" || actorRole === "Municipality"))
+    (Boolean(editing) &&
+      (actorRole === "Barangay" || actorRole === "Municipality"))
 
   const filterBarangayChoices = useMemo(() => {
     if (municipalityFilter === "all") {
