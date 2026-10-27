@@ -440,7 +440,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       screen.getByRole("button", { name: /download template/i })
     ).toBeInTheDocument()
     expect(screen.getByText(/required headers:/i)).toHaveTextContent(
-      "Required headers: Project Name, Description, Location."
+      "Required headers: Project Name, Source of Fund, Total Budget. Specify Source of Fund is required for Others."
     )
   })
 
@@ -454,7 +454,14 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     )
 
     expect(XLSX.utils.aoa_to_sheet).toHaveBeenCalledWith([
-      ["Project Name", "Description", "Location"],
+      [
+        "Project Name",
+        "Description",
+        "Location",
+        "Source of Fund",
+        "Specify Source of Fund",
+        "Total Budget",
+      ],
     ])
     expect(XLSX.writeFile).toHaveBeenCalledWith(
       expect.anything(),
@@ -471,6 +478,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         Location: "Tuguegarao City",
         Contractor: "BuildCo",
         "Bid Price": "1500000",
+        "Source of Fund": "General Fund",
+        "Total Budget": "1200000",
       },
       {
         "Project Name": "",
@@ -485,6 +494,9 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         Location: "Lasam",
         Contractor: "FixCo",
         "Bid Price": "500000",
+        "Source of Fund": "Others",
+        "Specify Source of Fund": "Provincial share",
+        "Total Budget": "500000",
       },
     ]
     render(<ProjectsModule />)
@@ -499,12 +511,36 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).not.toHaveBeenCalled()
+      expect(createMock).toHaveBeenCalledTimes(2)
     })
+    expect(createMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: "Road Widening",
+        description: "Phase 1",
+        location: "Tuguegarao City",
+        contractor: "BuildCo",
+        bid_price: 1500000,
+        source_of_fund: "General Fund",
+        total_budget: 1200000,
+        category: "Infrastructure",
+        status: "Planning",
+        progress_pct: 0,
+      })
+    )
     expect(
-      await screen.findByText("0 of 3 projects imported successfully. 3 rows had errors.")
+      await screen.findByText("2 of 3 projects imported successfully. 1 row had errors.")
     ).toBeInTheDocument()
     expect(screen.getByText(/Row 3: Project Name is required/i)).toBeInTheDocument()
+    expect(createMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: "School Repair",
+        source_of_fund: "Others",
+        source_of_fund_other: "Provincial share",
+        total_budget: 500000,
+      })
+    )
   })
 
   it("imports Excel rows without Contractor or Bid Price columns", async () => {
@@ -514,6 +550,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         "Project Name": "Road Widening",
         Description: "Phase 1",
         Location: "Tuguegarao City",
+        "Source of Fund": "20% LDF (Local Development Fund)",
+        "Total Budget": "750000",
       },
     ]
     render(<ProjectsModule />)
@@ -529,10 +567,28 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/0 of 1 projects imported successfully/i)
+        screen.getByText(/1 of 1 projects imported successfully/i)
       ).toBeInTheDocument()
     })
-    expect(createMock).not.toHaveBeenCalled()
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Road Widening",
+        description: "Phase 1",
+        location: "Tuguegarao City",
+        source_of_fund: "20% LDF (Local Development Fund)",
+        total_budget: 750000,
+      })
+    )
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty("contractor")
+    expect(payload).not.toHaveProperty("bid_price")
+    expect(payload).not.toHaveProperty("fund_source")
+    expect(payload).not.toHaveProperty("funding_year")
+    expect(
+      screen.queryByText(/Bid Price is required/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/funding year is required/i)).not.toBeInTheDocument()
   })
 
   it("imports multiple Excel files and reports filename row errors", async () => {
@@ -545,6 +601,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
           Location: "Tuguegarao City",
           Contractor: "BuildCo",
           "Bid Price": "1500000",
+          "Source of Fund": "General Fund",
+          "Total Budget": "1500000",
         },
       ],
       [
@@ -561,6 +619,9 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
           Location: "Lasam",
           Contractor: "FixCo",
           "Bid Price": "500000",
+          "Source of Fund": "Others",
+          "Specify Source of Fund": "Provincial share",
+          "Total Budget": "500000",
         },
       ],
     ]
@@ -578,15 +639,67 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
 
     await waitFor(() => {
-      expect(createMock).not.toHaveBeenCalled()
+      expect(createMock).toHaveBeenCalledTimes(2)
     })
     expect(XLSX.read).toHaveBeenCalledTimes(2)
     expect(
-      await screen.findByText("0 of 3 projects imported successfully. 3 rows had errors.")
+      await screen.findByText(
+        "2 of 3 projects imported successfully. 1 row had errors."
+      )
     ).toBeInTheDocument()
     expect(
       screen.getByText(/projects-b\.xlsx Row 2: Project Name is required/i)
     ).toBeInTheDocument()
+  })
+
+  it("rejects invalid funding rows without creating any project", async () => {
+    const user = userEvent.setup()
+    xlsxState.rows = [
+      {
+        "Project Name": "Missing Source",
+        "Total Budget": "1000",
+      },
+      {
+        "Project Name": "Invalid Source",
+        "Source of Fund": "Local Donation",
+        "Total Budget": "1000",
+      },
+      {
+        "Project Name": "Zero Budget",
+        "Source of Fund": "General Fund",
+        "Total Budget": "0",
+      },
+      {
+        "Project Name": "Invalid Budget",
+        "Source of Fund": "General Fund",
+        "Total Budget": "not money",
+      },
+      {
+        "Project Name": "Unspecified Other",
+        "Source of Fund": "Others",
+        "Total Budget": "1000",
+      },
+    ]
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /^import$/i }))
+    await user.upload(
+      await screen.findByLabelText(/excel file/i),
+      new File(["workbook"], "invalid-funding.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      })
+    )
+    await user.click(await screen.findByRole("button", { name: /^import projects$/i }))
+
+    await waitFor(() => expect(createMock).not.toHaveBeenCalled())
+    expect(await screen.findByText(/0 of 5 projects imported successfully/i)).toHaveTextContent(
+      "0 of 5 projects imported successfully. 5 rows had errors."
+    )
+    expect(screen.getByText(/Row 2: Source of Fund is required/i)).toBeInTheDocument()
+    expect(screen.getByText(/Row 3: Source of Fund must be valid/i)).toBeInTheDocument()
+    expect(screen.getByText(/Row 4: Total Budget must be a valid amount greater than zero/i)).toBeInTheDocument()
+    expect(screen.getByText(/Row 5: Total Budget must be a valid amount greater than zero/i)).toBeInTheDocument()
+    expect(screen.getByText(/Row 6: Specify Source of Fund is required for Others/i)).toBeInTheDocument()
   })
 
   it("does not derive edit municipality or barangay from imported free-text location", async () => {
@@ -1716,6 +1829,36 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(payload).not.toHaveProperty("total_budget")
   })
 
+  it("restores Main Account and Sub Account when editing an existing project", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      catalogProject({
+        fund_source: "General Fund",
+        sub_account: "GF - Proper",
+      }),
+    ]
+    updateMock.mockResolvedValue({})
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+    expect(screen.getByLabelText(/^main account$/i)).toHaveTextContent("General Fund")
+    expect(screen.getByLabelText(/^sub account$/i)).toHaveTextContent("GF - Proper")
+    await user.click(screen.getByLabelText(/^main account$/i))
+    await user.click(await screen.findByRole("option", { name: "Trust Fund" }))
+    await user.click(screen.getByLabelText(/^sub account$/i))
+    await user.click(await screen.findByRole("option", { name: "Trust Fund - Proper" }))
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled())
+    expect(updateMock.mock.calls[0]?.[1]).toMatchObject({
+      fund_source: "Trust Fund",
+      sub_account: "Trust Fund - Proper",
+    })
+  })
+
   it.each([
     { role: "Super Admin", progress_pct: 50, status: "Ongoing" },
     { role: "Super Admin", progress_pct: 100, status: "Completed" },
@@ -1931,7 +2074,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     ).toBeInTheDocument()
   })
 
-  it("imports provincial identity fields from Excel for Province", async () => {
+  it("imports provincial identity and budget fields from Excel for Province", async () => {
     const user = userEvent.setup()
     store.authRecord = {
       id: "pp1",
@@ -1945,6 +2088,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         Location: "Tuguegarao City",
         Contractor: "BuildCo",
         "Bid Price": "1500000",
+        "Source of Fund": "General Fund",
+        "Total Budget": "1200000",
       },
     ]
 
@@ -1961,10 +2106,18 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/0 of 1 projects imported successfully/i)
+        screen.getByText(/1 of 1 projects imported successfully/i)
       ).toBeInTheDocument()
     })
-    expect(createMock).not.toHaveBeenCalled()
+    expect(createMock).toHaveBeenCalledTimes(1)
+    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(payload).toMatchObject({
+      name: "Road Widening",
+      description: "Phase 1",
+      location: "Tuguegarao City",
+      source_of_fund: "General Fund",
+      total_budget: 1_200_000,
+    })
   })
 
   it.each(["Province", "Super Admin"] as const)(

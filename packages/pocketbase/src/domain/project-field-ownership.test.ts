@@ -117,6 +117,26 @@ describe("project field ownership", () => {
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
   })
 
+  it("rejects Provincial API creates without Source of Fund or Total Budget", () => {
+    const missingSource = ownershipHookEvent({
+      role: "Province",
+      fields: { ...ppdoCreate, total_budget: 750_000 },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(missingSource.event, true)).toThrow(
+      "Source of Fund is required."
+    )
+    expect(missingSource.next).not.toHaveBeenCalled()
+
+    const missingBudget = ownershipHookEvent({
+      role: "Province",
+      fields: { ...ppdoCreate, source_of_fund: "General Fund" },
+    })
+    expect(() => jsOwnership.applyProjectFieldOwnership(missingBudget.event, true)).toThrow(
+      "Total Budget must be greater than zero."
+    )
+    expect(missingBudget.next).not.toHaveBeenCalled()
+  })
+
   it("rejects a retired PPDO role from writing projects", () => {
     const result = evaluateProjectFieldWrite({
       role: "PPDO",
@@ -207,7 +227,7 @@ describe("project field ownership", () => {
     expect(fromReview.ok).toBe(false)
   })
 
-  it("should allow LGU progress-sync write to For Completion at 100 percent", () => {
+  it("rejects manual LGU Status writes even with a progress pair", () => {
     for (const currentStatus of [
       "Planning",
       "Procurement",
@@ -227,12 +247,12 @@ describe("project field ownership", () => {
         submitted: { status: "For Completion", progress_pct: 100 },
       }
       expect(evaluateProjectFieldWrite(options)).toEqual({
-        ok: true,
-        setLguEncodedAt: false,
+        ok: false,
+        error: "You cannot update field 'status'.",
       })
       expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
-        ok: true,
-        setLguEncodedAt: false,
+        ok: false,
+        error: "You cannot update field 'status'.",
       })
     }
   })
@@ -291,8 +311,31 @@ describe("project field ownership", () => {
     })
   })
 
-  it("should allow For Completion to Ongoing when progress_pct is below 100", () => {
-    for (const role of ["Municipality", "Super Admin", "Province"] as const) {
+  it("rejects manual LGU For Completion to Ongoing status writes", () => {
+      const options = {
+        role: "Municipality" as const,
+        isCreate: false,
+        original: {
+          ...ppdoCreate,
+          status: "For Completion",
+          progress_pct: 100,
+          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
+        },
+        submitted: { status: "Ongoing", progress_pct: 70 },
+      }
+      expect(evaluateProjectFieldWrite(options)).toEqual({
+        ok: false,
+        error: "You cannot update field 'status'.",
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+        ok: false,
+        error: "You cannot update field 'status'.",
+      })
+  })
+
+  it.each(["Super Admin", "Province"] as const)(
+    "allows %s For Completion to Ongoing status writes with reduced progress",
+    (role) => {
       const options = {
         role,
         isCreate: false,
@@ -313,10 +356,10 @@ describe("project field ownership", () => {
         setLguEncodedAt: false,
       })
     }
-  })
+  )
 
-  it("lets LGU change among Planning, Procurement, and Ongoing after the marker", () => {
-    const result = evaluateProjectFieldWrite({
+  it("rejects manual LGU status changes after the marker", () => {
+    const options = {
       role: "Municipality",
       isCreate: false,
       original: {
@@ -325,12 +368,17 @@ describe("project field ownership", () => {
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
       submitted: { status: "Ongoing" },
+    }
+    const result = evaluateProjectFieldWrite(options)
+    expect(result).toEqual({
+      ok: false,
+      error: "You cannot update field 'status'.",
     })
-    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
-  it("lets LGU write Cancelled from a non-terminal status", () => {
-    const result = evaluateProjectFieldWrite({
+  it("rejects manual LGU cancellation from a non-terminal status", () => {
+    const options = {
       role: "Municipality",
       isCreate: false,
       original: {
@@ -339,20 +387,13 @@ describe("project field ownership", () => {
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
       submitted: { status: "Cancelled" },
+    }
+    const result = evaluateProjectFieldWrite(options)
+    expect(result).toEqual({
+      ok: false,
+      error: "You cannot update field 'status'.",
     })
-    expect(result).toEqual({ ok: true, setLguEncodedAt: false })
-    expect(
-      jsOwnership.evaluateProjectFieldWrite({
-        role: "Municipality",
-        isCreate: false,
-        original: {
-          ...ppdoCreate,
-          status: "Planning",
-          lgu_encoded_at: "2026-08-01 00:00:00.000Z",
-        },
-        submitted: { status: "Cancelled" },
-      })
-    ).toEqual(result)
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
   })
 
   it("freezes Cancelled so LGU cannot leave it", () => {
@@ -528,6 +569,31 @@ describe("project field ownership", () => {
     const result = evaluateProjectFieldWrite(options)
     expect(result).toEqual({ ok: true, setLguEncodedAt: false })
     expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+  })
+
+  it("rejects Others without detail at the authenticated project create boundary", () => {
+    const { event, next } = ownershipHookEvent({
+      role: "Province",
+      fields: {
+        ...ppdoCreate,
+        source_of_fund: "Others",
+        source_of_fund_other: "  ",
+        total_budget: 750_000,
+      },
+    })
+    const requestHook = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        "../../pb_hooks/project-field-ownership.pb.js"
+      ),
+      "utf8"
+    )
+
+    expect(requestHook).toContain("onRecordCreateRequest")
+    expect(() => jsOwnership.applyProjectFieldOwnership(event, true)).toThrow(
+      "Specify Source of Fund is required for Others."
+    )
+    expect(next).not.toHaveBeenCalled()
   })
 
   it.each(["Province", "Super Admin"] as const)(
@@ -1479,7 +1545,14 @@ describe("JS hook and TS ownership list parity", () => {
 
 describe("JS applyProjectFieldOwnership request chain", () => {
   it("should call next once when Super Admin creates a project", () => {
-    const { event, next, set } = ownershipHookEvent({ superuser: true })
+    const { event, next, set } = ownershipHookEvent({
+      superuser: true,
+      fields: {
+        ...ppdoCreate,
+        source_of_fund: "General Fund",
+        total_budget: 750_000,
+      },
+    })
     jsOwnership.applyProjectFieldOwnership(event, true)
     expect(set).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()

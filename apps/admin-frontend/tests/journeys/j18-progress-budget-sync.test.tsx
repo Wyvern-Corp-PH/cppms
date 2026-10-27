@@ -85,6 +85,30 @@ vi.mock("@/lib/pocketbase", () => ({
           return record
         }
 
+        if (name === "projects") {
+          const project: Record<string, unknown> = {
+            id: "p-created",
+            collectionId: "p",
+            collectionName: "projects",
+            created: "2026-07-09T00:00:00.000Z",
+            updated: "2026-07-09T00:00:00.000Z",
+            ...(payload as Record<string, unknown>),
+          }
+          store.projects.unshift(project)
+          if (project.source_of_fund) {
+            store.allocations.push({
+              id: "a-created",
+              collectionId: "a",
+              collectionName: "budget_allocations",
+              project: project.id,
+              amount: Number(project.total_budget),
+              year: Number(project.funding_year),
+              date: "2026-07-09",
+            })
+          }
+          return project
+        }
+
         const progressRecord = {
           id: "pu-sync",
           collectionId: "updates",
@@ -113,6 +137,7 @@ vi.mock("@/lib/pocketbase", () => ({
 
 import { BudgetModule } from "@/components/budget-module"
 import { ProgressModule } from "@/components/progress-module"
+import { ProjectsModule } from "@/components/projects-module"
 
 function makeFile(name: string, type = "application/pdf") {
   return new File(["content"], name, { type })
@@ -272,6 +297,7 @@ describe("J18 progress update syncs released amount to budget module", () => {
       })
 
       const user = userEvent.setup()
+      const generatedExpenseDate = new Date().toISOString().slice(0, 10)
 
       render(<ProgressModule />)
 
@@ -284,7 +310,6 @@ describe("J18 progress update syncs released amount to budget module", () => {
         makeFile("site.jpg", "image/jpeg")
       )
       await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
-      await user.type(screen.getByLabelText(/^receipt number$/i), "RCPT-18")
       await user.type(screen.getByLabelText(/^description$/i), "J18 release")
       await user.click(screen.getByLabelText(/^main account$/i))
       await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -293,21 +318,21 @@ describe("J18 progress update syncs released amount to budget module", () => {
       await user.click(screen.getByRole("button", { name: /save update/i }))
 
       await waitFor(() => {
-        const synced = store.expenses.find((row) => row.receipt_number === "RCPT-18")
+        const synced = store.expenses.find((row) => row.description === "J18 release")
         expect(synced).toMatchObject({
           project: "p1",
           amount: "2500",
           year: "2026",
-          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          receipt_number: "RCPT-18",
+          date: generatedExpenseDate,
           description: "J18 release",
           main_account: "General Fund",
           sub_account: "GF - Proper",
           progress_update: "pu-sync",
         })
+        expect(synced).not.toHaveProperty("receipt_number")
       })
       expect(
-        store.expenses.filter((row) => row.receipt_number === "RCPT-18")
+        store.expenses.filter((row) => row.description === "J18 release")
       ).toHaveLength(1)
 
       cleanup()
@@ -323,10 +348,10 @@ describe("J18 progress update syncs released amount to budget module", () => {
 
       await waitFor(() => {
         expect(screen.getByText("-2,500")).toBeInTheDocument()
-        expect(screen.getByText("RCPT-18")).toBeInTheDocument()
         expect(screen.getByText("J18 release")).toBeInTheDocument()
         expect(screen.getAllByText("Barangay Bridge").length).toBeGreaterThan(0)
       })
+      expect(screen.queryByText("RCPT-18")).not.toBeInTheDocument()
 
       if (seesOutOfScope) {
         expect(screen.getByText("Lasam School")).toBeInTheDocument()
@@ -338,4 +363,43 @@ describe("J18 progress update syncs released amount to budget module", () => {
     },
     20_000
   )
+
+  it("shows a new Provincial project and its single linked allocation in Budget", async () => {
+    useActor("Province")
+    store.projects = []
+    store.allocations = []
+    store.expenses = []
+    const user = userEvent.setup()
+
+    render(<ProjectsModule />)
+
+    await user.click(await screen.findByTestId("create-project"))
+    await user.type(screen.getByLabelText(/project name/i), "J18 Provincial Road")
+    await user.type(screen.getByLabelText(/^description$/i), "J18 allocation")
+    await user.type(screen.getByLabelText(/^location$/i), "Provincial Hall")
+    await user.click(screen.getByLabelText(/^funding year$/i))
+    await user.click(
+      await screen.findByRole("option", { name: String(new Date().getFullYear()) })
+    )
+    await user.click(screen.getByLabelText(/^source of fund$/i))
+    await user.click(await screen.findByRole("option", { name: "1 General Fund" }))
+    await user.type(screen.getByLabelText(/^total budget$/i), "75000")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    await waitFor(() => expect(store.projects).toHaveLength(1))
+    expect(store.allocations).toHaveLength(1)
+    expect(store.allocations[0]).toMatchObject({
+      project: store.projects[0]?.id,
+      amount: 75000,
+    })
+
+    cleanup()
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-total")).toHaveTextContent("₱75,000")
+      expect(screen.getByText("J18 Provincial Road")).toBeInTheDocument()
+      expect(screen.getByText(/\+75,000/)).toBeInTheDocument()
+    })
+  })
 })

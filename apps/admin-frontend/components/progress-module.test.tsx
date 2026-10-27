@@ -100,6 +100,16 @@ vi.mock("@/lib/pocketbase", () => ({
 
 import { ProgressModule } from "./progress-module"
 
+function expectRequiredMark(
+  labelText: string | RegExp,
+  root: HTMLElement = document.body
+) {
+  const text = within(root).getByText(labelText)
+  const label = text.closest("[data-slot=field-label]")
+  expect(label, `required mark for ${String(labelText)}`).not.toBeNull()
+  expect(label).toHaveAttribute("data-required", "true")
+}
+
 async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
   await user.click(screen.getByRole("button", { name: /pick date range/i }))
   await user.type(screen.getByLabelText(/from date/i), from)
@@ -318,6 +328,7 @@ describe("ProgressModule (V81, V84)", () => {
   async function fillRequiredReleasedAmount(
     user: ReturnType<typeof userEvent.setup>
   ) {
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -1111,12 +1122,8 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getAllByRole("button", { name: /^edit$/i })).toHaveLength(
       2
     )
-    expect(
-      within(panel).getByText("early band", { hidden: true })
-    ).toBeInTheDocument()
-    expect(
-      within(panel).queryByText("late band", { hidden: true })
-    ).not.toBeInTheDocument()
+    expect(panel).toHaveTextContent("early band")
+    expect(panel).not.toHaveTextContent("late band")
 
     await user.clear(dialogFrom)
     await user.clear(dialogTo)
@@ -1697,6 +1704,8 @@ describe("ProgressModule (V81, V84)", () => {
     const dialog = await screen.findByRole("dialog", {
       name: /update progress/i,
     })
+    expectRequiredMark("Update notes", dialog)
+    expectRequiredMark("Site Photo", dialog)
     expect(
       within(dialog).getByText("Completion Documents")
     ).toBeInTheDocument()
@@ -2263,6 +2272,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -2328,6 +2338,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -4009,6 +4020,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -4084,6 +4096,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
@@ -4161,6 +4174,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -4301,6 +4315,7 @@ describe("ProgressModule (V81, V84)", () => {
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
     )
+    await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {

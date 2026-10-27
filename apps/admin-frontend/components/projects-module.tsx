@@ -109,6 +109,8 @@ type ProjectFormState = {
   budget_year: string
   number_of_students: string
   funding_year: string
+  fund_source: string
+  sub_account: string
   source_of_fund: string
   source_of_fund_other: string
   period_of_implementation: string
@@ -128,6 +130,9 @@ const PROJECT_IMPORT_HEADERS = [
   "Project Name",
   "Description",
   "Location",
+  "Source of Fund",
+  "Specify Source of Fund",
+  "Total Budget",
 ] as const
 
 const PROJECT_SOURCE_OF_FUND_OPTIONS = [
@@ -177,6 +182,8 @@ const emptyForm = (): ProjectFormState => ({
   budget_year: String(new Date().getFullYear()),
   number_of_students: "",
   funding_year: "",
+  fund_source: "",
+  sub_account: "",
   source_of_fund: "",
   source_of_fund_other: "",
   period_of_implementation: "",
@@ -713,6 +720,8 @@ export function ProjectsModule() {
         ? String(project.number_of_students)
         : "",
       funding_year: project.funding_year ? String(project.funding_year) : "",
+      fund_source: project.fund_source ?? "",
+      sub_account: project.sub_account ?? "",
       source_of_fund: "",
       source_of_fund_other: "",
       period_of_implementation: project.period_of_implementation ?? "",
@@ -759,6 +768,8 @@ export function ProjectsModule() {
           ? form.number_of_students || undefined
           : undefined,
       funding_year: form.funding_year || undefined,
+      fund_source: editing ? form.fund_source || undefined : undefined,
+      sub_account: editing ? form.sub_account || undefined : undefined,
       source_of_fund: editing ? undefined : form.source_of_fund || undefined,
       source_of_fund_other: editing
         ? undefined
@@ -914,11 +925,49 @@ export function ProjectsModule() {
         for (const [index, row] of rows.entries()) {
           const rowNumber = index + 2
           const name = importCellText(row, "Project Name")
+          const sourceOfFund = importCellText(row, "Source of Fund")
+          const sourceOfFundOther = importCellText(row, "Specify Source of Fund")
+          const totalBudgetValue = importCellText(row, "Total Budget")
+          const totalBudget = parseImportBudget(totalBudgetValue)
           const bidPriceValue = importCellText(row, "Bid Price")
           const bidPrice = bidPriceValue ? parseImportBudget(bidPriceValue) : undefined
 
           if (!name) {
             errors.push(importRowError(file, rowNumber, "Project Name is required."))
+            continue
+          }
+          if (!sourceOfFund) {
+            errors.push(importRowError(file, rowNumber, "Source of Fund is required."))
+            continue
+          }
+          if (
+            !PROJECT_SOURCE_OF_FUND_OPTIONS.some(
+              (option) => option.value === sourceOfFund
+            )
+          ) {
+            errors.push(
+              importRowError(file, rowNumber, "Source of Fund must be valid.")
+            )
+            continue
+          }
+          if (totalBudget === null || totalBudget <= 0) {
+            errors.push(
+              importRowError(
+                file,
+                rowNumber,
+                "Total Budget must be a valid amount greater than zero."
+              )
+            )
+            continue
+          }
+          if (sourceOfFund === "Others" && !sourceOfFundOther) {
+            errors.push(
+              importRowError(
+                file,
+                rowNumber,
+                "Specify Source of Fund is required for Others."
+              )
+            )
             continue
           }
           if (bidPriceValue && bidPrice === null) {
@@ -934,6 +983,9 @@ export function ProjectsModule() {
             location: importCellText(row, "Location") || undefined,
             contractor: importCellText(row, "Contractor") || undefined,
             bid_price: bidPrice,
+            source_of_fund: sourceOfFund,
+            source_of_fund_other: sourceOfFundOther || undefined,
+            total_budget: totalBudget,
             category: "Infrastructure",
             status: "Planning",
             budget_year: new Date().getFullYear(),
@@ -1253,13 +1305,13 @@ export function ProjectsModule() {
           <DialogHeader>
             <DialogTitle>Import projects</DialogTitle>
             <DialogDescription>
-              Upload one or more Excel workbooks with the project text fields for this
-              import phase.
+              Upload workbooks with project details, Source of Fund, and Total Budget.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-              Required headers: {PROJECT_IMPORT_HEADERS.join(", ")}.
+              Required headers: Project Name, Source of Fund, Total Budget. Specify
+              Source of Fund is required for Others.
             </div>
             <Field>
               <FieldLabel htmlFor="project-import-file">Excel files</FieldLabel>
@@ -1522,30 +1574,36 @@ export function ProjectsModule() {
               <FundSourceFields
                 value={{
                   year: form.funding_year,
-                  mainAccount: "",
-                  subAccount: "",
+                  mainAccount: form.fund_source,
+                  subAccount: form.sub_account,
                 }}
                 onChange={(fundSource) =>
                   setForm({
                     ...form,
                     funding_year: fundSource.year,
+                    fund_source: fundSource.mainAccount,
+                    sub_account: fundSource.subAccount,
                   })
                 }
-                fieldErrors={{ year: fieldErrors.funding_year }}
+                fieldErrors={{
+                  year: fieldErrors.funding_year,
+                  main_account: fieldErrors.fund_source,
+                  sub_account: fieldErrors.sub_account,
+                }}
                 idPrefix="project"
                 yearLabel="Funding Year"
                 disabled={fieldLocked("funding_year")}
                 required={requirePpdo}
-                showAccountFields={false}
+                showAccountFields={Boolean(editing)}
               />
               {!editing ? (
                 <Field data-invalid={Boolean(fieldErrors.source_of_fund)}>
-                <FieldLabel
-                  htmlFor="project-source-of-fund"
-                  required={requirePpdo}
-                >
-                  Source of Fund
-                </FieldLabel>
+                  <FieldLabel
+                    htmlFor="project-source-of-fund"
+                    required={requirePpdo}
+                  >
+                    Source of Fund
+                  </FieldLabel>
                   <FieldOwnerHint field="source_of_fund" />
                   <Select
                     value={form.source_of_fund}
@@ -1600,30 +1658,11 @@ export function ProjectsModule() {
                 </Field>
               ) : null}
               {editing ? (
-                <Field>
-                  <FieldLabel htmlFor="project-period">
-                    Period of Implementation
-                  </FieldLabel>
-                  <FieldOwnerHint field="period_of_implementation" />
-                  <Input
-                    id="project-period"
-                    value={form.period_of_implementation}
-                    disabled={fieldLocked("period_of_implementation")}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        period_of_implementation: event.target.value,
-                      })
-                    }
-                  />
-                  <FieldDescription>
-                    Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA.
-                  </FieldDescription>
-                </Field>
-              ) : null}
-              {editing ? (
                 <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
-                  <FieldLabel htmlFor="project-period">
+                  <FieldLabel
+                    htmlFor="project-period"
+                    required={requirePpdo}
+                  >
                     Period of Implementation
                   </FieldLabel>
                   <FieldOwnerHint field="period_of_implementation" />

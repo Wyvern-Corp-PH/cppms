@@ -11,14 +11,15 @@ const ALLOCATION_AMOUNT_INVALID_MESSAGE =
   "Allocation amount must be a valid number."
 const ALLOCATION_LIST_TRUNCATED_MESSAGE =
   "Too many allocations to validate against bid price."
+const ALLOCATION_LOCK_FAILED_MESSAGE =
+  "Unable to validate allocation cap because the project lock could not be established."
 const ALLOCATION_QUERY_LIMIT = 500
 // tradeoff: PocketBase JSVM has no row-lock / SELECT FOR UPDATE API.
 // This no-op UPDATE takes a SQLite write lock on the project row until the
 // current transaction commits (model hooks run inside Save). Request-hook
 // calls auto-commit and do not span persist — the model hook re-locks.
-// Ceiling: no-op when app.db is missing. Upgrade: allocated_total column
-// or BEGIN IMMEDIATE if persist moves outside Save's transaction.
-const PROJECT_ROW_LOCK_SQL = "UPDATE projects SET updated = updated WHERE id = {:id}"
+// Failure to establish this lock rejects validation rather than using a stale sum.
+const PROJECT_ROW_LOCK_SQL = "UPDATE projects SET id = id WHERE id = {:id}"
 
 function sumAmounts(rows) {
   return rows.reduce((sum, row) => sum + row.amount, 0)
@@ -76,11 +77,25 @@ function recordId(record) {
 
 function lockProjectRow(app, projectId) {
   const id = sanitizeId(projectId)
-  if (!id || !app || typeof app.db !== "function") return
+  let stage = "validate app and project id"
   try {
-    app.db().newQuery(PROJECT_ROW_LOCK_SQL).bind({ id }).execute()
-  } catch {
-    // cannot prove a lock; caller still validates against this read
+    if (!id || !app || typeof app.db !== "function") throw new Error()
+    stage = "open database builder"
+    const db = app.db()
+    if (!db || typeof db.newQuery !== "function") throw new Error()
+    stage = "create lock query"
+    const query = db.newQuery(PROJECT_ROW_LOCK_SQL)
+    if (!query || typeof query.bind !== "function") throw new Error()
+    stage = "bind project id"
+    const boundQuery = query.bind({ id })
+    if (!boundQuery || typeof boundQuery.execute !== "function") throw new Error()
+    stage = "execute project lock"
+    boundQuery.execute()
+  } catch (error) {
+    console.error(
+      `Budget allocation cap lock failed for ${id} at ${stage}: ${error?.message ?? JSON.stringify(error) ?? String(error)}`
+    )
+    throw new BadRequestError(ALLOCATION_LOCK_FAILED_MESSAGE)
   }
 }
 
@@ -142,6 +157,7 @@ module.exports = {
   ALLOCATION_EXCEEDS_BUDGET_MESSAGE,
   ALLOCATION_AMOUNT_INVALID_MESSAGE,
   ALLOCATION_LIST_TRUNCATED_MESSAGE,
+  ALLOCATION_LOCK_FAILED_MESSAGE,
   PROJECT_ROW_LOCK_SQL,
   lockProjectRow,
   validateAllocationAgainstBidPrice,

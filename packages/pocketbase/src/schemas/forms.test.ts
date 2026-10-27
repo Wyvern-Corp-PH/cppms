@@ -162,9 +162,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(complete.success).toBe(true)
   })
@@ -196,9 +201,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "Others",
       total_budget: 750000,
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(othersMissingDetail.success).toBe(false)
     if (!othersMissingDetail.success) {
@@ -214,14 +224,19 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Charter encoding",
       location: "Provincial hall",
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(complete.success).toBe(true)
   })
 
-  it("does not require fund source on Province create used by excel import", () => {
+  it("requires new source and budget fields for Excel imports without legacy fields", () => {
     const schema = projectMutateSchemaForActor("Province", true)
     const result = schema.safeParse({
       name: "Imported road",
@@ -230,6 +245,8 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Phase 1",
       location: "Tuguegarao City",
+      source_of_fund: "General Fund",
+      total_budget: 500000,
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -269,8 +286,10 @@ describe("projectMutateSchema (V34)", () => {
       status: "Ongoing",
       budget_year: 2026,
       contractor: "Local Builders",
+      bid_price: 500_000,
       start_date: "2026-06-01",
       target_end_date: "2026-12-01",
+      existing_project_photos: ["site.jpg"],
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -310,9 +329,14 @@ describe("projectMutateSchema (V34)", () => {
       budget_year: 2026,
       description: "Span",
       location: "East bank",
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
       funding_year: 2025,
       source_of_fund: "General Fund",
       total_budget: 750000,
+      moa_file: [makeFile("moa.pdf")],
+      resolution_file: [makeFile("res.pdf")],
+      supporting_docs: [makeFile("sup.pdf")],
     })
     expect(result.success).toBe(true)
   })
@@ -521,6 +545,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       releasedAmount: validReleasedAmount,
     })
@@ -536,6 +561,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       releasedAmount: { ...validReleasedAmount, description: "" },
     })
@@ -552,6 +578,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       releasedAmount: { ...validReleasedAmount, description: "   " },
     })
@@ -568,6 +595,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     const result = progressUpdateWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       releasedAmount: {
         ...validReleasedAmount,
@@ -670,15 +698,48 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: undefined,
     })
     expect(result.success).toBe(false)
+  })
+
+  it("should reject when update notes are blank", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      notes: "   ",
+      sitePhoto: makeFile("site.jpg"),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).notes).toBe(
+        "Update notes are required."
+      )
+    }
+  })
+
+  it("should reject when update notes are omitted", () => {
+    const result = progressUpdateFormSchema.safeParse({
+      projectId: "1",
+      toPct: 50,
+      sitePhoto: makeFile("site.jpg"),
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).notes).toBe(
+        "Update notes are required."
+      )
+    }
   })
 
   it("allows 100% progress with no optional completion or liquidation documents", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: makeFile("site.jpg"),
       completionDocs: {},
     })
@@ -690,6 +751,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [],
       completionDocs: {},
     })
@@ -704,6 +766,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 22,
+      notes: "Progress notes",
       sitePhoto: makeFile("site.jpg"),
       completionDocs: {
         certification_completion: null,
@@ -723,6 +786,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
     })
 
@@ -733,6 +797,7 @@ describe("progressUpdateFormSchema (V6, V35)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [makeFile("site-1.jpg"), makeFile("site-2.jpg")],
       completionDocs: {
         completion_site_photo: [
@@ -786,6 +851,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
     })
@@ -797,6 +863,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: [],
     })
@@ -811,6 +878,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       completionDocs: {
@@ -840,6 +908,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionFormSchema.safeParse({
       projectId: "1",
       toPct: 100,
+      notes: "Complete",
       sitePhoto: [makeFile("site.jpg")],
       existingSitePhotoNames: [],
       completionDocs: {},
@@ -855,6 +924,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
     })
 
@@ -865,6 +935,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Progress notes",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {
@@ -883,6 +954,7 @@ describe("progressUpdateRevisionFormSchema (V12)", () => {
     const result = progressUpdateRevisionWithReleasedAmountFormSchema.safeParse({
       projectId: "1",
       toPct: 50,
+      notes: "Notes-only revision",
       sitePhoto: [],
       existingSitePhotoNames: ["site-on-record.jpg"],
       releasedAmount: {

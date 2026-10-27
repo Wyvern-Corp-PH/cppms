@@ -87,6 +87,7 @@ function capEvent(options: {
   existing?: Array<{ id: string; amount: number }>
   missingProject?: boolean
   omitDb?: boolean
+  lockFailure?: "db" | "query" | "bind" | "execute"
 }) {
   const next = vi.fn()
   const lockQueries: Array<{ sql: string; params: { id: string } }> = []
@@ -103,12 +104,22 @@ function capEvent(options: {
           ? {}
           : {
               db() {
+                if (options.lockFailure === "db") throw new Error("db failure")
                 return {
                   newQuery(sql: string) {
+                    if (options.lockFailure === "query") {
+                      throw new Error("query failure")
+                    }
                     return {
                       bind(params: { id: string }) {
+                        if (options.lockFailure === "bind") {
+                          throw new Error("bind failure")
+                        }
                         return {
                           execute() {
+                            if (options.lockFailure === "execute") {
+                              throw new Error("execute failure")
+                            }
                             callOrder.push("lock")
                             lockQueries.push({ sql, params })
                           },
@@ -322,18 +333,24 @@ describe("applyAllocationBidPriceCap", () => {
     )
   })
 
-  it("should still reject over-cap when the lock API is missing", () => {
-    const { next, event } = capEvent({
-      amount: 60_000,
+  it.each([
+    { stage: "missing db method", options: { omitDb: true } },
+    { stage: "database access", options: { lockFailure: "db" as const } },
+    { stage: "query construction", options: { lockFailure: "query" as const } },
+    { stage: "parameter binding", options: { lockFailure: "bind" as const } },
+    { stage: "lock execution", options: { lockFailure: "execute" as const } },
+  ])("fails closed when project-row lock $stage fails", ({ options }) => {
+    const { next, event, callOrder } = capEvent({
+      amount: 1,
       bidPrice: 100_000,
-      existing: [{ id: "a1", amount: 50_000 }],
-      omitDb: true,
+      ...options,
     })
 
     expect(() => capHook.applyAllocationBidPriceCap(event)).toThrow(
-      ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE
+      "Unable to validate allocation cap because the project lock could not be established."
     )
     expect(next).not.toHaveBeenCalled()
+    expect(callOrder).not.toContain("read")
   })
 })
 

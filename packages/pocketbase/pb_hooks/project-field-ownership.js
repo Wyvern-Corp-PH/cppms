@@ -224,19 +224,7 @@ function evaluateProjectFieldWrite(options) {
   for (const field of changed) {
     if (isCreateDefaultAllowed(field, submitted[field], isCreate)) continue
     if (field === "status") {
-      const nextStatus = submitted.status
-      const currentStatus = original?.status
-      if (valuesEqual(currentStatus, nextStatus)) continue
-      if (isProgressSyncPairWrite(submitted, original)) continue
-      if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
-      if (nextStatus === "Cancelled") continue
-      if (
-        isTerminalOrReviewStatus(nextStatus) ||
-        !isLguWritableStatus(nextStatus)
-      ) {
-        return reject("status")
-      }
-      continue
+      return reject("status")
     }
     if (field === "progress_pct" && isProgressSyncPairWrite(submitted, original)) {
       continue
@@ -288,6 +276,21 @@ function applyProjectFieldOwnership(event, isCreate) {
     throw new BadRequestError("You cannot update this project.")
   }
   const submitted = recordToObject(event.record)
+  if (isCreate && isProvincialOverride(role)) {
+    if (!submitted.source_of_fund) {
+      throw new BadRequestError("Source of Fund is required.")
+    }
+    const totalBudget = Number(submitted.total_budget)
+    if (!Number.isFinite(totalBudget) || totalBudget <= 0) {
+      throw new BadRequestError("Total Budget must be greater than zero.")
+    }
+    if (
+      submitted.source_of_fund === "Others" &&
+      !String(submitted.source_of_fund_other ?? "").trim()
+    ) {
+      throw new BadRequestError("Specify Source of Fund is required for Others.")
+    }
+  }
   const original = isCreate ? {} : recordToObject(originalRecord(event.record))
   const result = evaluateProjectFieldWrite({
     role,

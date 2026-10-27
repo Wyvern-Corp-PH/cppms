@@ -365,21 +365,7 @@ export function evaluateProjectFieldWrite(options: {
 
   for (const field of changed) {
     if (isCreateDefaultAllowed(field, submitted[field], isCreate)) continue
-    if (field === "status") {
-      const nextStatus = submitted.status
-      const currentStatus = original?.status
-      if (valuesEqual(currentStatus, nextStatus)) continue
-      if (isProgressSyncPairWrite(submitted, original)) continue
-      if (isTerminalOrReviewStatus(currentStatus)) return reject("status")
-      if (nextStatus === "Cancelled") continue
-      if (
-        isTerminalOrReviewStatus(nextStatus) ||
-        !isLguWritableStatus(nextStatus)
-      ) {
-        return reject("status")
-      }
-      continue
-    }
+    if (field === "status") return reject("status")
     if (field === "progress_pct" && isProgressSyncPairWrite(submitted, original)) {
       continue
     }

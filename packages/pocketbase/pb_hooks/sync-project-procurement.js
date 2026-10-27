@@ -8,8 +8,8 @@ const FIRST_ALLOCATION_FROM = ["Planning", "Procurement"]
 // tradeoff: same project-row UPDATE as cap-budget-allocation.js. PocketBase
 // JSVM has no row-lock API. Holds a SQLite write lock until Save commits
 // when this runs as onRecordCreate. After-create is after commit.
-// Ceiling: no-op when app.db is missing. Upgrade: allocated_total column.
-const PROJECT_ROW_LOCK_SQL = "UPDATE projects SET updated = updated WHERE id = {:id}"
+// Ceiling: lock the project row by its primary key; upgrade: allocated_total.
+const PROJECT_ROW_LOCK_SQL = "UPDATE projects SET id = id WHERE id = {:id}"
 
 function projectStatusAfterAllocation(currentStatus, allocationCount) {
   if (allocationCount !== 1) return currentStatus

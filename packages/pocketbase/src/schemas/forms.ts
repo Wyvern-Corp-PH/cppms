@@ -269,11 +269,9 @@ export function projectMutateSchemaForActor(
   isCreate: boolean,
   options?: { form?: boolean }
 ) {
-  const requireNewBudgetFields =
-    Boolean(options?.form) &&
-    PROJECT_FORM_OWNERS.has(role ?? "") &&
-    isCreate
   const requirePpdo = PROJECT_FORM_OWNERS.has(role ?? "")
+  const requirePpdoForm = Boolean(options?.form) && requirePpdo
+  const requireNewBudgetFields = requirePpdo && isCreate
   const requireLgu = LGU_DATE_OWNERS.has(role ?? "")
 
   if (!requirePpdo && !requireLgu) {
@@ -322,17 +320,23 @@ export function projectMutateSchemaForActor(
           })
         }
       }
-      if (!requirePpdo) return
-      requireTrimmed(value.description, "description", "Description is required.", ctx)
-      requireTrimmed(
-        value.municipality,
-        "municipality",
-        "Municipality is required.",
-        ctx
-      )
-      requireTrimmed(value.barangay, "barangay", "Barangay is required.", ctx)
-      requireTrimmed(value.location, "location", "Location is required.", ctx)
-      if (!options?.form || !isCreate) {
+      if (requirePpdoForm) {
+        requireTrimmed(
+          value.description,
+          "description",
+          "Description is required.",
+          ctx
+        )
+        requireTrimmed(
+          value.municipality,
+          "municipality",
+          "Municipality is required.",
+          ctx
+        )
+        requireTrimmed(value.barangay, "barangay", "Barangay is required.", ctx)
+        requireTrimmed(value.location, "location", "Location is required.", ctx)
+      }
+      if (requirePpdoForm && !isCreate) {
         requireTrimmed(
           value.period_of_implementation,
           "period_of_implementation",
@@ -340,7 +344,7 @@ export function projectMutateSchemaForActor(
           ctx
         )
       }
-      if (value.funding_year == null) {
+      if (requirePpdoForm && value.funding_year == null) {
         ctx.addIssue({
           code: "custom",
           path: ["funding_year"],
@@ -372,52 +376,54 @@ export function projectMutateSchemaForActor(
             message: "Specify the source of fund.",
           })
         }
-      } else if (!value.fund_source) {
+      } else if (requirePpdoForm && !isCreate && !value.fund_source) {
         ctx.addIssue({
           code: "custom",
           path: ["fund_source"],
           message: "Main account is required.",
         })
-      } else {
+      } else if (requirePpdoForm && !isCreate && value.fund_source) {
         refineBudgetExpenseSubAccount(
           { main_account: value.fund_source, sub_account: value.sub_account },
           ctx
         )
       }
-      if (
-        !attachmentSatisfied(isCreate, value.moa_file, value.existing_moa_file)
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["moa_file"],
-          message: "MOA document is required.",
-        })
-      }
-      if (
-        !attachmentSatisfied(
-          isCreate,
-          value.resolution_file,
-          value.existing_resolution_file
-        )
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["resolution_file"],
-          message: "Resolution document is required.",
-        })
-      }
-      if (
-        !attachmentSatisfied(
-          isCreate,
-          value.supporting_docs,
-          value.existing_supporting_docs
-        )
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["supporting_docs"],
-          message: "Supporting documents are required.",
-        })
+      if (requirePpdoForm) {
+        if (
+          !attachmentSatisfied(isCreate, value.moa_file, value.existing_moa_file)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["moa_file"],
+            message: "MOA document is required.",
+          })
+        }
+        if (
+          !attachmentSatisfied(
+            isCreate,
+            value.resolution_file,
+            value.existing_resolution_file
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["resolution_file"],
+            message: "Resolution document is required.",
+          })
+        }
+        if (
+          !attachmentSatisfied(
+            isCreate,
+            value.supporting_docs,
+            value.existing_supporting_docs
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["supporting_docs"],
+            message: "Supporting documents are required.",
+          })
+        }
       }
     })
     .transform(
