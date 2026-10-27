@@ -355,6 +355,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText(/project name/i), "Provincial Bridge")
     await user.type(screen.getByLabelText(/^description$/i), "Bridge repairs")
     await user.type(screen.getByLabelText(/^location$/i), "Provincial road")
+    await fillPpdoRequiredScalars(user)
     await user.click(screen.getByLabelText(/^funding year$/i))
     await user.click(
       await screen.findByRole("option", { name: String(new Date().getFullYear()) })
@@ -376,23 +377,30 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       "Provincial share"
     )
     await user.type(screen.getByLabelText(/^total budget$/i), "750000")
+    await fillPpdoRequiredAttachments(user)
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => {
-      expect(createMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Provincial Bridge",
-          source_of_fund: "Others",
-          source_of_fund_other: "Provincial share",
-          total_budget: 750000,
-        })
-      )
+      expect(createMock).toHaveBeenCalled()
     })
-    const payload = createMock.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(payload).not.toHaveProperty("fund_source")
-    expect(payload).not.toHaveProperty("sub_account")
-    expect(payload).not.toHaveProperty("period_of_implementation")
-    expect(payload).not.toHaveProperty("project_photos")
+    expectCreatePayloadContaining({
+      name: "Provincial Bridge",
+      source_of_fund: "Others",
+      source_of_fund_other: "Provincial share",
+      total_budget: 750000,
+    })
+    const payload = createMock.mock.calls[0]?.[0]
+    if (payload instanceof FormData) {
+      expect(payload.get("fund_source")).toBeNull()
+      expect(payload.get("sub_account")).toBeNull()
+      expect(payload.get("period_of_implementation")).toBeNull()
+      expect(payload.get("project_photos")).toBeNull()
+    } else {
+      expect(payload).not.toHaveProperty("fund_source")
+      expect(payload).not.toHaveProperty("sub_account")
+      expect(payload).not.toHaveProperty("period_of_implementation")
+      expect(payload).not.toHaveProperty("project_photos")
+    }
   }, 20_000)
 
   it("loads project status and category dropdown options from PocketBase fields", async () => {
@@ -1229,6 +1237,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
 
     await user.click(screen.getByRole("menuitem", { name: /^edit$/i }))
     expect(screen.getByLabelText(/project name/i)).toBeDisabled()
+    expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
@@ -1236,7 +1245,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
   })
 
-  it("lets scoped Municipality edit LGU-owned fields including status", async () => {
+  it("keeps Municipality status visible but read-only while editing LGU-owned fields", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -1278,7 +1287,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.queryByRole("menuitem", { name: /change status/i })).not.toBeInTheDocument()
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
     expect(screen.getByLabelText(/project name/i)).toBeDisabled()
-    expect(screen.getByRole("combobox", { name: /^status$/i })).not.toBeDisabled()
+    expect(screen.getByRole("combobox", { name: /^status$/i })).toBeDisabled()
     expect(screen.getByLabelText(/^contractor$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()

@@ -328,7 +328,6 @@ describe("ProgressModule (V81, V84)", () => {
   ) {
     await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-1500")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
@@ -1551,7 +1550,8 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site.jpg", "image/jpeg")
     )
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-1500")
+    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
@@ -3100,12 +3100,10 @@ describe("ProgressModule (V81, V84)", () => {
       within(editor).queryByText("On record: site-b.jpg")
     ).not.toBeInTheDocument()
     expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1000)
-    expect(within(editor).getByLabelText(/^receipt number$/i)).toHaveValue("OR-A")
+    expect(within(editor).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(within(editor).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(within(editor).getByLabelText(/^sub account$/i)).toHaveTextContent(
       "GF - Proper"
-    )
-    expect(within(editor).getByLabelText(/^expense date$/i)).toHaveValue(
-      "2026-05-12"
     )
     expect(within(editor).getByLabelText(/^description$/i)).toHaveValue(
       "Band A release"
@@ -3165,7 +3163,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(siblingExpense?.progress_update).toBe("u-b")
   })
 
-  it("should keep the other six stored values when only receipt number is changed", async () => {
+  it("keeps stored expense date and receipt unchanged when amount is edited", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     twoIsolatedRanges()
@@ -3178,9 +3176,9 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
     const editor = await openFilteredRangeEdit(user, "band A notes")
-    const receipt = within(editor).getByLabelText(/^receipt number$/i)
-    await user.clear(receipt)
-    await user.type(receipt, "OR-A-FIXED")
+    const amount = within(editor).getByLabelText(/^amount \(php\)$/i)
+    await user.clear(amount)
+    await user.type(amount, "1100")
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -3189,12 +3187,17 @@ describe("ProgressModule (V81, V84)", () => {
     expect(expenseUpdateMock).toHaveBeenCalledWith(
       "be-a",
       expect.objectContaining({
-        receipt_number: "OR-A-FIXED",
-        amount: 1000,
-        description: "Band A release",
-        date: "2026-05-12",
+        amount: 1100,
         sub_account: "GF - Proper",
       })
+    )
+    expect(expenseUpdateMock.mock.calls[0]?.[1]).not.toHaveProperty("receipt_number")
+    expect(expenseUpdateMock.mock.calls[0]?.[1]).not.toHaveProperty("date")
+    expect(store.expenses.find((row) => row.id === "be-a")?.receipt_number).toBe(
+      "OR-A"
+    )
+    expect(store.expenses.find((row) => row.id === "be-a")?.date).toBe(
+      "2026-05-12"
     )
     const editedUpdate = store.updates.find((row) => row.id === "u-a")
     expect(editedUpdate?.notes).toBe("band A notes")
@@ -3225,7 +3228,7 @@ describe("ProgressModule (V81, V84)", () => {
     )
   })
 
-  it("should show all seven range fields when history-edit opens", async () => {
+  it("shows expense fields but omits receipt and date when history-edit opens", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     twoIsolatedRanges()
@@ -3237,9 +3240,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(editor).getByText(/site photo/i)).toBeInTheDocument()
     expect(within(editor).getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toBeInTheDocument()
-    expect(within(editor).getByLabelText(/^receipt number$/i)).toBeInTheDocument()
+    expect(within(editor).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(within(editor).getByText("Fund Source")).toBeInTheDocument()
-    expect(within(editor).getByLabelText(/^expense date$/i)).toBeInTheDocument()
+    expect(within(editor).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(within(editor).getByLabelText(/^description$/i)).toBeInTheDocument()
     expect(
       screen.queryByRole("dialog", { name: /^update progress$/i })
@@ -3569,7 +3572,8 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     const editor = await openFilteredRangeEdit(user, "unlinked notes")
     expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(null)
-    expect(within(editor).getByLabelText(/^receipt number$/i)).toHaveValue("")
+    expect(within(editor).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(within(editor).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(
       within(editor).queryByDisplayValue("OR-LEGACY")
     ).not.toBeInTheDocument()
@@ -3724,8 +3728,11 @@ describe("ProgressModule (V81, V84)", () => {
           project: "1",
           progress_update: "u-a",
           amount: 1500,
-          receipt_number: "OR-1500",
+          date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
         })
+      )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "receipt_number"
       )
     })
     expect(expenseUpdateMock).not.toHaveBeenCalled()
@@ -4007,6 +4014,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 25,
+        source_of_fund: "20% LDF (Local Development Fund)",
         ...barangayScope,
       },
     ]
@@ -4017,6 +4025,14 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
+    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue(
+      "20% LDF (Local Development Fund)"
+    )
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute(
+      "readonly"
+    )
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
 
     await user.upload(
@@ -4025,7 +4041,6 @@ describe("ProgressModule (V81, V84)", () => {
     )
     await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "007")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
@@ -4043,12 +4058,21 @@ describe("ProgressModule (V81, V84)", () => {
           main_account: "General Fund",
           sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          receipt_number: "007",
           description: "Bridge materials",
           progress_update: "pu-new",
         })
       )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "receipt_number"
+      )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "source_of_fund"
+      )
     })
+    const progressPayload = createMock.mock.calls[0]?.[0] as FormData
+    expect(progressPayload.has("receipt_number")).toBe(false)
+    expect(progressPayload.has("expense_date")).toBe(false)
+    expect(progressPayload.has("date")).toBe(false)
   })
 
   it("should block progress released amount create that exceeds allocated budget", async () => {
@@ -4093,7 +4117,6 @@ describe("ProgressModule (V81, V84)", () => {
     )
     await fillRequiredNotes(user)
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "007")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
@@ -4136,7 +4159,8 @@ describe("ProgressModule (V81, V84)", () => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^receipt number$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^description$/i)).toBeInTheDocument()
   })
 
@@ -4175,55 +4199,6 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(createMock).toHaveBeenCalledTimes(1)
     })
-    expect(expenseCreateMock).not.toHaveBeenCalled()
-  })
-
-  it("should show FieldError when Province submits Released Amount without receipt_number", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "1",
-        collectionId: "p",
-        collectionName: "projects",
-        created: "",
-        updated: "",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        progress_pct: 25,
-        municipality: "Tuguegarao City",
-        barangay: "Centro 01 (Bagumbayan)",
-      },
-    ]
-
-    render(<ProgressModule />)
-
-    await user.click(await screen.findByRole("button", { name: /update progress/i }))
-    await waitFor(() => {
-      expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
-    })
-    await user.upload(
-      screen.getByTestId("document-upload-input-site-photo"),
-      makeFile("site.jpg", "image/jpeg")
-    )
-    await fillRequiredNotes(user)
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
-    await user.type(screen.getByLabelText(/^description$/i), "Materials")
-    await user.click(screen.getByRole("button", { name: /save update/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/receipt number is required/i)).toBeInTheDocument()
-    })
-    expect(screen.getByLabelText(/^receipt number$/i)).toHaveAttribute(
-      "aria-invalid",
-      "true"
-    )
-    expect(createMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
@@ -4269,10 +4244,12 @@ describe("ProgressModule (V81, V84)", () => {
           main_account: "General Fund",
           sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          receipt_number: "OR-1500",
           description: "Release for progress",
           progress_update: "pu-new",
         })
+      )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "receipt_number"
       )
     })
     expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -4413,10 +4390,12 @@ describe("ProgressModule (V81, V84)", () => {
           main_account: "General Fund",
           sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          receipt_number: "OR-1500",
           description: "Release for progress",
           progress_update: "pu-new",
         })
+      )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "receipt_number"
       )
     })
     expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -4424,9 +4403,14 @@ describe("ProgressModule (V81, V84)", () => {
     )
   }, 20_000)
 
-  it("should show FieldError when Municipality submits Released Amount without receipt_number", async () => {
+  it.each([
+    ["Municipality", useMunicipalityActor],
+    ["Barangay", useBarangayActor],
+  ] as const)(
+    "shows project Source of Fund read-only for %s without receipt or expense date controls",
+    async (_role, useActor) => {
     const user = userEvent.setup()
-    useMunicipalityActor()
+    useActor()
     store.projects = [
       {
         id: "1",
@@ -4439,6 +4423,7 @@ describe("ProgressModule (V81, V84)", () => {
         status: "Ongoing",
         budget_year: 2026,
         progress_pct: 40,
+        source_of_fund: "General Fund",
         municipality: "Tuguegarao City",
         barangay: "Centro 01 (Bagumbayan)",
       },
@@ -4450,27 +4435,12 @@ describe("ProgressModule (V81, V84)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     })
-    await user.upload(
-      screen.getByTestId("document-upload-input-site-photo"),
-      makeFile("site.jpg", "image/jpeg")
-    )
-    await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
-    await user.type(screen.getByLabelText(/^description$/i), "Materials")
-    await user.click(screen.getByRole("button", { name: /save update/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/receipt number is required/i)).toBeInTheDocument()
-    })
-    expect(screen.getByLabelText(/^receipt number$/i)).toHaveAttribute(
-      "aria-invalid",
-      "true"
-    )
-    expect(createMock).not.toHaveBeenCalled()
-  })
+    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("General Fund")
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute("readonly")
+    }
+  )
 
   it("should show FieldError when Barangay submits Released Amount with whitespace-only description", async () => {
     const user = userEvent.setup()
@@ -4502,7 +4472,6 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site.jpg", "image/jpeg")
     )
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.type(screen.getByLabelText(/^receipt number$/i), "OR-9")
     await user.click(screen.getByLabelText(/^main account$/i))
     await user.click(screen.getByRole("option", { name: "General Fund" }))
     await user.click(screen.getByLabelText(/^sub account$/i))
@@ -4550,7 +4519,7 @@ describe("ProgressModule (V81, V84)", () => {
     expectRequiredMark("Update notes", dialog)
     expectRequiredMark("Site photo", dialog)
     expectRequiredMark("Amount (PHP)", dialog)
-    expectRequiredMark("Expense date", dialog)
+    expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     await user.upload(
       screen.getByTestId("document-upload-input-site-photo"),
       makeFile("site.jpg", "image/jpeg")
@@ -4568,11 +4537,19 @@ describe("ProgressModule (V81, V84)", () => {
           main_account: "General Fund",
           sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          receipt_number: "OR-1500",
           description: "Release for progress",
           progress_update: "pu-new",
         })
       )
+      expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
+        "receipt_number"
+      )
+      const progressPayload = createMock.mock.calls[0]?.[0]
+      expect(progressPayload).toBeInstanceOf(FormData)
+      const progressData = progressPayload as FormData
+      expect(progressData.has("date")).toBe(false)
+      expect(progressData.has("expense_date")).toBe(false)
+      expect(progressData.has("receipt_number")).toBe(false)
     })
   }, 20_000)
 
@@ -4712,10 +4689,8 @@ describe("ProgressModule (V81, V84)", () => {
     )
     expect(within(dialog).getByText(/Progress: 75%/i)).toBeInTheDocument()
     expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1500)
-    expect(within(dialog).getByLabelText(/^receipt number$/i)).toHaveValue("R-100")
-    expect(within(dialog).getByLabelText(/^expense date$/i)).toHaveValue(
-      "2026-07-20"
-    )
+    expect(within(dialog).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     await waitFor(() => {
       expect(within(dialog).getByLabelText(/^main account$/i)).toHaveTextContent(
         "General Fund"
@@ -4896,7 +4871,8 @@ describe("ProgressModule (V81, V84)", () => {
         name: /update progress/i,
       })
     )
-    expect(screen.getByLabelText(/^expense date$/i)).toHaveValue("2026-07-20")
+    expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     await user.clear(screen.getByLabelText(/update notes/i))
     await user.type(screen.getByLabelText(/update notes/i), "Revised notes only")
     await user.click(screen.getByRole("button", { name: /save update/i }))
@@ -4918,7 +4894,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
   })
 
-  it("should allow For Revision notes-only save when legacy expense has blank receipt and description", async () => {
+  it("allows For Revision notes-only save when legacy expense has blank description", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [revisionProject()]
@@ -4939,7 +4915,8 @@ describe("ProgressModule (V81, V84)", () => {
       })
     )
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByLabelText(/^receipt number$/i)).toHaveValue("")
+    expect(within(dialog).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(within(dialog).getByLabelText(/^description$/i)).toHaveValue("")
     await user.clear(within(dialog).getByLabelText(/update notes/i))
     await user.type(
@@ -4960,7 +4937,7 @@ describe("ProgressModule (V81, V84)", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("should block For Revision when amount changes but receipt stays blank", async () => {
+  it("blocks For Revision amount change when description is blank", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [revisionProject()]
@@ -4984,15 +4961,12 @@ describe("ProgressModule (V81, V84)", () => {
     await user.type(amount, "2000")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
-    expect(
-      await screen.findByText(/receipt number is required/i)
-    ).toBeInTheDocument()
     expect(screen.getByText(/description is required/i)).toBeInTheDocument()
     expect(progressUpdateMock).not.toHaveBeenCalled()
     expect(expenseCreateMock).not.toHaveBeenCalled()
   })
 
-  it("normalizes PB datetime expense date on For Revision open and skips identical create (retain-release V1/V2/V7)", async () => {
+  it("omits user-entered date and receipt on For Revision notes-only save", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [revisionProject()]
@@ -5013,9 +4987,8 @@ describe("ProgressModule (V81, V84)", () => {
     )
 
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByLabelText(/^expense date$/i)).toHaveValue(
-      "2026-07-20"
-    )
+    expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     await user.clear(within(dialog).getByLabelText(/update notes/i))
     await user.type(
       within(dialog).getByLabelText(/update notes/i),

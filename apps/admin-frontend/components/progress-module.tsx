@@ -296,12 +296,15 @@ function requiresReleasedAmountForActor(
   return actor?.role === "Barangay" || actor?.role === "Municipality"
 }
 
+function emptyProgressReleasedAmountFormValue() {
+  return emptyReleasedAmountFormValue({ includeExpenseDate: false })
+}
+
 function releasedAmountHasInput(value: ReleasedAmountFormValue) {
   return (
     value.amount.trim() !== "" ||
     value.mainAccount.trim() !== "" ||
     value.subAccount.trim() !== "" ||
-    value.receiptNumber.trim() !== "" ||
     value.expenseDescription.trim() !== ""
   )
 }
@@ -327,8 +330,6 @@ function toReleasedAmountInput(value: ReleasedAmountFormValue) {
     year: value.releaseYear,
     main_account: value.mainAccount,
     sub_account: value.subAccount || undefined,
-    date: value.expenseDate,
-    receipt_number: value.receiptNumber || undefined,
     description: value.expenseDescription || undefined,
   }
 }
@@ -437,13 +438,6 @@ async function healStuckProjectsAt100(
 }
 
 /** Leading YYYY-MM-DD for type=date + equality — ⊥ Date TZ round-trip. */
-function toDateInputValue(value: string | undefined | null): string {
-  const trimmed = value?.trim() ?? ""
-  if (!trimmed) return ""
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
-  return match?.[1] ?? trimmed
-}
-
 function releasedAmountFormFromExpense(
   expense: BudgetExpenseRecord
 ): ReleasedAmountFormValue {
@@ -452,8 +446,8 @@ function releasedAmountFormFromExpense(
     releaseYear: String(expense.year),
     mainAccount: normalizeMainAccountName(expense.main_account),
     subAccount: expense.sub_account ?? "",
-    receiptNumber: expense.receipt_number ?? "",
-    expenseDate: toDateInputValue(expense.date),
+    receiptNumber: "",
+    expenseDate: "",
     expenseDescription: expense.description ?? "",
   }
 }
@@ -475,9 +469,6 @@ function releasedAmountEqualsLatest(
       normalizeMainAccountName(coerceComparable(latest.main_account)) &&
     coerceComparable(submitted.sub_account) ===
       coerceComparable(latest.sub_account) &&
-    toDateInputValue(submitted.date) === toDateInputValue(latest.date) &&
-    coerceComparable(submitted.receipt_number) ===
-      coerceComparable(latest.receipt_number) &&
     coerceComparable(submitted.description) ===
       coerceComparable(latest.description)
   )
@@ -542,7 +533,7 @@ export function ProgressModule() {
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [releasedAmount, setReleasedAmount] = useState<ReleasedAmountFormValue>(
-    emptyReleasedAmountFormValue()
+    emptyProgressReleasedAmountFormValue()
   )
   const [releasedAmountErrors, setReleasedAmountErrors] = useState<
     Record<string, string>
@@ -809,7 +800,7 @@ export function ProgressModule() {
     setReleasedAmount(
       latestExpense
         ? releasedAmountFormFromExpense(latestExpense)
-        : emptyReleasedAmountFormValue()
+        : emptyProgressReleasedAmountFormValue()
     )
     setReleasedAmountErrors({})
     setFieldErrors({})
@@ -843,7 +834,7 @@ export function ProgressModule() {
     setReleasedAmount(
       boundExpense
         ? releasedAmountFormFromExpense(boundExpense)
-        : emptyReleasedAmountFormValue()
+        : emptyProgressReleasedAmountFormValue()
     )
     setReleasedAmountErrors({})
     setFieldErrors({})
@@ -909,9 +900,6 @@ export function ProgressModule() {
                     ),
                     sub_account:
                       options.latestExpense.sub_account || undefined,
-                    date: toDateInputValue(options.latestExpense.date),
-                    receipt_number:
-                      options.latestExpense.receipt_number || undefined,
                     description:
                       options.latestExpense.description || undefined,
                   },
@@ -1044,6 +1032,7 @@ export function ProgressModule() {
       await options.pb.collection("budget_expenses").create({
         project: options.projectId,
         ...options.releasedAmount,
+        date: new Date().toISOString().slice(0, 10),
         progress_update: options.progressRecordId,
       })
     } catch (error) {
@@ -1136,7 +1125,7 @@ export function ProgressModule() {
     setCompletionDocs(emptyCompletionDocuments())
     setExistingSitePhotoNames([])
     setExistingCompletionDocNames(undefined)
-    setReleasedAmount(emptyReleasedAmountFormValue())
+    setReleasedAmount(emptyProgressReleasedAmountFormValue())
   }
 
   async function persistProgressUpdate(options: {
@@ -1762,7 +1751,7 @@ export function ProgressModule() {
             setCompletionDocs(emptyCompletionDocuments())
             setExistingSitePhotoNames([])
             setExistingCompletionDocNames(undefined)
-            setReleasedAmount(emptyReleasedAmountFormValue())
+            setReleasedAmount(emptyProgressReleasedAmountFormValue())
             setReleasedAmountErrors({})
             setFieldErrors({})
             setFormError(null)
@@ -1877,6 +1866,18 @@ export function ProgressModule() {
                     })}
                   </FieldSet>
                 ) : null}
+                {requiresReleasedAmount && dialogProject ? (
+                  <Field>
+                    <FieldLabel htmlFor="progress-project-source-of-fund">
+                      Source of Fund
+                    </FieldLabel>
+                    <Input
+                      id="progress-project-source-of-fund"
+                      value={dialogProject.source_of_fund ?? "—"}
+                      readOnly
+                    />
+                  </Field>
+                ) : null}
                 <FieldSet className="space-y-2 border-t pt-3">
                   <FieldDescription className="text-sm font-medium text-foreground">
                     Released amount
@@ -1892,6 +1893,8 @@ export function ProgressModule() {
                     sectionTestId="progress-released-amount-fields"
                     loadOptions={dialogOpen}
                     required={includeReleasedAmount}
+                    showReceiptNumber={false}
+                    showExpenseDate={false}
                   />
                 </FieldSet>
               </FieldSet>

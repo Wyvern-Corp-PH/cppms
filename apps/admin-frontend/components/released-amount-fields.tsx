@@ -282,14 +282,18 @@ export type ReleasedAmountFormValue = {
   expenseDescription: string
 }
 
-export function emptyReleasedAmountFormValue(): ReleasedAmountFormValue {
+export function emptyReleasedAmountFormValue(options?: {
+  includeExpenseDate?: boolean
+}): ReleasedAmountFormValue {
   return {
     amount: "",
     releaseYear: String(new Date().getFullYear()),
     mainAccount: "",
     subAccount: "",
     receiptNumber: "",
-    expenseDate: new Date().toISOString().slice(0, 10),
+    expenseDate: options?.includeExpenseDate === false
+      ? ""
+      : new Date().toISOString().slice(0, 10),
     expenseDescription: "",
   }
 }
@@ -306,6 +310,8 @@ export type ReleasedAmountFieldsProps = {
   loadOptions?: boolean
   sectionTestId?: string
   required?: boolean
+  showReceiptNumber?: boolean
+  showExpenseDate?: boolean
 }
 
 export function ReleasedAmountFields({
@@ -320,6 +326,8 @@ export function ReleasedAmountFields({
   loadOptions = true,
   sectionTestId = "released-amount-fields",
   required = false,
+  showReceiptNumber = true,
+  showExpenseDate = true,
 }: ReleasedAmountFieldsProps) {
   function patchValue(patch: Partial<ReleasedAmountFormValue>) {
     onChange({ ...value, ...patch })
@@ -365,18 +373,23 @@ export function ReleasedAmountFields({
         />
         <FieldError>{fieldErrors.amount}</FieldError>
       </Field>
-      <Field data-invalid={!!fieldErrors.receipt_number}>
-        <FieldLabel htmlFor={`${idPrefix}-receipt-number`} required={required}>
-          Receipt number
-        </FieldLabel>
-        <Input
-          id={`${idPrefix}-receipt-number`}
-          value={value.receiptNumber}
-          aria-invalid={!!fieldErrors.receipt_number}
-          onChange={(event) => patchValue({ receiptNumber: event.target.value })}
-        />
-        <FieldError>{fieldErrors.receipt_number}</FieldError>
-      </Field>
+      {showReceiptNumber ? (
+        <Field data-invalid={!!fieldErrors.receipt_number}>
+          <FieldLabel
+            htmlFor={`${idPrefix}-receipt-number`}
+            required={required}
+          >
+            Receipt number
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-receipt-number`}
+            value={value.receiptNumber}
+            aria-invalid={!!fieldErrors.receipt_number}
+            onChange={(event) => patchValue({ receiptNumber: event.target.value })}
+          />
+          <FieldError>{fieldErrors.receipt_number}</FieldError>
+        </Field>
+      ) : null}
       <FundSourceFields
         value={{
           year: value.releaseYear,
@@ -395,17 +408,22 @@ export function ReleasedAmountFields({
         loadOptions={loadOptions}
         required={required}
       />
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-expense-date`} required={required}>
-          Expense date
-        </FieldLabel>
-        <Input
-          id={`${idPrefix}-expense-date`}
-          type="date"
-          value={value.expenseDate}
-          onChange={(event) => patchValue({ expenseDate: event.target.value })}
-        />
-      </Field>
+      {showExpenseDate ? (
+        <Field>
+          <FieldLabel
+            htmlFor={`${idPrefix}-expense-date`}
+            required={required}
+          >
+            Expense date
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-expense-date`}
+            type="date"
+            value={value.expenseDate}
+            onChange={(event) => patchValue({ expenseDate: event.target.value })}
+          />
+        </Field>
+      ) : null}
       <Field data-invalid={!!fieldErrors.description}>
         <FieldLabel htmlFor={`${idPrefix}-expense-description`} required={required}>
           Description

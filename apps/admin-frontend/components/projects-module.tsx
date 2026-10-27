@@ -1057,6 +1057,9 @@ export function ProjectsModule() {
     ownershipRecord,
     statusOptions
   )
+  const statusLocked =
+    fieldLocked("status") ||
+    (editing && (actorRole === "Barangay" || actorRole === "Municipality"))
 
   const filterBarangayChoices = useMemo(() => {
     if (municipalityFilter === "all") {
@@ -1398,7 +1401,7 @@ export function ProjectsModule() {
                   <FieldOwnerHint field="status" />
                   <Select
                     value={form.status}
-                    disabled={fieldLocked("status")}
+                    disabled={statusLocked}
                     onValueChange={(value) =>
                       setForm({
                         ...form,
@@ -1409,7 +1412,7 @@ export function ProjectsModule() {
                     <SelectTrigger
                       aria-label="Status"
                       aria-invalid={Boolean(fieldErrors.status)}
-                      disabled={fieldLocked("status")}
+                      disabled={statusLocked}
                     >
                       <SelectValue />
                     </SelectTrigger>
@@ -1536,9 +1539,12 @@ export function ProjectsModule() {
               />
               {!editing ? (
                 <Field data-invalid={Boolean(fieldErrors.source_of_fund)}>
-                  <FieldLabel htmlFor="project-source-of-fund">
-                    Source of Fund
-                  </FieldLabel>
+                <FieldLabel
+                  htmlFor="project-source-of-fund"
+                  required={requirePpdo}
+                >
+                  Source of Fund
+                </FieldLabel>
                   <FieldOwnerHint field="source_of_fund" />
                   <Select
                     value={form.source_of_fund}
@@ -1713,7 +1719,10 @@ export function ProjectsModule() {
                 </Field>
                 {!editing ? (
                   <Field data-invalid={Boolean(fieldErrors.total_budget)}>
-                    <FieldLabel htmlFor="project-total-budget">
+                    <FieldLabel
+                      htmlFor="project-total-budget"
+                      required={requirePpdo}
+                    >
                       Total Budget
                     </FieldLabel>
                     <FieldOwnerHint field="total_budget" />

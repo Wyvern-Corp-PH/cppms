@@ -476,16 +476,15 @@ export const releasedAmountInputSchema = budgetExpenseBaseSchema
   .superRefine(refineBudgetExpenseSubAccount)
 
 export const progressReleasedAmountInputSchema = budgetExpenseBaseSchema
-  .omit({ project: true })
+  .omit({ project: true, date: true, receipt_number: true })
   .extend({
-    receipt_number: requiredTrimmedText("Receipt number is required."),
     description: requiredTrimmedText("Description is required."),
   })
   .superRefine(refineBudgetExpenseSubAccount)
 
-/** Revision soft-base — receipt/description optional until create-or-change refine. */
+/** Revisions omit date/receipt and require description only when expense changes. */
 const progressReleasedAmountRevisionInputSchema = budgetExpenseBaseSchema
-  .omit({ project: true })
+  .omit({ project: true, date: true, receipt_number: true })
   .superRefine(refineBudgetExpenseSubAccount)
 
 function coerceReleasedComparable(value: unknown) {
@@ -493,20 +492,11 @@ function coerceReleasedComparable(value: unknown) {
   return String(value)
 }
 
-function leadingExpenseDate(value: string | undefined) {
-  const trimmed = value?.trim() ?? ""
-  if (!trimmed) return ""
-  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
-  return match?.[1] ?? trimmed
-}
-
 type ReleasedAmountComparable = {
   amount: number
   year: number
   main_account: string
   sub_account?: string
-  date: string
-  receipt_number?: string
   description?: string
 }
 
@@ -523,25 +513,15 @@ export function progressReleasedAmountEqualsLatest(
       coerceReleasedComparable(latest.main_account) &&
     coerceReleasedComparable(submitted.sub_account) ===
       coerceReleasedComparable(latest.sub_account) &&
-    leadingExpenseDate(submitted.date) === leadingExpenseDate(latest.date) &&
-    coerceReleasedComparable(submitted.receipt_number) ===
-      coerceReleasedComparable(latest.receipt_number) &&
     coerceReleasedComparable(submitted.description) ===
       coerceReleasedComparable(latest.description)
   )
 }
 
-function refineRequiredReceiptDescription(
-  releasedAmount: { receipt_number?: string; description?: string },
+function refineRequiredDescription(
+  releasedAmount: { description?: string },
   ctx: z.RefinementCtx
 ) {
-  if (!coerceReleasedComparable(releasedAmount.receipt_number).trim()) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["releasedAmount", "receipt_number"],
-      message: "Receipt number is required.",
-    })
-  }
   if (!coerceReleasedComparable(releasedAmount.description).trim()) {
     ctx.addIssue({
       code: "custom",
@@ -651,7 +631,7 @@ export const progressUpdateRevisionWithReleasedAmountFormSchema =
   progressUpdateRevisionFormSchema
     .extend({
       releasedAmount: progressReleasedAmountRevisionInputSchema,
-      /** When equal to releasedAmount, blank receipt/description allowed (legacy). */
+      /** When equal to releasedAmount, blank description is allowed. */
       latestReleasedAmount: progressReleasedAmountRevisionInputSchema.optional(),
     })
     .superRefine((value, ctx) => {
@@ -663,7 +643,7 @@ export const progressUpdateRevisionWithReleasedAmountFormSchema =
       ) {
         return
       }
-      refineRequiredReceiptDescription(value.releasedAmount, ctx)
+      refineRequiredDescription(value.releasedAmount, ctx)
     })
     .transform(({ latestReleasedAmount: _latest, ...rest }) => rest)
 
