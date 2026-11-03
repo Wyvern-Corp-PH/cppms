@@ -573,7 +573,7 @@ function coerceReleasedComparable(value: unknown) {
 type ReleasedAmountComparable = {
   amount: number
   year: number
-  main_account: string
+  main_account?: string
   sub_account?: string
   description?: string
 }
