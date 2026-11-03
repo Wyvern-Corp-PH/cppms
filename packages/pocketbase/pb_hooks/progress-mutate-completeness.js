@@ -109,14 +109,6 @@ function validateProgressLinkedExpenseCompleteness(input) {
     return { ok: false, field: "year", message: "Funding year is required." }
   }
 
-  if (!trimText(submitted.main_account)) {
-    return {
-      ok: false,
-      field: "main_account",
-      message: "Main account is required.",
-    }
-  }
-
   const main = trimText(submitted.main_account)
   const sub = trimText(submitted.sub_account)
   if (main === "Others" && !sub) {
@@ -136,14 +128,6 @@ function validateProgressLinkedExpenseCompleteness(input) {
 
   if (!trimText(submitted.date)) {
     return { ok: false, field: "date", message: "Expense date is required." }
-  }
-
-  if (!trimText(submitted.receipt_number)) {
-    return {
-      ok: false,
-      field: "receipt_number",
-      message: "Receipt number is required.",
-    }
   }
 
   if (!trimText(submitted.description)) {

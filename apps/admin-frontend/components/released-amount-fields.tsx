@@ -312,6 +312,8 @@ export type ReleasedAmountFieldsProps = {
   required?: boolean
   showReceiptNumber?: boolean
   showExpenseDate?: boolean
+  lockFundSource?: boolean
+  fundSourceValue?: string
 }
 
 export function ReleasedAmountFields({
@@ -328,6 +330,8 @@ export function ReleasedAmountFields({
   required = false,
   showReceiptNumber = true,
   showExpenseDate = true,
+  lockFundSource = false,
+  fundSourceValue = "",
 }: ReleasedAmountFieldsProps) {
   function patchValue(patch: Partial<ReleasedAmountFormValue>) {
     onChange({ ...value, ...patch })
@@ -390,6 +394,17 @@ export function ReleasedAmountFields({
           <FieldError>{fieldErrors.receipt_number}</FieldError>
         </Field>
       ) : null}
+      {lockFundSource ? (
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-fund-source`}>Fund Source</FieldLabel>
+          <Input
+            id={`${idPrefix}-fund-source`}
+            aria-label="Fund Source"
+            value={fundSourceValue.trim() ? fundSourceValue : "—"}
+            readOnly
+          />
+        </Field>
+      ) : null}
       <FundSourceFields
         value={{
           year: value.releaseYear,
@@ -407,6 +422,7 @@ export function ReleasedAmountFields({
         idPrefix={idPrefix}
         loadOptions={loadOptions}
         required={required}
+        showAccountFields={!lockFundSource}
       />
       {showExpenseDate ? (
         <Field>

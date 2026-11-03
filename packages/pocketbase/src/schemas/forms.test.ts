@@ -537,7 +537,7 @@ describe("progressUpdateWithReleasedAmountFormSchema (V216)", () => {
     if (!result.success) {
       const errors = fieldErrorsFromZod(result.error)
       expect(errors["releasedAmount.amount"]).toMatch(/greater than zero/i)
-      expect(errors["releasedAmount.main_account"]).toMatch(/required/i)
+      expect(errors["releasedAmount.main_account"]).toBeUndefined()
     }
   })
 

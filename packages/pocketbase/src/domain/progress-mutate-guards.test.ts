@@ -194,15 +194,11 @@ describe("validateProgressLinkedExpenseCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it("should reject progress-linked create when receipt number is blank", () => {
+  it("should accept progress-linked create when receipt number is blank", () => {
     const result = validateProgressLinkedExpenseCompleteness({
       submitted: { ...expenseComplete, receipt_number: "  " },
     })
-    expect(result).toEqual({
-      ok: false,
-      field: "receipt_number",
-      message: "Receipt number is required.",
-    })
+    expect(result).toEqual({ ok: true })
   })
 
   it("should reject progress-linked create when description is blank", () => {
@@ -277,14 +273,10 @@ describe("validateProgressLinkedExpenseCompleteness", () => {
     })
   })
 
-  it("should reject progress-linked update when receipt number is cleared", () => {
+  it("should accept progress-linked update when receipt number is cleared", () => {
     const result = validateProgressLinkedExpenseCompleteness({
       submitted: { ...expenseComplete, receipt_number: "" },
     })
-    expect(result).toEqual({
-      ok: false,
-      field: "receipt_number",
-      message: "Receipt number is required.",
-    })
+    expect(result).toEqual({ ok: true })
   })
 })

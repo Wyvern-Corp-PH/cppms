@@ -196,6 +196,48 @@ describe("validateProjectMutateCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
+  it("should accept a provincial create when Source of Fund is set and Main Account is omitted", () => {
+    const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: true,
+      submitted: {
+        ...withoutMainAccount,
+        source_of_fund: "General Fund",
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should say Source of Fund is required when a provincial create omits it", () => {
+    const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete
+    const result = validateProjectMutateCompleteness({
+      role: "Super Admin",
+      isCreate: true,
+      submitted: withoutMainAccount,
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "source_of_fund",
+      message: "Source of Fund is required.",
+    })
+  })
+
+  it("should keep Main Account required on a legacy provincial edit", () => {
+    const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: false,
+      submitted: withoutMainAccount,
+      original: ppdoComplete,
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "fund_source",
+      message: "Main account is required.",
+    })
+  })
+
   it("should require sub account only for General Fund, Trust Fund, and Others", () => {
     expect(
       validateProjectMutateCompleteness({

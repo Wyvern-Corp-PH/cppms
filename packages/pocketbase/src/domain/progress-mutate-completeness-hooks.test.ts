@@ -108,7 +108,7 @@ describe("progress-mutate-completeness hook helper", () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it("should reject progress-linked expense create when receipt is blank", () => {
+  it("should accept progress-linked expense create when receipt is blank", () => {
     const result = completenessHook.validateProgressLinkedExpenseCompleteness({
       submitted: {
         project: "p1",
@@ -121,11 +121,7 @@ describe("progress-mutate-completeness hook helper", () => {
         description: "Materials",
       },
     })
-    expect(result).toEqual({
-      ok: false,
-      field: "receipt_number",
-      message: "Receipt number is required.",
-    })
+    expect(result).toEqual({ ok: true })
   })
 })
 
@@ -240,23 +236,21 @@ describe("progress-mutate-completeness hook entrypoint", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
-  it("should throw BadRequestError when progress-linked expense update clears receipt", () => {
+  it("should accept progress-linked expense update when receipt is cleared", () => {
     const next = vi.fn()
-    expect(() =>
-      completenessHook.applyProgressLinkedExpenseCompleteness({
-        next,
-        record: recordGet({
-          project: "p1",
-          progress_update: "pu1",
-          amount: 1500,
-          year: 2026,
-          main_account: "Special Education Fund",
-          date: "2026-07-09",
-          receipt_number: "",
-          description: "Materials",
-        }),
-      })
-    ).toThrow(/Receipt number is required/)
-    expect(next).not.toHaveBeenCalled()
+    completenessHook.applyProgressLinkedExpenseCompleteness({
+      next,
+      record: recordGet({
+        project: "p1",
+        progress_update: "pu1",
+        amount: 1500,
+        year: 2026,
+        main_account: "Special Education Fund",
+        date: "2026-07-09",
+        receipt_number: "",
+        description: "Materials",
+      }),
+    })
+    expect(next).toHaveBeenCalled()
   })
 })

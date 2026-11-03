@@ -697,7 +697,7 @@ describe("project field ownership", () => {
   })
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s changing LGU-owned status, contractor, bid price, or dates",
+    "rejects %s changing LGU-owned contractor, bid price, or dates",
     (role) => {
       const original = {
         ...ppdoCreate,
@@ -708,7 +708,6 @@ describe("project field ownership", () => {
         target_end_date: "2026-12-01",
       }
       for (const [field, value] of [
-        ["status", "Planning"],
         ["contractor", "Other Co"],
         ["bid_price", 200],
         ["start_date", "2026-07-01"],
@@ -731,6 +730,21 @@ describe("project field ownership", () => {
           submitted: { [field]: value },
         })).toEqual(result)
       }
+      const statusWrite = evaluateProjectFieldWrite({
+        role,
+        isCreate: false,
+        original,
+        submitted: { status: "Planning" },
+      })
+      expect(statusWrite).toEqual({ ok: true, setLguEncodedAt: false })
+      expect(
+        jsOwnership.evaluateProjectFieldWrite({
+          role,
+          isCreate: false,
+          original,
+          submitted: { status: "Planning" },
+        })
+      ).toEqual(statusWrite)
     }
   )
 
@@ -760,7 +774,7 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
-    "still rejects %s Edit-only status writes without approval_status",
+    "lets %s edit Status without an approval_status pair",
     (role) => {
       const options = {
         role,
@@ -769,16 +783,13 @@ describe("project field ownership", () => {
         submitted: { status: "Planning" },
       }
       const result = evaluateProjectFieldWrite(options)
-      expect(result).toEqual({
-        ok: false,
-        error: "You cannot update field 'status'.",
-      })
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
       expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
     }
   )
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s mismatched approval_status and status pairs",
+    "lets %s write status when the approval_status pair does not match",
     (role) => {
       const original = {
         ...ppdoCreate,
@@ -794,10 +805,7 @@ describe("project field ownership", () => {
       ]) {
         const options = { role, isCreate: false, original, submitted }
         const result = evaluateProjectFieldWrite(options)
-        expect(result).toEqual({
-          ok: false,
-          error: "You cannot update field 'status'.",
-        })
+        expect(result).toEqual({ ok: true, setLguEncodedAt: false })
         expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
       }
     }
@@ -847,7 +855,7 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s status-only For Approval when original approval_status is empty or missing",
+    "lets %s write status-only For Approval when original approval_status is empty or missing",
     (role) => {
       for (const approval_status of ["", undefined] as const) {
         const original = {
@@ -862,10 +870,7 @@ describe("project field ownership", () => {
           submitted: { status: "For Approval" },
         }
         const result = evaluateProjectFieldWrite(options)
-        expect(result).toEqual({
-          ok: false,
-          error: "You cannot update field 'status'.",
-        })
+        expect(result).toEqual({ ok: true, setLguEncodedAt: false })
         expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
       }
     }
@@ -904,7 +909,7 @@ describe("project field ownership", () => {
   )
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s For Approval write from a status other than For Completion",
+    "lets %s write For Approval from a status other than For Completion",
     (role) => {
       const options = {
         role,
@@ -917,10 +922,7 @@ describe("project field ownership", () => {
         submitted: { status: "For Approval" },
       }
       const result = evaluateProjectFieldWrite(options)
-      expect(result).toEqual({
-        ok: false,
-        error: "You cannot update field 'status'.",
-      })
+      expect(result).toEqual({ ok: true, setLguEncodedAt: false })
       expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
     }
   )
@@ -975,7 +977,6 @@ describe("project field ownership", () => {
 
   it("keeps start and end dates on LGU_OWNED_FIELDS and on the override lock list", () => {
     expect(LGU_OVERRIDE_LOCKED_FIELDS).toEqual([
-      "status",
       "contractor",
       "bid_price",
       "start_date",
@@ -1286,7 +1287,7 @@ describe("project field ownership", () => {
       contractor: "Build Co",
     }
     for (const role of ["Province", "Super Admin"] as const) {
-      expect(isProjectFieldEditable(role, "status", original, false)).toBe(false)
+      expect(isProjectFieldEditable(role, "status", original, false)).toBe(true)
       expect(isProjectFieldEditable(role, "contractor", original, false)).toBe(
         false
       )
@@ -1307,7 +1308,7 @@ describe("project field ownership", () => {
         "Planning",
         "Ongoing",
         "Completed",
-      ])).toEqual(["Ongoing"])
+      ])).toEqual(["Planning", "Ongoing", "Completed"])
     }
     expect(
       isProjectFieldEditable("Municipality", "contractor", original, false)
@@ -1579,16 +1580,14 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
-  it("should reject Province changing status on update", () => {
+  it("should let Province change status on update", () => {
     const { event, next } = ownershipHookEvent({
       role: "Province",
       fields: { status: "Planning", name: "Existing road" },
       original: { status: "Ongoing", name: "Existing road" },
     })
-    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
-      /You cannot update field 'status'/
-    )
-    expect(next).not.toHaveBeenCalled()
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
   })
 
   it("should call next when Province approves with status and approval_status", () => {
@@ -1611,7 +1610,7 @@ describe("JS applyProjectFieldOwnership request chain", () => {
     expect(next).toHaveBeenCalledOnce()
   })
 
-  it("should reject Province pairing approved with a non-Completed status", () => {
+  it("should let Province pair approved with a non-Completed status", () => {
     const { event, next } = ownershipHookEvent({
       role: "Province",
       fields: {
@@ -1625,13 +1624,11 @@ describe("JS applyProjectFieldOwnership request chain", () => {
         name: "Existing road",
       },
     })
-    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
-      /You cannot update field 'status'/
-    )
-    expect(next).not.toHaveBeenCalled()
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
   })
 
-  it("should reject Super Admin pairing pending with a non-revision status", () => {
+  it("should let Super Admin pair pending with a non-revision status", () => {
     const { event, next } = ownershipHookEvent({
       superuser: true,
       fields: {
@@ -1645,10 +1642,8 @@ describe("JS applyProjectFieldOwnership request chain", () => {
         name: "Existing road",
       },
     })
-    expect(() => jsOwnership.applyProjectFieldOwnership(event, false)).toThrow(
-      /You cannot update field 'status'/
-    )
-    expect(next).not.toHaveBeenCalled()
+    jsOwnership.applyProjectFieldOwnership(event, false)
+    expect(next).toHaveBeenCalledOnce()
   })
 
   it("should call next when Super Admin echoes leftover dates", () => {

@@ -49,7 +49,6 @@ export const LGU_OWNED_FIELDS = [
 ] as const
 
 export const LGU_OVERRIDE_LOCKED_FIELDS = [
-  "status",
   "contractor",
   "bid_price",
   "start_date",
@@ -299,7 +298,10 @@ export function statusOptionsForActor(
   original: ProjectFieldMap | null | undefined,
   catalog: readonly string[]
 ): string[] {
-  if (isProvincialOverride(role)) return [currentStatus]
+  if (isProvincialOverride(role)) {
+    if (catalog.includes(currentStatus)) return [...catalog]
+    return currentStatus ? [currentStatus, ...catalog] : [...catalog]
+  }
   if (isLguRole(role)) {
     if (isTerminalOrReviewStatus(currentStatus)) return [currentStatus]
     return LGU_WRITABLE_STATUSES.filter((status) => catalog.includes(status))

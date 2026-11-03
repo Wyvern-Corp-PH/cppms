@@ -1924,6 +1924,8 @@ export function ProgressModule() {
                     required={includeReleasedAmount}
                     showReceiptNumber={false}
                     showExpenseDate={false}
+                    lockFundSource={requiresReleasedAmount}
+                    fundSourceValue={dialogProject?.source_of_fund ?? ""}
                   />
                 </FieldSet>
               </FieldSet>

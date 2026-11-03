@@ -122,6 +122,29 @@ describe("project-mutate-completeness hook helper", () => {
     })
     expect(result).toEqual({ ok: true })
   })
+
+  it("should accept provincial create when Source of Fund replaces Main Account", () => {
+    const result = completenessHook.validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: true,
+      submitted: {
+        name: "Road",
+        description: "Desc",
+        category: "Infrastructure",
+        municipality: "Tuguegarao City",
+        barangay: "Centro",
+        location: "East",
+        budget_year: 2026,
+        funding_year: 2025,
+        source_of_fund: "General Fund",
+        period_of_implementation: "FY 2026",
+        moa_file: ["moa.pdf"],
+        resolution_file: ["r.pdf"],
+        supporting_docs: ["s.pdf"],
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
 })
 
 describe("project-mutate-completeness hook entrypoint", () => {

@@ -63,10 +63,19 @@ function requireAttachment(
 }
 
 function refineSubAccount(
+  isCreate: boolean,
   submitted: Record<string, unknown>
 ): ProjectMutateCompletenessResult | null {
   const main = trimText(submitted.fund_source)
   if (!main) {
+    if (trimText(submitted.source_of_fund)) return null
+    if (isCreate) {
+      return {
+        ok: false,
+        field: "source_of_fund",
+        message: "Source of Fund is required.",
+      }
+    }
     return { ok: false, field: "fund_source", message: "Main account is required." }
   }
   const sub = trimText(submitted.sub_account)
@@ -97,7 +106,7 @@ function validatePpdo(
     submitted.funding_year == null || submitted.funding_year === ""
       ? { ok: false, field: "funding_year", message: "Funding year is required." }
       : null,
-    refineSubAccount(submitted),
+    refineSubAccount(isCreate, submitted),
     requireText(
       submitted,
       "period_of_implementation",

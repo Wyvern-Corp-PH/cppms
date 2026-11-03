@@ -330,10 +330,13 @@ describe("ProgressModule (V81, V84)", () => {
   ) {
     await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    const mainAccount = screen.queryByLabelText(/^main account$/i)
+    if (mainAccount) {
+      await user.click(mainAccount)
+      await user.click(screen.getByRole("option", { name: "General Fund" }))
+      await user.click(screen.getByLabelText(/^sub account$/i))
+      await user.click(screen.getByRole("option", { name: "GF - Proper" }))
+    }
     await user.type(screen.getByLabelText(/^description$/i), "Release for progress")
   }
 
@@ -1457,14 +1460,12 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
         })
       )
       expect(projectUpdateMock).not.toHaveBeenCalled()
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     })
-  })
+  }, 20_000)
 
   it("shows a Zod validation message when saving without a site photo", async () => {
     const user = userEvent.setup()
@@ -4014,6 +4015,11 @@ describe("ProgressModule (V81, V84)", () => {
     expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute(
       "readonly"
     )
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
+      "20% LDF (Local Development Fund)"
+    )
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+    expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
 
     await user.upload(
@@ -4022,10 +4028,6 @@ describe("ProgressModule (V81, V84)", () => {
     )
     await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
     await user.type(screen.getByLabelText(/^description$/i), "Bridge materials")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
@@ -4036,8 +4038,6 @@ describe("ProgressModule (V81, V84)", () => {
           project: "1",
           amount: 1500,
           year: 2026,
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
           description: "Bridge materials",
           progress_update: "pu-new",
@@ -4098,10 +4098,6 @@ describe("ProgressModule (V81, V84)", () => {
     )
     await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
     await user.type(screen.getByLabelText(/^description$/i), "Bridge materials")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
@@ -4416,6 +4412,9 @@ describe("ProgressModule (V81, V84)", () => {
     expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("General Fund")
     expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute("readonly")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("General Fund")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+    expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     }
   )
 
@@ -4449,10 +4448,6 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site.jpg", "image/jpeg")
     )
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(screen.getByRole("option", { name: "General Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(screen.getByRole("option", { name: "GF - Proper" }))
     await user.type(screen.getByLabelText(/^description$/i), "   ")
     await user.click(screen.getByRole("button", { name: /save update/i }))
 
@@ -4506,8 +4501,6 @@ describe("ProgressModule (V81, V84)", () => {
           project: "1",
           amount: 1500,
           year: 2026,
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
           description: "Release for progress",
           progress_update: "pu-new",
@@ -4657,11 +4650,10 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1500)
     expect(within(dialog).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(within(dialog).getByLabelText(/^main account$/i)).toHaveTextContent(
-        "General Fund"
-      )
-    })
+    expect(within(dialog).getByLabelText(/^fund source$/i)).toHaveAttribute(
+      "readonly"
+    )
+    expect(within(dialog).queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
@@ -4990,14 +4982,10 @@ describe("ProgressModule (V81, V84)", () => {
     )
 
     const dialog = await screen.findByRole("dialog")
-    await waitFor(() => {
-      expect(
-        within(dialog).getByLabelText(/^main account$/i)
-      ).toHaveTextContent("Others")
-    })
-    expect(within(dialog).getByLabelText(/^other purpose$/i)).toHaveValue(
-      "Legacy other purpose"
+    expect(within(dialog).getByLabelText(/^fund source$/i)).toHaveAttribute(
+      "readonly"
     )
+    expect(within(dialog).queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     await user.clear(within(dialog).getByLabelText(/update notes/i))
     await user.type(
       within(dialog).getByLabelText(/update notes/i),

@@ -538,17 +538,32 @@ export const releasedAmountInputSchema = budgetExpenseBaseSchema
   .omit({ project: true })
   .superRefine(refineBudgetExpenseSubAccount)
 
+function refineProgressMainAccount(
+  value: { main_account?: string; sub_account?: string },
+  ctx: z.RefinementCtx
+) {
+  if (!value.main_account?.trim()) return
+  refineBudgetExpenseSubAccount(
+    { main_account: value.main_account, sub_account: value.sub_account },
+    ctx
+  )
+}
+
 export const progressReleasedAmountInputSchema = budgetExpenseBaseSchema
-  .omit({ project: true, date: true, receipt_number: true })
+  .omit({ project: true, date: true, receipt_number: true, main_account: true })
   .extend({
     description: requiredTrimmedText("Description is required."),
+    main_account: z.string().trim().optional(),
   })
-  .superRefine(refineBudgetExpenseSubAccount)
+  .superRefine(refineProgressMainAccount)
 
 /** Revisions omit date/receipt and require description only when expense changes. */
 const progressReleasedAmountRevisionInputSchema = budgetExpenseBaseSchema
-  .omit({ project: true, date: true, receipt_number: true })
-  .superRefine(refineBudgetExpenseSubAccount)
+  .omit({ project: true, date: true, receipt_number: true, main_account: true })
+  .extend({
+    main_account: z.string().trim().optional(),
+  })
+  .superRefine(refineProgressMainAccount)
 
 function coerceReleasedComparable(value: unknown) {
   if (value === undefined || value === null) return ""

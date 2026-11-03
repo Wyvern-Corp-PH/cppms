@@ -35,7 +35,6 @@ const LGU_OWNED_FIELDS = [
   "target_end_date",
 ]
 const LGU_OVERRIDE_LOCKED_FIELDS = [
-  "status",
   "contractor",
   "bid_price",
   "start_date",
