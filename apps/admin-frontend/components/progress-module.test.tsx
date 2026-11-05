@@ -4418,6 +4418,160 @@ describe("ProgressModule (V81, V84)", () => {
     }
   )
 
+  it.each([
+    ["Municipality", useMunicipalityActor],
+    ["Barangay", useBarangayActor],
+  ] as const)(
+    "shows trimmed custom Source of Fund for %s when the project value is Others",
+    async (_role, useActor) => {
+      const user = userEvent.setup()
+      useActor()
+      store.projects = [
+        {
+          id: "1",
+          collectionId: "p",
+          collectionName: "projects",
+          created: "",
+          updated: "",
+          name: "City Bridge",
+          category: "Infrastructure",
+          status: "Ongoing",
+          budget_year: 2026,
+          progress_pct: 40,
+          source_of_fund: "Others",
+          source_of_fund_other: "  Congressional fund  ",
+          municipality: "Tuguegarao City",
+          barangay: "Centro 01 (Bagumbayan)",
+        },
+      ]
+
+      render(<ProgressModule />)
+      await user.click(await screen.findByRole("button", { name: /update progress/i }))
+
+      expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue(
+        "Congressional fund"
+      )
+      expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
+        "Congressional fund"
+      )
+      expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute(
+        "readonly"
+      )
+      expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+      expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+    }
+  )
+
+  it("shows the Others catalog label when the custom Source of Fund is blank", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 40,
+        source_of_fund: "Others",
+        source_of_fund_other: "   ",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("Others")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("Others")
+  })
+
+  it("shows an em dash for both fund fields when Source of Fund is empty", async () => {
+    const user = userEvent.setup()
+    useMunicipalityActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 40,
+        source_of_fund: "",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("—")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("—")
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute("readonly")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+  })
+
+  it("shows General Fund from a PocketBase-shaped project row", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "2026-01-01 00:00:00.000Z",
+        updated: "2026-01-02 00:00:00.000Z",
+        name: "City Bridge",
+        description: "",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "",
+        lgu_level: "",
+        contractor: "",
+        start_date: "",
+        target_end_date: "",
+        budget_year: 2026,
+        total_budget: 0,
+        fund_source: "",
+        source_of_fund: "General Fund",
+        source_of_fund_other: "",
+        funding_year: 0,
+        sub_account: "",
+        period_of_implementation: "",
+        bid_price: 0,
+        number_of_students: 0,
+        moa_file: "",
+        project_photos: [],
+        lgu_encoded_at: "",
+        resolution_file: "",
+        supporting_docs: "",
+        progress_pct: 40,
+        approval_status: "",
+        approved_at: "",
+        approved_by: "",
+        rejection_reason: "",
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(await screen.findByRole("button", { name: /update progress/i }))
+
+    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("General Fund")
+    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("General Fund")
+  })
+
   it("should show FieldError when Barangay submits Released Amount with whitespace-only description", async () => {
     const user = userEvent.setup()
     useBarangayActor()

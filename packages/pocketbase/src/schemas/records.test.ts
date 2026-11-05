@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { parseRecordList } from "./parse"
+
 import {
   activityLogRecordSchema,
   approvalActionRecordSchema,
@@ -90,6 +92,75 @@ describe("collection record schemas (V33, V36)", () => {
       expect(result.data.project_photos).toEqual(["site.jpg"])
       expect(result.data.lgu_encoded_at).toBe("2026-08-01 00:00:00.000Z")
     }
+  })
+
+  it("keeps Source of Fund on a PocketBase-shaped project row", () => {
+    const row = {
+      ...base,
+      collectionName: "projects",
+      name: "City Bridge",
+      description: "",
+      category: "Infrastructure",
+      status: "Ongoing",
+      municipality: "Tuguegarao City",
+      barangay: "Centro 01 (Bagumbayan)",
+      location: "",
+      lgu_level: "",
+      contractor: "",
+      start_date: "",
+      target_end_date: "",
+      budget_year: 2026,
+      total_budget: 0,
+      fund_source: "",
+      source_of_fund: "General Fund",
+      source_of_fund_other: "",
+      funding_year: 0,
+      sub_account: "",
+      period_of_implementation: "",
+      bid_price: 0,
+      number_of_students: 0,
+      moa_file: "",
+      project_photos: [],
+      lgu_encoded_at: "",
+      resolution_file: "",
+      supporting_docs: "",
+      progress_pct: 40,
+      approval_status: "",
+      approved_at: "",
+      approved_by: "",
+      rejection_reason: "",
+    }
+
+    const parsed = parseRecordList(projectRecordSchema, [row])
+
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.source_of_fund).toBe("General Fund")
+    expect(parsed[0]?.source_of_fund_other).toBeUndefined()
+  })
+
+  it("keeps a custom Source of Fund on a PocketBase-shaped project row", () => {
+    const parsed = parseRecordList(projectRecordSchema, [
+      {
+        ...base,
+        collectionName: "projects",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        fund_source: "",
+        source_of_fund: "Others",
+        source_of_fund_other: "  Congressional fund  ",
+        funding_year: 0,
+        moa_file: "",
+        project_photos: "",
+        resolution_file: [],
+        supporting_docs: "",
+      },
+    ])
+
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.source_of_fund).toBe("Others")
+    expect(parsed[0]?.source_of_fund_other).toBe("  Congressional fund  ")
   })
 
   it("should coerce string supporting_docs to a file list like other project file fields", () => {

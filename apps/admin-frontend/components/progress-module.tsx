@@ -90,6 +90,7 @@ import { PageHeaderBand } from "@/components/page-header-band"
 import {
   emptyReleasedAmountFormValue,
   normalizeMainAccountName,
+  projectSourceOfFundLabel,
   ReleasedAmountFields,
   type ReleasedAmountFormValue,
 } from "@/components/released-amount-fields"
@@ -1375,6 +1376,10 @@ export function ProgressModule() {
   }
 
   const dialogProject = filteredProjects.find((p) => p.id === dialogProjectId)
+  const sourceOfFundLabel = projectSourceOfFundLabel(
+    dialogProject?.source_of_fund,
+    dialogProject?.source_of_fund_other
+  )
   const dialogProgress = dialogProject
     ? effectiveProgressPct(
         dialogProject,
@@ -1902,7 +1907,7 @@ export function ProgressModule() {
                     </FieldLabel>
                     <Input
                       id="progress-project-source-of-fund"
-                      value={dialogProject.source_of_fund ?? "—"}
+                      value={sourceOfFundLabel}
                       readOnly
                     />
                   </Field>
@@ -1925,7 +1930,7 @@ export function ProgressModule() {
                     showReceiptNumber={false}
                     showExpenseDate={false}
                     lockFundSource={requiresReleasedAmount}
-                    fundSourceValue={dialogProject?.source_of_fund ?? ""}
+                    fundSourceValue={sourceOfFundLabel}
                   />
                 </FieldSet>
               </FieldSet>

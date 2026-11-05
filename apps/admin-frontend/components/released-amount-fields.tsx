@@ -298,6 +298,19 @@ export function emptyReleasedAmountFormValue(options?: {
   }
 }
 
+const EMPTY_SOURCE_OF_FUND = "—"
+
+/** Read-only Progress Update label. Catalog value, or trimmed Others text. */
+export function projectSourceOfFundLabel(
+  sourceOfFund: string | null | undefined,
+  sourceOfFundOther?: string | null
+): string {
+  const other = sourceOfFundOther?.trim() ?? ""
+  if (sourceOfFund === "Others" && other) return other
+  const catalog = sourceOfFund?.trim() ?? ""
+  return catalog || EMPTY_SOURCE_OF_FUND
+}
+
 export type ReleasedAmountFieldsProps = {
   value: ReleasedAmountFormValue
   onChange: (value: ReleasedAmountFormValue) => void
