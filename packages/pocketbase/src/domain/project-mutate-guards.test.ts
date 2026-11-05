@@ -196,6 +196,38 @@ describe("validateProjectMutateCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
+  it("should accept a provincial create without period when Source of Fund is set", () => {
+    const {
+      fund_source: _fundSource,
+      period_of_implementation: _period,
+      ...withoutPeriod
+    } = ppdoComplete
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: true,
+      submitted: {
+        ...withoutPeriod,
+        source_of_fund: "20% LDF (Local Development Fund)",
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject a provincial update that omits period of implementation", () => {
+    const { period_of_implementation: _period, ...withoutPeriod } = ppdoComplete
+    const result = validateProjectMutateCompleteness({
+      role: "Province",
+      isCreate: false,
+      submitted: withoutPeriod,
+      original: ppdoComplete,
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "period_of_implementation",
+      message: "Period of implementation is required.",
+    })
+  })
+
   it("should accept a provincial create when Source of Fund is set and Main Account is omitted", () => {
     const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete
     const result = validateProjectMutateCompleteness({

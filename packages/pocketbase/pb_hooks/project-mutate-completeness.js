@@ -19,6 +19,7 @@ const PROJECT_FIELDS = [
   "location",
   "budget_year",
   "fund_source",
+  "source_of_fund",
   "funding_year",
   "sub_account",
   "period_of_implementation",
@@ -109,11 +110,13 @@ function validatePpdo(isCreate, submitted, original) {
       ? { ok: false, field: "funding_year", message: "Funding year is required." }
       : null,
     refineSubAccount(isCreate, submitted),
-    requireText(
-      submitted,
-      "period_of_implementation",
-      "Period of implementation is required."
-    ),
+    isCreate
+      ? null
+      : requireText(
+          submitted,
+          "period_of_implementation",
+          "Period of implementation is required."
+        ),
     requireAttachment(
       isCreate,
       submitted,

@@ -230,6 +230,60 @@ describe("project-mutate-completeness hook entrypoint", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
+  it("should accept provincial create when Source of Fund is on the record and period is omitted", () => {
+    const next = vi.fn()
+    completenessHook.applyProjectMutateCompleteness(
+      {
+        next,
+        auth: { get: (field: string) => (field === "role" ? "Province" : "") },
+        record: recordGet({
+          name: "Road",
+          description: "Desc",
+          category: "Infrastructure",
+          municipality: "Tuguegarao City",
+          barangay: "Centro",
+          location: "East",
+          budget_year: 2026,
+          funding_year: 2025,
+          source_of_fund: "Others",
+          source_of_fund_other: "Congressional fund",
+          moa_file: ["moa.pdf"],
+          resolution_file: ["r.pdf"],
+          supporting_docs: ["s.pdf"],
+        }),
+      },
+      true
+    )
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should reject provincial create when the record has no Source of Fund", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          auth: { get: (field: string) => (field === "role" ? "Super Admin" : "") },
+          record: recordGet({
+            name: "Road",
+            description: "Desc",
+            category: "Infrastructure",
+            municipality: "Tuguegarao City",
+            barangay: "Centro",
+            location: "East",
+            budget_year: 2026,
+            funding_year: 2025,
+            moa_file: ["moa.pdf"],
+            resolution_file: ["r.pdf"],
+            supporting_docs: ["s.pdf"],
+          }),
+        },
+        true
+      )
+    ).toThrow("Source of Fund is required.")
+    expect(next).not.toHaveBeenCalled()
+  })
+
   it("should call next when provincial update keeps on-record documents", () => {
     const next = vi.fn()
     completenessHook.applyProjectMutateCompleteness(
