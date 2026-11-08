@@ -1378,7 +1378,8 @@ export function ProgressModule() {
   const dialogProject = filteredProjects.find((p) => p.id === dialogProjectId)
   const sourceOfFundLabel = projectSourceOfFundLabel(
     dialogProject?.source_of_fund,
-    dialogProject?.source_of_fund_other
+    dialogProject?.source_of_fund_other,
+    dialogProject?.fund_source
   )
   const dialogProgress = dialogProject
     ? effectiveProgressPct(

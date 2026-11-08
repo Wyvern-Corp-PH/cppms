@@ -303,11 +303,12 @@ const EMPTY_SOURCE_OF_FUND = "—"
 /** Read-only Progress Update label. Catalog value, or trimmed Others text. */
 export function projectSourceOfFundLabel(
   sourceOfFund: string | null | undefined,
-  sourceOfFundOther?: string | null
+  sourceOfFundOther?: string | null,
+  legacyFundSource?: string | null
 ): string {
   const other = sourceOfFundOther?.trim() ?? ""
-  if (sourceOfFund === "Others" && other) return other
-  const catalog = sourceOfFund?.trim() ?? ""
+  const catalog = sourceOfFund?.trim() || legacyFundSource?.trim() || ""
+  if (catalog === "Others" && other) return other
   return catalog || EMPTY_SOURCE_OF_FUND
 }
 

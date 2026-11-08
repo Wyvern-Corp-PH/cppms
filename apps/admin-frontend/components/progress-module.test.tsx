@@ -4521,7 +4521,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
   })
 
-  it("shows General Fund from a PocketBase-shaped project row", async () => {
+  it("shows the selected fund source from a PocketBase-shaped project row", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -4544,8 +4544,8 @@ describe("ProgressModule (V81, V84)", () => {
         target_end_date: "",
         budget_year: 2026,
         total_budget: 0,
-        fund_source: "",
-        source_of_fund: "General Fund",
+        fund_source: "General Fund",
+        source_of_fund: "",
         source_of_fund_other: "",
         funding_year: 0,
         sub_account: "",
