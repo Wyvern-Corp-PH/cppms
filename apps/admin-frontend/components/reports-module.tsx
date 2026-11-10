@@ -14,13 +14,15 @@ import {
   type ActivityLogFilters,
 } from "@workspace/pocketbase/domain/activity-log"
 import {
+  projectIdsWithLiquidationCertificate,
+  projectSpentAmount,
   reportApprovalRow,
   reportBudgetRow,
   reportLgu,
+  reportLiquidationStatus,
   reportLocation,
   reportProgressRow,
   reportProjectRow,
-  projectSpentAmount,
 } from "@workspace/pocketbase/domain/reports-display"
 import {
   buildUserDisplayMap,
@@ -235,6 +237,10 @@ export function ReportsModule() {
       updates.filter((update) => filteredProjectIds.has(update.project)),
     [updates, filteredProjectIds]
   )
+  const liquidatedProjectIds = useMemo(
+    () => projectIdsWithLiquidationCertificate(updates),
+    [updates]
+  )
   const approvalsCount = countApprovedProjects(filteredProjects)
   const filteredActivityLogs = useMemo(
     () => filterActivityLogs(activityLogs, logFilters),
@@ -286,11 +292,6 @@ export function ReportsModule() {
     for (const tab of tabs) {
       let rows: Record<string, unknown>[] = []
       if (tab === "projects") {
-        const projectsWithLiquidationCertificate = new Set(
-          updates
-            .filter((update) => update.certificate_of_liquidation.length > 0)
-            .map((update) => update.project)
-        )
         rows = filteredProjects.map((project) => {
           const {
             name,
@@ -302,9 +303,9 @@ export function ReportsModule() {
             name,
             category,
             "Completion Status": status,
-            "Liquidation Status": projectsWithLiquidationCertificate.has(project.id)
-              ? "Liquidated"
-              : "—",
+            "Liquidation Status": reportLiquidationStatus(
+              liquidatedProjectIds.has(project.id)
+            ),
             ...remaining,
           }
         })
@@ -333,7 +334,13 @@ export function ReportsModule() {
   const projectColumns: ColumnDef<ProjectRecord>[] = [
     { accessorKey: "name", header: "Project" },
     { accessorKey: "category", header: "Category" },
-    { accessorKey: "status", header: "Status" },
+    { accessorKey: "status", header: "Completion Status" },
+    {
+      id: "liquidationStatus",
+      header: "Liquidation Status",
+      cell: ({ row }) =>
+        reportLiquidationStatus(liquidatedProjectIds.has(row.original.id)),
+    },
     {
       id: "deadline",
       header: "Deadline",

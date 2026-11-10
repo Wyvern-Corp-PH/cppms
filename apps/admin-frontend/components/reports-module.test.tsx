@@ -1192,6 +1192,139 @@ describe("ReportsModule (V12)", () => {
     ])
   })
 
+  it("should show completion and liquidation status when the projects table renders", async () => {
+    store.projects = [
+      {
+        id: "p-certified",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Certified Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 40,
+      },
+      {
+        id: "p-other-docs",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Other Documents Bridge",
+        category: "Infrastructure",
+        status: "For Completion",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 90,
+      },
+      {
+        id: "p-none",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "No Documents Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+      },
+    ]
+    store.updates = [
+      {
+        id: "upd-certified-empty",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-certified",
+        from_pct: 0,
+        to_pct: 20,
+        site_photo: [],
+        certificate_of_liquidation: [],
+      },
+      {
+        id: "upd-certified",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-certified",
+        from_pct: 20,
+        to_pct: 40,
+        site_photo: [],
+        certificate_of_liquidation: ["liquidation-certificate.pdf"],
+      },
+      {
+        id: "upd-other-docs",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-other-docs",
+        from_pct: 50,
+        to_pct: 90,
+        site_photo: [],
+        liquidation_documents: ["other-liquidation-document.pdf"],
+      },
+    ]
+
+    render(<ReportsModule />)
+    await screen.findByText("Certified Bridge")
+
+    const table = screen.getByRole("table")
+    const headerNames = within(table)
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent?.trim())
+    const completionIndex = headerNames.indexOf("Completion Status")
+    expect(completionIndex).toBeGreaterThan(-1)
+    expect(headerNames[completionIndex + 1]).toBe("Liquidation Status")
+    expect(headerNames).not.toContain("Status")
+
+    function statusCells(projectName: string) {
+      const row = screen.getByRole("cell", { name: projectName }).closest("tr")
+      expect(row).toBeTruthy()
+      return within(row as HTMLElement).getAllByRole("cell")
+    }
+
+    const certified = statusCells("Certified Bridge")
+    expect(certified[completionIndex]).toHaveTextContent("Ongoing")
+    expect(certified[completionIndex + 1]).toHaveTextContent("Liquidated")
+
+    const otherDocs = statusCells("Other Documents Bridge")
+    expect(otherDocs[completionIndex]).toHaveTextContent("For Completion")
+    expect(otherDocs[completionIndex + 1]).toHaveTextContent("—")
+    expect(otherDocs[completionIndex + 1]).not.toHaveTextContent("Liquidated")
+
+    const none = statusCells("No Documents Bridge")
+    expect(none[completionIndex]).toHaveTextContent("Completed")
+    expect(none[completionIndex + 1]).toHaveTextContent("—")
+  })
+
+  it("should keep the status header when the approvals tab is open", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Completed",
+        budget_year: 2026,
+        bid_price: 200_000,
+        progress_pct: 100,
+        approval_status: "approved",
+      },
+    ]
+
+    render(<ReportsModule />)
+    await user.click(await screen.findByRole("tab", { name: /^approvals/i }))
+
+    const table = screen.getByRole("table")
+    expect(
+      within(table).getByRole("columnheader", { name: "Status", exact: true })
+    ).toBeInTheDocument()
+    expect(
+      within(table).queryByRole("columnheader", { name: "Completion Status" })
+    ).not.toBeInTheDocument()
+    expect(
+      within(table).queryByRole("columnheader", { name: "Liquidation Status" })
+    ).not.toBeInTheDocument()
+  })
+
   it("exports completion and certificate-based liquidation status on the projects sheet", async () => {
     const user = userEvent.setup()
     store.projects = [
@@ -1235,10 +1368,20 @@ describe("ReportsModule (V12)", () => {
         collectionId: "updates",
         collectionName: "progress_updates",
         project: "p-certified",
+        from_pct: 50,
+        to_pct: 75,
+        site_photo: [],
+        certificate_of_liquidation: ["liquidation-certificate.pdf"],
+      },
+      {
+        id: "upd-certified-later-empty",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        project: "p-certified",
         from_pct: 75,
         to_pct: 100,
         site_photo: [],
-        certificate_of_liquidation: ["liquidation-certificate.pdf"],
+        certificate_of_liquidation: [],
       },
       {
         id: "upd-no-certificate",

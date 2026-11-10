@@ -49,6 +49,23 @@ export function reportProjectRow(project: ProjectRecord) {
   }
 }
 
+export function projectIdsWithLiquidationCertificate(
+  updates: readonly Pick<
+    ProgressUpdateRecord,
+    "project" | "certificate_of_liquidation"
+  >[]
+): ReadonlySet<string> {
+  return new Set(
+    updates
+      .filter((update) => update.certificate_of_liquidation.length > 0)
+      .map((update) => update.project)
+  )
+}
+
+export function reportLiquidationStatus(hasCertificate: boolean): "Liquidated" | "—" {
+  return hasCertificate ? "Liquidated" : "—"
+}
+
 export function reportBudgetRow(
   row: ProjectBudgetBreakdownRow,
   project: ProjectRecord | undefined,
