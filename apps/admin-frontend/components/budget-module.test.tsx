@@ -571,6 +571,67 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
+  it("should sum released amounts from progress updates when PocketBase leaves account fields blank", async () => {
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 10_000,
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "pbc_2635419501",
+        collectionName: "budget_expenses",
+        created: "2026-06-15 00:00:00.000Z",
+        updated: "2026-06-15 00:00:00.000Z",
+        project: "p1",
+        amount: 1500,
+        year: 2026,
+        main_account: "",
+        sub_account: "",
+        date: "2026-06-15 00:00:00.000Z",
+        receipt_number: "",
+        description: "",
+        progress_update: "pu-1",
+      },
+      {
+        id: "e2",
+        collectionId: "pbc_2635419501",
+        collectionName: "budget_expenses",
+        created: "2026-07-01 00:00:00.000Z",
+        updated: "2026-07-01 00:00:00.000Z",
+        project: "p1",
+        amount: 2500,
+        year: 2026,
+        main_account: "",
+        sub_account: "",
+        date: "2026-07-01 00:00:00.000Z",
+        receipt_number: "",
+        description: "",
+        progress_update: "pu-2",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("budget-total")).toHaveTextContent("₱10,000")
+      expect(screen.getByTestId("budget-spent")).toHaveTextContent("₱4,000")
+      expect(screen.getByTestId("budget-remaining")).toHaveTextContent("₱6,000")
+    })
+
+    const breakdown = screen.getByTestId("budget-breakdown")
+    expect(breakdown).toHaveTextContent("Amount released ₱4,000")
+    expect(breakdown).toHaveTextContent("Rem ₱6,000")
+  })
+
   it("shows the canonical sub account for legacy General Fund releases with a blank child value", async () => {
     const user = userEvent.setup()
     store.projects = [

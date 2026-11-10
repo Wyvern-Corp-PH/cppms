@@ -115,7 +115,7 @@ export const budgetExpenseRecordSchema = z.preprocess(
     project: z.string(),
     amount: pbNumber,
     year: pbNumber,
-    main_account: z.string().trim().min(1),
+    main_account: z.string().trim(),
     sub_account: pbEmptyAsUndefined(z.string().optional()),
     date: z.string(),
     receipt_number: pbEmptyAsUndefined(z.string().optional()),
