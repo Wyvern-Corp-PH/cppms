@@ -6,12 +6,7 @@ import {
   canAccess,
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
-import {
-  budgetAllocationIneligibilityMessage,
-  filterProjectsForBudgetAllocation,
-  validateAllocationAgainstProjectBudget,
-  validateReleasedAmountCreate,
-} from "@workspace/pocketbase/domain/budget-allocation-guards"
+import { validateReleasedAmountCreate } from "@workspace/pocketbase/domain/budget-allocation-guards"
 import {
   computeBudgetSummary,
   computeProjectBudgetBreakdown,
@@ -27,7 +22,6 @@ import {
 import { formatDisplayDate } from "@workspace/pocketbase/domain/format-display-date"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import {
-  budgetAllocationMutateSchema,
   budgetAllocationRecordSchema,
   budgetExpenseMutateSchema,
   budgetExpenseRecordSchema,
@@ -74,7 +68,6 @@ import { Textarea } from "@workspace/ui/components/textarea"
 
 import { DateRangeFilter } from "@/components/date-range-filter"
 import { DataTable, type ColumnDef } from "@/components/data-table"
-import { DocumentUploadField } from "@/components/document-upload-field"
 import {
   LocationFilterControls,
   projectMatchesLocationFilters,
@@ -172,37 +165,22 @@ export function BudgetModule() {
     municipality: "",
     barangay: "",
   })
-  const [allocationOpen, setAllocationOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [projectId, setProjectId] = useState("")
   const [amount, setAmount] = useState("")
-  const [allocationYear, setAllocationYear] = useState(String(new Date().getFullYear()))
-  const [allocationDescription, setAllocationDescription] = useState("")
   const [releaseYear, setReleaseYear] = useState(String(new Date().getFullYear()))
   const [mainAccount, setMainAccount] = useState("")
   const [subAccount, setSubAccount] = useState("")
   const [receiptNumber, setReceiptNumber] = useState("")
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10))
   const [expenseDescription, setExpenseDescription] = useState("")
-  const [moaFiles, setMoaFiles] = useState<File[]>([])
-  const [resolutionFiles, setResolutionFiles] = useState<File[]>([])
-  const [supportingFiles, setSupportingFiles] = useState<File[]>([])
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const actor = getPocketBase().authStore?.record
-  const canCreateAllocations = actor
-    ? canAccess(actor, "budget_allocations.create")
-    : true
   const canCreateExpenses =
     actor &&
     canAccess(actor, "budget_expenses.create") &&
     actor.role !== "Barangay" &&
     actor.role !== "Municipality"
-
-  function clearAllocationUploads() {
-    setMoaFiles([])
-    setResolutionFiles([])
-    setSupportingFiles([])
-  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -452,68 +430,6 @@ export function BudgetModule() {
     },
   ]
 
-  async function saveAllocation() {
-    if (!canCreateAllocations) {
-      return
-    }
-
-    const parsed = budgetAllocationMutateSchema.safeParse({
-      project: projectId,
-      amount,
-      year: allocationYear,
-      date: new Date().toISOString().slice(0, 10),
-      description: allocationDescription || undefined,
-      allocated_by: actor?.id,
-      moa_file: moaFiles,
-      resolution_file: resolutionFiles,
-      supporting_docs: supportingFiles,
-    })
-
-    if (!parsed.success) {
-      setFieldErrors(fieldErrorsFromZod(parsed.error))
-      return
-    }
-
-    const targetProject = projects.find((row) => row.id === parsed.data.project)
-    const ineligible = budgetAllocationIneligibilityMessage(targetProject)
-    if (ineligible) {
-      setFieldErrors({ project: ineligible })
-      return
-    }
-
-    const budgetCap = validateAllocationAgainstProjectBudget({
-      newAmount: parsed.data.amount,
-      existingAllocations: allocations.filter(
-        (row) => row.project === parsed.data.project
-      ),
-      project: targetProject ?? {},
-    })
-    if (!budgetCap.ok) {
-      setFieldErrors({ amount: budgetCap.message })
-      return
-    }
-
-    setFieldErrors({})
-    const pb = getPocketBase()
-    const formData = new FormData()
-    for (const [key, value] of Object.entries(parsed.data)) {
-      if (value !== undefined) formData.append(key, String(value))
-    }
-    for (const file of moaFiles) {
-      formData.append("moa_file", file)
-    }
-    for (const file of resolutionFiles) {
-      formData.append("resolution_file", file)
-    }
-    for (const file of supportingFiles) {
-      formData.append("supporting_docs", file)
-    }
-    await pb.collection("budget_allocations").create(formData)
-
-    setAllocationOpen(false)
-    await load()
-  }
-
   async function saveExpense() {
     if (!canCreateExpenses) {
       return
@@ -695,19 +611,6 @@ export function BudgetModule() {
         </div>
 
         <TabsContent value="allocations" className="space-y-4">
-          {canCreateAllocations ? (
-            <Button
-              type="button"
-              data-testid="allocate-budget"
-              onClick={() => {
-                setFieldErrors({})
-                clearAllocationUploads()
-                setAllocationOpen(true)
-              }}
-            >
-              + Allocate
-            </Button>
-          ) : null}
           <DataTable
             columns={allocationColumns}
             data={filteredAllocations}
@@ -723,114 +626,6 @@ export function BudgetModule() {
           />
         </TabsContent>
       </Tabs>
-
-      <Dialog
-        open={allocationOpen}
-        onOpenChange={(open) => {
-          setAllocationOpen(open)
-          if (!open) clearAllocationUploads()
-        }}
-      >
-        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Allocate budget</DialogTitle>
-            <DialogDescription>
-              Record an allocation and attach the required budget documents.
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field data-invalid={!!fieldErrors.project}>
-              <FieldLabel required>Project</FieldLabel>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger aria-invalid={!!fieldErrors.project}>
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filterProjectsForBudgetAllocation(projects).map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError>{fieldErrors.project}</FieldError>
-            </Field>
-            <Field data-invalid={!!fieldErrors.amount}>
-              <FieldLabel htmlFor="allocation-amount" required>
-                Total allocated budget amount
-              </FieldLabel>
-              <Input
-                id="allocation-amount"
-                type="number"
-                value={amount}
-                aria-invalid={!!fieldErrors.amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <FieldError>{fieldErrors.amount}</FieldError>
-            </Field>
-            <Field>
-              <FieldLabel required>Year</FieldLabel>
-              <Select value={allocationYear} onValueChange={setAllocationYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {fundingYearNames.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field data-invalid={!!fieldErrors.description}>
-              <FieldLabel htmlFor="allocation-description" required>
-                Description
-              </FieldLabel>
-              <Textarea
-                id="allocation-description"
-                value={allocationDescription}
-                aria-invalid={!!fieldErrors.description}
-                onChange={(e) => setAllocationDescription(e.target.value)}
-              />
-              <FieldError>{fieldErrors.description}</FieldError>
-            </Field>
-            <div className="space-y-2 border-t pt-3">
-              <p className="text-sm font-medium">Required documents</p>
-              <DocumentUploadField
-                id="allocation-moa"
-                label="Memorandum of Agreement"
-                required
-                multiple
-                files={moaFiles}
-                onChange={setMoaFiles}
-                error={fieldErrors.moa_file}
-              />
-              <DocumentUploadField
-                id="allocation-resolution"
-                label="Resolution"
-                required
-                multiple
-                files={resolutionFiles}
-                onChange={setResolutionFiles}
-                error={fieldErrors.resolution_file}
-              />
-              <DocumentUploadField
-                id="allocation-supporting"
-                label="Supporting project documents"
-                required
-                multiple
-                files={supportingFiles}
-                onChange={setSupportingFiles}
-                error={fieldErrors.supporting_docs}
-              />
-            </div>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="button" onClick={() => void saveAllocation()}>Allocate budget</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-lg">

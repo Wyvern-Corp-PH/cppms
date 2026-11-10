@@ -166,25 +166,54 @@ describe("BudgetModule (V9, V10, V24)", () => {
     createMock.mockClear()
   })
 
-  async function fillAllocationForm(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByTestId("allocate-budget"))
-    await user.click((await screen.findAllByRole("combobox"))[0]!)
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
-    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
-    await user.type(screen.getByLabelText(/^description$/i), "FY2026 allocation")
-    await user.upload(screen.getByTestId("document-upload-input-allocation-moa"), [
-      new File(["moa"], "moa.pdf", { type: "application/pdf" }),
-    ])
-    await user.upload(
-      screen.getByTestId("document-upload-input-allocation-resolution"),
-      [new File(["res"], "res.pdf", { type: "application/pdf" })]
-    )
-    await user.upload(
-      screen.getByTestId("document-upload-input-allocation-supporting"),
-      [new File(["sup"], "sup.pdf", { type: "application/pdf" })]
-    )
-  }
+  it("should hide + Allocate for Provincial Admin and keep existing allocations", async () => {
+    store.authRecord = {
+      id: "current-user",
+      email: "current@example.test",
+      name: "Current Province User",
+      role: "Province",
+      account_status: "Active",
+    }
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 100_000,
+        year: 2026,
+        date: "2026-06-17",
+        description: "FY2026 allocation",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /^allocations$/i })).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole("button", { name: /\+ allocate/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("allocate-budget")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog", { name: /allocate budget/i })).not.toBeInTheDocument()
+
+    const table = screen.getByRole("table")
+    expect(within(table).getByText("Bridge")).toBeInTheDocument()
+    expect(within(table).getByText("+100,000")).toBeInTheDocument()
+    expect(within(table).getByText("FY2026 allocation")).toBeInTheDocument()
+  })
 
   function seedReleasedAmountTable() {
     store.projects = [
@@ -214,261 +243,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
       },
     ]
   }
-
-  it("should show allocator full name after allocate when users list includes the actor", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-    store.users = [
-      {
-        id: "current-user",
-        collectionId: "users",
-        collectionName: "users",
-        email: "current@example.test",
-        name: "Current Province User",
-        role: "Province",
-        account_status: "Active",
-      },
-    ]
-    createMock.mockImplementation(async (payload: FormData | Record<string, unknown>) => {
-      const row: Record<string, unknown> = {
-        id: "a-new",
-        collectionId: "a",
-        collectionName: "budget_allocations",
-      }
-      if (payload instanceof FormData) {
-        for (const [key, value] of payload.entries()) {
-          if (value instanceof File) continue
-          row[key] = value
-        }
-      } else {
-        Object.assign(row, payload)
-      }
-      store.allocations.push(row)
-    })
-
-    render(<BudgetModule />)
-
-    await fillAllocationForm(user)
-    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalled()
-      const payload = createMock.mock.calls[0]?.[0]
-      expect(payload).toBeInstanceOf(FormData)
-      expect((payload as FormData).get("allocated_by")).toBe("current-user")
-      expect(screen.getByText("Current Province User")).toBeInTheDocument()
-      expect(screen.queryByText("current-user")).not.toBeInTheDocument()
-    })
-  })
-
-  it("creates allocation payloads with the current auth user", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await fillAllocationForm(user)
-    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalled()
-    })
-    const payload = createMock.mock.calls[0]?.[0]
-    expect(payload).toBeInstanceOf(FormData)
-    expect((payload as FormData).get("project")).toBe("p1")
-    expect((payload as FormData).get("amount")).toBe("100000")
-    expect((payload as FormData).get("description")).toBe("FY2026 allocation")
-    expect((payload as FormData).get("allocated_by")).toBe("current-user")
-    expect((payload as FormData).getAll("moa_file")).toHaveLength(1)
-    expect((payload as FormData).getAll("resolution_file")).toHaveLength(1)
-    expect((payload as FormData).getAll("supporting_docs")).toHaveLength(1)
-  })
-
-  it("should block allocate save when the amount would exceed the project's bid price", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 100_000,
-      },
-    ]
-    store.allocations = [
-      {
-        id: "a1",
-        collectionId: "a",
-        collectionName: "budget_allocations",
-        project: "p1",
-        amount: 50_000,
-        year: 2026,
-        date: "2026-06-17",
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await fillAllocationForm(user)
-    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
-
-    expect(
-      await screen.findByText("Allocation amount exceeds the project's bid price.")
-    ).toBeInTheDocument()
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
-  it("creates allocation FormData uploads with the current auth user", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-    await user.click((await screen.findAllByRole("combobox"))[0]!)
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
-    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
-    await user.type(screen.getByLabelText(/^description$/i), "FY2026 allocation")
-    await user.upload(screen.getByTestId("document-upload-input-allocation-moa"), [
-      new File(["moa"], "moa.pdf", { type: "application/pdf" }),
-      new File(["moa 2"], "moa-2.pdf", { type: "application/pdf" }),
-    ])
-    await user.upload(
-      screen.getByTestId("document-upload-input-allocation-resolution"),
-      [new File(["res"], "res.pdf", { type: "application/pdf" })]
-    )
-    await user.upload(
-      screen.getByTestId("document-upload-input-allocation-supporting"),
-      [new File(["sup"], "sup.pdf", { type: "application/pdf" })]
-    )
-    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
-
-    await waitFor(() => {
-      expect(createMock).toHaveBeenCalled()
-    })
-    const payload = createMock.mock.calls[0]?.[0]
-    expect(payload).toBeInstanceOf(FormData)
-    expect((payload as FormData).get("project")).toBe("p1")
-    expect((payload as FormData).get("amount")).toBe("100000")
-    expect((payload as FormData).get("allocated_by")).toBe("current-user")
-    expect((payload as FormData).getAll("moa_file")).toHaveLength(2)
-  })
-
-  it("should show field errors when allocation description and documents are missing", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-    await user.click((await screen.findAllByRole("combobox"))[0]!)
-    await user.click(await screen.findByRole("option", { name: "Bridge" }))
-    await user.clear(screen.getByLabelText(/total allocated budget amount/i))
-    await user.type(screen.getByLabelText(/total allocated budget amount/i), "100000")
-    await user.click(screen.getByRole("button", { name: /^allocate budget$/i }))
-
-    expect(await screen.findByText("Description is required.")).toBeInTheDocument()
-    expect(screen.getByText("MOA document is required.")).toBeInTheDocument()
-    expect(screen.getByText("Resolution document is required.")).toBeInTheDocument()
-    expect(
-      screen.getByText("Supporting documents are required.")
-    ).toBeInTheDocument()
-    expect(createMock).not.toHaveBeenCalled()
-  })
-
-  it("should show a required mark on allocate budget controls", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        bid_price: 200_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-    const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByText("Project").closest("[data-slot=field-label]")).toHaveAttribute(
-      "data-required",
-      "true"
-    )
-    expect(
-      within(dialog).getByText("Total allocated budget amount").closest("[data-slot=field-label]")
-    ).toHaveAttribute("data-required", "true")
-    expect(within(dialog).getByText("Year").closest("[data-slot=field-label]")).toHaveAttribute(
-      "data-required",
-      "true"
-    )
-    expect(within(dialog).getByText("Description").closest("[data-slot=field-label]")).toHaveAttribute(
-      "data-required",
-      "true"
-    )
-    expect(
-      within(dialog).getByText("Memorandum of Agreement").closest("[data-slot=field-label]")
-    ).toHaveAttribute("data-required", "true")
-    expect(within(dialog).getByText("Resolution").closest("[data-slot=field-label]")).toHaveAttribute(
-      "data-required",
-      "true"
-    )
-    expect(
-      within(dialog).getByText("Supporting project documents").closest("[data-slot=field-label]")
-    ).toHaveAttribute("data-required", "true")
-  })
 
   it("renders allocation and expense amounts as signed single values", async () => {
     const user = userEvent.setup()
@@ -1299,66 +1073,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
-  it("clears selected files when the allocate modal closes", async () => {
-    const user = userEvent.setup()
-    render(<BudgetModule />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId("budget-total")).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByTestId("allocate-budget"))
-    const input = screen.getByTestId("document-upload-input-allocation-moa")
-    await user.upload(input, new File(["moa"], "moa.pdf", { type: "application/pdf" }))
-
-    expect(screen.getByText("moa.pdf")).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: /close/i }))
-
-    await waitFor(() => {
-      expect(screen.queryByText("moa.pdf")).not.toBeInTheDocument()
-    })
-
-    await user.click(screen.getByTestId("allocate-budget"))
-
-    await waitFor(() => {
-      expect(screen.queryByText("moa.pdf")).not.toBeInTheDocument()
-    })
-  })
-
-  it("shows document labels in the allocate budget modal", async () => {
-    const user = userEvent.setup()
-    render(<BudgetModule />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId("budget-total")).toBeInTheDocument()
-    })
-
-    await user.click(screen.getByTestId("allocate-budget"))
-
-    await waitFor(() => {
-      expect(screen.getByText("Memorandum of Agreement")).toBeInTheDocument()
-      expect(screen.getByText("Resolution")).toBeInTheDocument()
-      expect(
-        screen.queryByText("Province/Barangay Agreement")
-      ).not.toBeInTheDocument()
-      expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
-    })
-  })
-
-  it("keeps allocate budget content responsive at zoomed viewports", async () => {
-    const user = userEvent.setup()
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-
-    const dialog = await screen.findByRole("dialog")
-    expect(dialog).toHaveClass("w-[calc(100vw-2rem)]")
-    expect(dialog.className).toContain("max-h-[calc(100dvh-2rem)]")
-    expect(dialog).toHaveClass("overflow-y-auto")
-    expect(dialog).toHaveClass("sm:max-w-lg")
-  })
-
   it("renders summary cards and breakdown after skeleton load", async () => {
     render(<BudgetModule />)
 
@@ -1369,91 +1083,6 @@ describe("BudgetModule (V9, V10, V24)", () => {
       expect(screen.getByTestId("budget-remaining")).toBeInTheDocument()
       expect(screen.getByTestId("budget-breakdown")).toBeInTheDocument()
     })
-  })
-
-  it("should omit Completed projects from Allocate Budget options", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Active Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        contractor: "Build Co",
-        bid_price: 200_000,
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-      },
-      {
-        id: "p2",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Finished Road",
-        category: "Infrastructure",
-        status: "Completed",
-        budget_year: 2026,
-        bid_price: 100_000,
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-    await user.click((await screen.findAllByRole("combobox"))[0]!)
-
-    expect(
-      await screen.findByRole("option", { name: "Active Bridge" })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole("option", { name: "Finished Road" })
-    ).not.toBeInTheDocument()
-  })
-
-  it("should hide incomplete LGU-detail projects from allocate select", async () => {
-    const user = userEvent.setup()
-    store.projects = [
-      {
-        id: "p1",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Ready Bridge",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        contractor: "Build Co",
-        bid_price: 200_000,
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-      },
-      {
-        id: "p2",
-        collectionId: "p",
-        collectionName: "projects",
-        name: "Incomplete Road",
-        category: "Infrastructure",
-        status: "Ongoing",
-        budget_year: 2026,
-        contractor: "",
-        bid_price: 200_000,
-        start_date: "2026-06-01",
-        target_end_date: "2026-12-01",
-      },
-    ]
-
-    render(<BudgetModule />)
-
-    await user.click(await screen.findByTestId("allocate-budget"))
-    await user.click((await screen.findAllByRole("combobox"))[0]!)
-
-    expect(
-      await screen.findByRole("option", { name: "Ready Bridge" })
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole("option", { name: "Incomplete Road" })
-    ).not.toBeInTheDocument()
   })
 
   it("should cap spend progress at 100 percent and show Over Budget when released exceeds total budget", async () => {
