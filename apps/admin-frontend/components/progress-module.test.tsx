@@ -1672,12 +1672,12 @@ describe("ProgressModule (V81, V84)", () => {
       })
       const payload = createMock.mock.calls[0]?.[0] as FormData
       expect(payload.getAll("site_photo")).toHaveLength(1)
-      expect(payload.getAll("completion_site_photo")).toHaveLength(0)
+      expect(payload.has("completion_site_photo")).toBe(false)
       expect(payload.getAll("certificate_of_liquidation")).toHaveLength(0)
     }
   )
 
-  it("should still show seven completion documents on Update Progress at 100%", async () => {
+  it("should show one site photo upload and the other completion documents at 100%", async () => {
     const user = userEvent.setup()
     useBarangayActor()
     store.projects = [
@@ -1706,11 +1706,25 @@ describe("ProgressModule (V81, V84)", () => {
       name: /update progress/i,
     })
     expectRequiredMark("Update notes", dialog)
-    expectRequiredMark("Site Photo", dialog)
+    expectRequiredMark("Site photo", dialog)
     expect(
-      within(dialog).getByText("Completion Documents")
+      within(dialog).getAllByTestId(/site-photo|site_photo/)
+    ).toHaveLength(1)
+    expect(
+      within(dialog).getByTestId("document-upload-input-site-photo")
     ).toBeInTheDocument()
-    expect(within(dialog).getByText("Site Photo")).toBeInTheDocument()
+    expect(
+      within(dialog).queryByTestId(
+        "document-upload-input-completion-completion_site_photo"
+      )
+    ).not.toBeInTheDocument()
+    const completionSection = within(dialog)
+      .getByText("Completion Documents")
+      .closest("fieldset")
+    expect(completionSection).not.toBeNull()
+    expect(
+      within(completionSection as HTMLElement).queryByText(/site photo/i)
+    ).not.toBeInTheDocument()
     expect(
       within(dialog).getByText("Certificate of Completion")
     ).toBeInTheDocument()
@@ -1734,7 +1748,12 @@ describe("ProgressModule (V81, V84)", () => {
     ).toBeInTheDocument()
     expect(
       within(dialog).getByTestId(
-        "document-upload-input-completion-completion_site_photo"
+        "document-upload-input-completion-certification_completion"
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByTestId(
+        "document-upload-input-completion-liquidation_documents"
       )
     ).toBeInTheDocument()
     expect(
@@ -2108,15 +2127,6 @@ describe("ProgressModule (V81, V84)", () => {
       makeFile("site-2.jpg", "image/jpeg"),
     ])
     await user.upload(
-      screen.getByTestId(
-        "document-upload-input-completion-completion_site_photo"
-      ),
-      [
-        makeFile("completion-site-1.jpg", "image/jpeg"),
-        makeFile("completion-site-2.jpg", "image/jpeg"),
-      ]
-    )
-    await user.upload(
       screen.getByTestId("document-upload-input-completion-certification_completion"),
       [makeFile("certification-1.pdf"), makeFile("certification-2.pdf")]
     )
@@ -2162,7 +2172,7 @@ describe("ProgressModule (V81, V84)", () => {
     })
     const payload = createMock.mock.calls[0]?.[0] as FormData
     expect(payload.getAll("site_photo")).toHaveLength(2)
-    expect(payload.getAll("completion_site_photo")).toHaveLength(2)
+    expect(payload.has("completion_site_photo")).toBe(false)
     expect(payload.getAll("certification_completion")).toHaveLength(2)
     expect(payload.getAll("certificate_acceptance")).toHaveLength(2)
     expect(payload.getAll("proof_payment_barangay")).toHaveLength(2)
@@ -3229,7 +3239,6 @@ describe("ProgressModule (V81, V84)", () => {
   })
 
   const COMPLETION_DOC_FIELDS = [
-    "completion_site_photo",
     "certification_completion",
     "certificate_acceptance",
     "proof_payment_barangay",
@@ -3239,7 +3248,6 @@ describe("ProgressModule (V81, V84)", () => {
   ] as const
 
   const COMPLETION_DOC_LABELS = [
-    "Site Photo",
     "Certificate of Completion",
     "Certificate of Acceptance",
     "Proof of Payment from Barangay",
@@ -3248,7 +3256,13 @@ describe("ProgressModule (V81, V84)", () => {
     "Verification Documents",
   ] as const
 
-  function expectSevenCompletionDocs(scope: ReturnType<typeof within>) {
+  function expectCompletionDocumentUploads(scope: ReturnType<typeof within>) {
+    expect(scope.getAllByTestId(/site-photo|site_photo/)).toHaveLength(1)
+    expect(
+      scope.queryByTestId(
+        "document-upload-input-completion-completion_site_photo"
+      )
+    ).not.toBeInTheDocument()
     expect(scope.getByText("Completion Documents")).toBeInTheDocument()
     for (const field of COMPLETION_DOC_FIELDS) {
       expect(
@@ -3306,7 +3320,7 @@ describe("ProgressModule (V81, V84)", () => {
     return screen.findByRole("dialog", { name: /edit progress range/i })
   }
 
-  it("should show seven completion documents and prefill on-record files when history-edit To is 100%", async () => {
+  it("should show completion documents without a second site photo and prefill on-record files when history-edit To is 100%", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
     hundredPercentHistoryProject()
@@ -3314,7 +3328,7 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     const editor = await openHistoryEditByNotes(user, "done band")
 
-    expectSevenCompletionDocs(within(editor))
+    expectCompletionDocumentUploads(within(editor))
     expect(within(editor).getByText(/on record: cert\.pdf/i)).toBeInTheDocument()
     expect(within(editor).getByText(/on record: accept\.pdf/i)).toBeInTheDocument()
     expect(within(editor).getByText(/on record: liq\.pdf/i)).toBeInTheDocument()
@@ -3335,7 +3349,7 @@ describe("ProgressModule (V81, V84)", () => {
 
     render(<ProgressModule />)
     const editor = await openHistoryEditByNotes(user, "done band")
-    expectSevenCompletionDocs(within(editor))
+    expectCompletionDocumentUploads(within(editor))
     await user.click(within(editor).getByRole("button", { name: /save update/i }))
 
     await waitFor(() => {
@@ -3362,7 +3376,9 @@ describe("ProgressModule (V81, V84)", () => {
   it("should persist on-record completion files when history-edit at 100% saves without new uploads", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
-    hundredPercentHistoryProject()
+    hundredPercentHistoryProject({
+      completion_site_photo: ["completion-site.jpg"],
+    })
     progressUpdateMock.mockImplementation(async (id: string, payload: unknown) => {
       const row = store.updates.find((update) => update.id === id)
       if (row && payload && typeof payload === "object" && !(payload instanceof FormData)) {
@@ -3392,15 +3408,19 @@ describe("ProgressModule (V81, V84)", () => {
     for (const field of COMPLETION_DOC_FIELDS) {
       expect(payload).not.toHaveProperty(field)
     }
+    expect(payload).not.toHaveProperty("completion_site_photo")
     const saved = store.updates.find((row) => row.id === "u-latest")
     expect(saved?.certification_completion).toEqual(["cert.pdf"])
     expect(saved?.liquidation_documents).toEqual(["liq.pdf"])
+    expect(saved?.completion_site_photo).toEqual(["completion-site.jpg"])
   })
 
   it("should send FormData with new completion uploads when history-edit at 100% saves", async () => {
     const user = userEvent.setup()
     useSuperAdminActor()
-    hundredPercentHistoryProject()
+    hundredPercentHistoryProject({
+      completion_site_photo: ["completion-site.jpg"],
+    })
 
     render(<ProgressModule />)
     const editor = await openHistoryEditByNotes(user, "done band")
@@ -3421,6 +3441,7 @@ describe("ProgressModule (V81, V84)", () => {
     ]
     expect(updateId).toBe("u-latest")
     expect(payload).toBeInstanceOf(FormData)
+    expect(payload.has("completion_site_photo")).toBe(false)
     expect(payload.get("certification_completion")).toBeInstanceOf(File)
     expect((payload.get("certification_completion") as File).name).toBe(
       "new-cert.pdf"
@@ -4937,6 +4958,45 @@ describe("ProgressModule (V81, V84)", () => {
     expect(sitePhotos).toHaveLength(1)
     expect(sitePhotos[0]).toBeInstanceOf(File)
     expect((sitePhotos[0] as File).name).toBe("replacement-site.jpg")
+  })
+
+  it("omits completion site photo when a For Revision save uploads other completion files", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [revisionProject({ progress_pct: 100 })]
+    store.updates = [
+      latestProgressUpdate({
+        to_pct: 100,
+        completion_site_photo: ["completion-site.jpg"],
+        certification_completion: ["cert-on-record.pdf"],
+      }),
+    ]
+    store.expenses = [latestExpense({ progress_update: "pu-latest" })]
+
+    render(<ProgressModule />)
+
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    await user.upload(
+      screen.getByTestId(
+        "document-upload-input-completion-certification_completion"
+      ),
+      makeFile("replacement-cert.pdf")
+    )
+    await user.click(screen.getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    const payload = progressUpdateMock.mock.calls[0]?.[1] as FormData
+    expect(payload).toBeInstanceOf(FormData)
+    expect(payload.has("completion_site_photo")).toBe(false)
+    expect((payload.get("certification_completion") as File).name).toBe(
+      "replacement-cert.pdf"
+    )
   })
 
   it("still requires site photo File[] on non-revision create path (T2/V12)", async () => {

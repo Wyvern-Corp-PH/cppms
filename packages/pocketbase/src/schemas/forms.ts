@@ -76,11 +76,6 @@ export const REQUIRED_COMPLETION_DOCUMENTS = [
 
 export const COMPLETION_DOCUMENTS = [
   {
-    field: "completion_site_photo",
-    label: "Site Photo",
-    multiple: true,
-  },
-  {
     field: "certification_completion",
     label: "Certificate of Completion",
     multiple: true,
