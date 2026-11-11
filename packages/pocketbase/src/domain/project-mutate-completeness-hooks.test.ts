@@ -68,6 +68,7 @@ function lguRecordFields(overrides: Record<string, unknown> = {}) {
     start_date: dateTime("2026-09-01 00:00:00.000Z"),
     target_end_date: dateTime("2026-12-23 00:00:00.000Z"),
     project_photos: ["photo.jpg"],
+    period_of_implementation: "FY 2026",
     ...overrides,
   }
 }
@@ -156,6 +157,82 @@ describe("project-mutate-completeness hook entrypoint", () => {
     expect(entry).toContain("project-mutate-completeness.js")
     expect(entry).toContain("onRecordCreateRequest")
     expect(entry).toContain("onRecordUpdateRequest")
+    expect(entry).not.toMatch(/onRecordCreate\s*\(/)
+    expect(entry).not.toMatch(/onRecordUpdate\s*\(/)
+  })
+
+  it("should leave progress sync on a model save that skips the period check", () => {
+    const sync = readFileSync(
+      resolve(hooksDir, "sync-project-progress.js"),
+      "utf8"
+    )
+    expect(sync).toContain("app.save(project)")
+    expect(sync).not.toContain("applyProjectMutateCompleteness")
+    expect(sync).not.toContain("period_of_implementation")
+  })
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should reject %s create and update when period of implementation is blank",
+    (role) => {
+      const blank = {
+        status: "Ongoing",
+        contractor: "Builder",
+        bid_price: 100,
+        start_date: "2026-09-01",
+        target_end_date: "2026-12-23",
+        project_photos: ["photo.jpg"],
+        period_of_implementation: "  ",
+      }
+      expect(
+        completenessHook.validateProjectMutateCompleteness({
+          role,
+          isCreate: true,
+          submitted: blank,
+        })
+      ).toEqual({
+        ok: false,
+        field: "period_of_implementation",
+        message: "Period of implementation is required.",
+      })
+      const next = vi.fn()
+      expect(() =>
+        completenessHook.applyProjectMutateCompleteness(
+          {
+            next,
+            auth: { get: (field: string) => (field === "role" ? role : "") },
+            record: recordGet(blank),
+          },
+          false
+        )
+      ).toThrow("Period of implementation is required.")
+      expect(next).not.toHaveBeenCalled()
+    }
+  )
+
+  it("should accept a provincial update that omits period of implementation", () => {
+    const next = vi.fn()
+    completenessHook.applyProjectMutateCompleteness(
+      {
+        next,
+        auth: { get: (field: string) => (field === "role" ? "Province" : "") },
+        record: recordGet({
+          name: "Road",
+          description: "Desc",
+          category: "Infrastructure",
+          municipality: "Tuguegarao City",
+          barangay: "Centro",
+          location: "East",
+          budget_year: 2026,
+          funding_year: 2025,
+          fund_source: "Special Education Fund",
+          moa_file: ["moa.pdf"],
+          resolution_file: ["r.pdf"],
+          supporting_docs: ["s.pdf"],
+        }),
+      },
+      false
+    )
+    expect(next).toHaveBeenCalledOnce()
   })
 
   it.each(["Municipality", "Barangay"] as const)(
@@ -221,6 +298,7 @@ describe("project-mutate-completeness hook entrypoint", () => {
             bid_price: 100,
             start_date: "2026-01-01",
             target_end_date: "2026-12-01",
+            period_of_implementation: "FY 2026",
             project_photos: [],
           }),
         },

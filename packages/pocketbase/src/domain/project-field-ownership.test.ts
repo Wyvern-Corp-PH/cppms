@@ -1005,8 +1005,8 @@ describe("project field ownership", () => {
     expect(projectFieldFilledByLabel("sub_account")).toBe("filled by Province")
   })
 
-  it("should assign Period of Implementation to Province and drop schedule/phase/moa text ownership", () => {
-    expect(PROVINCIAL_OWNED_FIELDS).toContain("period_of_implementation")
+  it("should assign Period of Implementation to LGU roles and drop schedule/phase/moa text ownership", () => {
+    expect(PROVINCIAL_OWNED_FIELDS).not.toContain("period_of_implementation")
     expect(PROVINCIAL_OWNED_FIELDS).toContain("moa_file")
     expect(PROVINCIAL_OWNED_FIELDS).toContain("total_budget")
     expect(PROVINCIAL_OWNED_FIELDS).toContain("source_of_fund")
@@ -1017,7 +1017,43 @@ describe("project field ownership", () => {
       "project_photos",
       "start_date",
       "target_end_date",
+      "period_of_implementation",
     ])
+    expect(projectFieldFilledByLabel("period_of_implementation")).toBe(
+      "filled by LGU/Barangay"
+    )
+    for (const role of ["Municipality", "Barangay"] as const) {
+      const options = {
+        role,
+        isCreate: false,
+        original: { lgu_encoded_at: "2026-08-01 00:00:00.000Z" },
+        submitted: { period_of_implementation: "FY 2026 Q1–Q4" },
+      }
+      expect(evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+        ok: true,
+        setLguEncodedAt: false,
+      })
+      expect(
+        isProjectFieldEditable(
+          role,
+          "period_of_implementation",
+          options.original,
+          false
+        )
+      ).toBe(true)
+      expect(
+        isProjectFieldEditable(
+          role,
+          "period_of_implementation",
+          options.original,
+          true
+        )
+      ).toBe(true)
+    }
     expect(PROVINCIAL_OWNED_FIELDS).toContain("resolution_file")
     expect(PROVINCIAL_OWNED_FIELDS).toContain("supporting_docs")
     expect(LGU_OWNED_FIELDS).not.toContain("resolution_file")

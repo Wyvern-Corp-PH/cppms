@@ -29,6 +29,7 @@ const lguComplete = {
   start_date: "2026-06-01",
   target_end_date: "2026-12-01",
   project_photos: ["site.jpg"],
+  period_of_implementation: "FY 2026 Q1–Q4",
 }
 
 describe("normalizeProjectFileNames", () => {
@@ -213,7 +214,7 @@ describe("validateProjectMutateCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it("should reject a provincial update that omits period of implementation", () => {
+  it("should accept a provincial update that omits period of implementation", () => {
     const { period_of_implementation: _period, ...withoutPeriod } = ppdoComplete
     const result = validateProjectMutateCompleteness({
       role: "Province",
@@ -221,12 +222,38 @@ describe("validateProjectMutateCompleteness", () => {
       submitted: withoutPeriod,
       original: ppdoComplete,
     })
-    expect(result).toEqual({
-      ok: false,
-      field: "period_of_implementation",
-      message: "Period of implementation is required.",
-    })
+    expect(result).toEqual({ ok: true })
   })
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "should reject %s create and update when period of implementation is blank",
+    (role) => {
+      const { period_of_implementation: _period, ...withoutPeriod } = lguComplete
+      expect(
+        validateProjectMutateCompleteness({
+          role,
+          isCreate: true,
+          submitted: withoutPeriod,
+        })
+      ).toEqual({
+        ok: false,
+        field: "period_of_implementation",
+        message: "Period of implementation is required.",
+      })
+      expect(
+        validateProjectMutateCompleteness({
+          role,
+          isCreate: false,
+          submitted: { ...withoutPeriod, period_of_implementation: "  " },
+          original: lguComplete,
+        })
+      ).toEqual({
+        ok: false,
+        field: "period_of_implementation",
+        message: "Period of implementation is required.",
+      })
+    }
+  )
 
   it("should accept a provincial create when Source of Fund is set and Main Account is omitted", () => {
     const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete

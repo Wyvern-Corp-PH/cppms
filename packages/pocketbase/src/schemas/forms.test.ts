@@ -290,6 +290,7 @@ describe("projectMutateSchema (V34)", () => {
       start_date: "2026-06-01",
       target_end_date: "2026-12-01",
       existing_project_photos: ["site.jpg"],
+      period_of_implementation: "FY 2026 Q1–Q4",
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -297,6 +298,55 @@ describe("projectMutateSchema (V34)", () => {
       expect(result.data.location).toBeUndefined()
       expect(result.data.fund_source).toBeUndefined()
     }
+  })
+
+  it("requires period of implementation on municipality and barangay forms", () => {
+    for (const role of ["Municipality", "Barangay"] as const) {
+      for (const isCreate of [true, false]) {
+        const schema = projectMutateSchemaForActor(role, isCreate, {
+          form: true,
+        })
+        const missing = schema.safeParse({
+          name: "Bridge",
+          category: "Infrastructure",
+          status: "Ongoing",
+          budget_year: 2026,
+          contractor: "Local Builders",
+          bid_price: 500_000,
+          start_date: "2026-06-01",
+          target_end_date: "2026-12-01",
+          project_photos: isCreate ? [makeFile("site.jpg")] : undefined,
+          existing_project_photos: isCreate ? undefined : ["site.jpg"],
+          period_of_implementation: "  ",
+        })
+        expect(missing.success).toBe(false)
+        if (!missing.success) {
+          expect(fieldErrorsFromZod(missing.error).period_of_implementation).toBe(
+            "Period of implementation is required."
+          )
+        }
+      }
+    }
+  })
+
+  it("does not require period of implementation on a provincial edit", () => {
+    const schema = projectMutateSchemaForActor("Province", false, { form: true })
+    const result = schema.safeParse({
+      name: "Charter Road",
+      description: "Span",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
+      location: "Hall",
+      funding_year: 2025,
+      fund_source: "Special Education Fund",
+      existing_moa_file: ["moa.pdf"],
+      existing_resolution_file: ["res.pdf"],
+      existing_supporting_docs: ["sup.pdf"],
+    })
+    expect(result.success).toBe(true)
   })
 
   it("requires start and end dates on municipality and barangay save", () => {

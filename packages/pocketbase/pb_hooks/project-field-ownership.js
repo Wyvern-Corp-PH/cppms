@@ -21,7 +21,6 @@ const PROVINCIAL_OWNED_FIELDS = [
   "source_of_fund_other",
   "funding_year",
   "sub_account",
-  "period_of_implementation",
   "moa_file",
   "resolution_file",
   "supporting_docs",
@@ -33,6 +32,7 @@ const LGU_OWNED_FIELDS = [
   "project_photos",
   "start_date",
   "target_end_date",
+  "period_of_implementation",
 ]
 const LGU_OVERRIDE_LOCKED_FIELDS = [
   "contractor",

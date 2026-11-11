@@ -475,7 +475,11 @@ function ProjectCard({
   )
 }
 
-export function ProjectsModule() {
+export function ProjectsModule({
+  startOnCreate = false,
+}: {
+  startOnCreate?: boolean
+} = {}) {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdateRecord[]>(
     []
@@ -493,7 +497,7 @@ export function ProjectsModule() {
   const [barangayFilter, setBarangayFilter] = useState("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(startOnCreate)
   const [municipalityPickerOpen, setMunicipalityPickerOpen] = useState(false)
   const [barangayPickerOpen, setBarangayPickerOpen] = useState(false)
   const [editing, setEditing] = useState<ProjectRecord | null>(null)
@@ -775,7 +779,9 @@ export function ProjectsModule() {
         ? undefined
         : form.source_of_fund_other || undefined,
       period_of_implementation:
-        form.period_of_implementation || undefined,
+        actorRole === "Municipality" || actorRole === "Barangay"
+          ? form.period_of_implementation || undefined
+          : undefined,
       total_budget: editing ? undefined : form.total_budget || undefined,
       bid_price: form.bid_price || undefined,
       start_date: form.start_date || undefined,
@@ -1657,17 +1663,14 @@ export function ProjectsModule() {
                   <FieldError>{fieldErrors.source_of_fund_other}</FieldError>
                 </Field>
               ) : null}
-              {editing ? (
+              {requireLgu ? (
                 <Field data-invalid={Boolean(fieldErrors.period_of_implementation)}>
-                  <FieldLabel
-                    htmlFor="project-period"
-                    required={requirePpdo}
-                  >
+                  <FieldLabel htmlFor="project-period" required>
                     Period of Implementation
                   </FieldLabel>
-                  <FieldOwnerHint field="period_of_implementation" />
                   <Input
                     id="project-period"
+                    type="text"
                     value={form.period_of_implementation}
                     disabled={fieldLocked("period_of_implementation")}
                     aria-invalid={Boolean(fieldErrors.period_of_implementation)}

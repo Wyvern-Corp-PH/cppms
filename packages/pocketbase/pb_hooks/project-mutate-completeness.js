@@ -110,13 +110,6 @@ function validatePpdo(isCreate, submitted, original) {
       ? { ok: false, field: "funding_year", message: "Funding year is required." }
       : null,
     refineSubAccount(isCreate, submitted),
-    isCreate
-      ? null
-      : requireText(
-          submitted,
-          "period_of_implementation",
-          "Period of implementation is required."
-        ),
     requireAttachment(
       isCreate,
       submitted,
@@ -155,6 +148,11 @@ function validateLgu(isCreate, submitted, original) {
       : null,
     requireText(submitted, "start_date", "Start date is required."),
     requireText(submitted, "target_end_date", "End date is required."),
+    requireText(
+      submitted,
+      "period_of_implementation",
+      "Period of implementation is required."
+    ),
     requireAttachment(
       isCreate,
       submitted,

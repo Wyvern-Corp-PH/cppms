@@ -1100,6 +1100,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
         bid_price: 200_000,
         progress_pct: 25,
         project_photos: ["site.jpg"],
+        period_of_implementation: "FY 2026 Q1–Q4",
         lgu_encoded_at: "2026-08-01 00:00:00.000Z",
       },
     ]
@@ -1355,8 +1356,136 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.getByLabelText(/bid price/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^start date$/i)).not.toBeDisabled()
     expect(screen.getByLabelText(/^end date$/i)).not.toBeDisabled()
-    expect(screen.getByLabelText(/period of implementation/i)).toBeDisabled()
+    const period = screen.getByLabelText(/period of implementation/i)
+    expect(period).not.toBeDisabled()
+    expect(period).toHaveAttribute("type", "text")
   })
+
+  const IMPLEMENTATION_PERIOD_HINT =
+    "Per standard LGU/DPWH guidelines, the project must officially start within 15 calendar days from the approval/issuance of the MOA."
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "shows a required Period of Implementation on the %s create dialog",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "lgu-1",
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      }
+
+      render(<ProjectsModule startOnCreate />)
+
+      expect(
+        await screen.findByRole("heading", { name: /new project/i })
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId("create-project")).not.toBeInTheDocument()
+      const period = screen.getByLabelText(/period of implementation/i)
+      expect(period).toHaveAttribute("type", "text")
+      expect(period).not.toBeDisabled()
+      expectRequiredMark("Period of Implementation")
+      const field = period.closest("[data-slot=field]")
+      expect(field).not.toHaveTextContent(/filled by Province/i)
+      expect(field).toHaveTextContent(IMPLEMENTATION_PERIOD_HINT)
+      expect(screen.getByLabelText(/^start date$/i)).toHaveAttribute("type", "date")
+      expect(screen.getByLabelText(/^end date$/i)).toHaveAttribute("type", "date")
+
+      await user.type(screen.getByLabelText(/project name/i), "Barangay Road")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      expect(
+        await screen.findByText("Period of implementation is required.")
+      ).toBeInTheDocument()
+      expect(createMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "requires Period of Implementation on the %s edit dialog",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "lgu-1",
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      }
+      store.projects = [
+        catalogProject({
+          period_of_implementation: "",
+          project_photos: ["site.jpg"],
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      const period = screen.getByLabelText(/period of implementation/i)
+      expect(period).not.toBeDisabled()
+      expect(period).toHaveAttribute("type", "text")
+      expectRequiredMark("Period of Implementation")
+      expect(period.closest("[data-slot=field]")).not.toHaveTextContent(
+        /filled by Province/i
+      )
+      expect(period.closest("[data-slot=field]")).toHaveTextContent(
+        IMPLEMENTATION_PERIOD_HINT
+      )
+
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      expect(
+        await screen.findByText("Period of implementation is required.")
+      ).toBeInTheDocument()
+      expect(updateMock).not.toHaveBeenCalled()
+
+      await user.type(period, "FY 2026 Q1–Q4")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      await waitFor(() => expect(updateMock).toHaveBeenCalled())
+      expect(updateMock.mock.calls[0]?.[1]).toMatchObject({
+        period_of_implementation: "FY 2026 Q1–Q4",
+      })
+    }
+  )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "omits Period of Implementation on %s edit without clearing a stored value",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: "pp1",
+        role,
+        account_status: "Active",
+      }
+      store.projects = [catalogProject()]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(
+        await screen.findByRole("button", { name: /actions for bridge/i })
+      )
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(
+        screen.queryByLabelText(/period of implementation/i)
+      ).not.toBeInTheDocument()
+      expect(screen.getByLabelText(/^start date$/i)).toHaveAttribute("type", "date")
+      expect(screen.getByLabelText(/^end date$/i)).toHaveAttribute("type", "date")
+
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      await waitFor(() => expect(updateMock).toHaveBeenCalled())
+      expect(updateMock.mock.calls[0]?.[1]).not.toHaveProperty(
+        "period_of_implementation"
+      )
+    }
+  )
 
   it("keeps Municipality status visible but read-only while editing LGU-owned fields", async () => {
     const user = userEvent.setup()

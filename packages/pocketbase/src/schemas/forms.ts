@@ -301,6 +301,12 @@ export function projectMutateSchemaForActor(
           "End date is required.",
           ctx
         )
+        requireTrimmed(
+          value.period_of_implementation,
+          "period_of_implementation",
+          "Period of implementation is required.",
+          ctx
+        )
         if (
           !attachmentSatisfied(
             isCreate,
@@ -330,14 +336,6 @@ export function projectMutateSchemaForActor(
         )
         requireTrimmed(value.barangay, "barangay", "Barangay is required.", ctx)
         requireTrimmed(value.location, "location", "Location is required.", ctx)
-      }
-      if (requirePpdoForm && !isCreate) {
-        requireTrimmed(
-          value.period_of_implementation,
-          "period_of_implementation",
-          "Period of implementation is required.",
-          ctx
-        )
       }
       if (requirePpdoForm && value.funding_year == null) {
         ctx.addIssue({
