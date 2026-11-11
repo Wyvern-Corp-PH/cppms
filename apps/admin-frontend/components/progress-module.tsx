@@ -1910,6 +1910,7 @@ export function ProgressModule() {
                       id="progress-project-source-of-fund"
                       value={sourceOfFundLabel}
                       readOnly
+                      disabled
                     />
                   </Field>
                 ) : null}

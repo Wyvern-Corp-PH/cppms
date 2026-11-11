@@ -4030,12 +4030,11 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue(
-      "20% LDF (Local Development Fund)"
-    )
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute(
-      "readonly"
-    )
+    const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+    expect(sourceOfFund).toBeVisible()
+    expect(sourceOfFund).toHaveValue("20% LDF (Local Development Fund)")
+    expect(sourceOfFund).toHaveAttribute("readonly")
+    expect(sourceOfFund).toBeDisabled()
     expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
       "20% LDF (Local Development Fund)"
     )
@@ -4075,6 +4074,14 @@ describe("ProgressModule (V81, V84)", () => {
     expect(progressPayload.has("receipt_number")).toBe(false)
     expect(progressPayload.has("expense_date")).toBe(false)
     expect(progressPayload.has("date")).toBe(false)
+    expect(progressPayload.has("source_of_fund")).toBe(false)
+    expect(progressPayload.has("source_of_fund_other")).toBe(false)
+    expect(progressPayload.has("fund_source")).toBe(false)
+    for (const call of projectUpdateMock.mock.calls) {
+      expect(call[1]).not.toHaveProperty("source_of_fund")
+      expect(call[1]).not.toHaveProperty("source_of_fund_other")
+      expect(call[1]).not.toHaveProperty("fund_source")
+    }
   })
 
   it("should block progress released amount create that exceeds allocated budget", async () => {
@@ -4431,10 +4438,20 @@ describe("ProgressModule (V81, V84)", () => {
     })
     expect(screen.queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("General Fund")
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute("readonly")
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("General Fund")
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+    const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+    expect(sourceOfFund).toBeVisible()
+    expect(sourceOfFund).toHaveValue("General Fund")
+    expect(sourceOfFund).toHaveAttribute("readonly")
+    expect(sourceOfFund).toBeDisabled()
+    sourceOfFund.focus()
+    expect(sourceOfFund).not.toHaveFocus()
+    await expect(user.clear(sourceOfFund)).rejects.toThrow()
+    await user.type(sourceOfFund, "Other fund")
+    expect(sourceOfFund).toHaveValue("General Fund")
+    const releasedFundSource = screen.getByLabelText(/^fund source$/i)
+    expect(releasedFundSource).toHaveValue("General Fund")
+    expect(releasedFundSource).toHaveAttribute("readonly")
+    expect(releasedFundSource).not.toBeDisabled()
     expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
     }
   )
@@ -4469,14 +4486,13 @@ describe("ProgressModule (V81, V84)", () => {
       render(<ProgressModule />)
       await user.click(await screen.findByRole("button", { name: /update progress/i }))
 
-      expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue(
-        "Congressional fund"
-      )
+      const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+      expect(sourceOfFund).toBeVisible()
+      expect(sourceOfFund).toHaveValue("Congressional fund")
+      expect(sourceOfFund).toHaveAttribute("readonly")
+      expect(sourceOfFund).toBeDisabled()
       expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
         "Congressional fund"
-      )
-      expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute(
-        "readonly"
       )
       expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
       expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
@@ -4508,7 +4524,11 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     await user.click(await screen.findByRole("button", { name: /update progress/i }))
 
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("Others")
+    const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+    expect(sourceOfFund).toBeVisible()
+    expect(sourceOfFund).toHaveValue("Others")
+    expect(sourceOfFund).toHaveAttribute("readonly")
+    expect(sourceOfFund).toBeDisabled()
     expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("Others")
   })
 
@@ -4536,9 +4556,14 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     await user.click(await screen.findByRole("button", { name: /update progress/i }))
 
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("—")
+    const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+    expect(sourceOfFund).toBeVisible()
+    expect(sourceOfFund).toHaveValue("—")
+    expect(sourceOfFund).toHaveAttribute("readonly")
+    expect(sourceOfFund).toBeDisabled()
+    sourceOfFund.focus()
+    expect(sourceOfFund).not.toHaveFocus()
     expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("—")
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveAttribute("readonly")
     expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
   })
 
@@ -4589,7 +4614,11 @@ describe("ProgressModule (V81, V84)", () => {
     render(<ProgressModule />)
     await user.click(await screen.findByRole("button", { name: /update progress/i }))
 
-    expect(screen.getByLabelText(/^source of fund$/i)).toHaveValue("General Fund")
+    const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+    expect(sourceOfFund).toBeVisible()
+    expect(sourceOfFund).toHaveValue("General Fund")
+    expect(sourceOfFund).toHaveAttribute("readonly")
+    expect(sourceOfFund).toBeDisabled()
     expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("General Fund")
   })
 
