@@ -1028,4 +1028,283 @@ describe("ApprovalsModule (J5, V5)", () => {
     expect(within(detail).getByText(/liquidation\.pdf/i)).toBeInTheDocument()
     expect(within(detail).queryByText(/missing/i)).not.toBeInTheDocument()
   })
+
+  it("should filter approval cards in every tab by project name only", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        description: "school wing",
+        category: "Infrastructure",
+        status: "For Completion",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "north lot",
+        contractor: "Acme",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Road Repair",
+        description: "city bridge deck",
+        category: "Infrastructure",
+        status: "For Completion",
+        municipality: "Lasam",
+        barangay: "Centro",
+        location: "bridge road",
+        contractor: "Bridge Co",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "3",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Hall",
+        category: "Infrastructure",
+        status: "For Revision",
+        municipality: "Tuguegarao City",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "4",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Done Plaza",
+        category: "Infrastructure",
+        status: "Completed",
+        municipality: "Tuguegarao City",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "approved",
+      },
+      {
+        id: "5",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Rejected Market",
+        category: "Infrastructure",
+        status: "Rejected",
+        municipality: "Lasam",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "rejected",
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    const search = await screen.findByRole("textbox", { name: "Search projects" })
+    expect(search).toHaveAttribute("placeholder", "Search by project name...")
+    expect(
+      screen.getByTestId("approvals-queue").compareDocumentPosition(search) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      search.compareDocumentPosition(
+        screen.getByRole("tab", { name: "Completion approval" })
+      ) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.getByTestId("approval-card-1")).toBeInTheDocument()
+    expect(screen.getByTestId("approval-card-2")).toBeInTheDocument()
+    expect(
+      screen.getByText(/2 project\(s\) awaiting completion approval/)
+    ).toBeInTheDocument()
+
+    await user.type(search, "c")
+    expect(screen.getByTestId("approval-card-1")).toBeInTheDocument()
+    expect(screen.queryByTestId("approval-card-2")).not.toBeInTheDocument()
+    expect(screen.getByTestId("approvals-queue")).toHaveTextContent("2")
+    expect(screen.getByTestId("approvals-for-revision")).toHaveTextContent("1")
+    expect(screen.getByTestId("approvals-completed")).toHaveTextContent("1")
+    expect(screen.getByTestId("approvals-rejected")).toHaveTextContent("1")
+    expect(
+      screen.getByText(/2 project\(s\) awaiting completion approval/)
+    ).toBeInTheDocument()
+
+    await user.type(search, "ITY BRIDGE")
+    expect(screen.getByTestId("approval-card-1")).toBeInTheDocument()
+    expect(screen.queryByTestId("approval-card-2")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /for revision/i }))
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(screen.queryByTestId("approval-card-3")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /^completed$/i }))
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(screen.queryByTestId("approval-card-4")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /^rejected$/i }))
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(screen.queryByTestId("approval-card-5")).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "   ")
+    await user.click(screen.getByRole("tab", { name: "Completion approval" }))
+    expect(screen.getByTestId("approval-card-1")).toBeInTheDocument()
+    expect(screen.getByTestId("approval-card-2")).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Queue is clear" })).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "hall")
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Queue is clear" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("approvals-queue")).toHaveTextContent("2")
+    await user.click(screen.getByRole("tab", { name: /for revision/i }))
+    expect(screen.getByTestId("approval-card-3")).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+  })
+
+  it("should keep Queue is clear when no name search is active", async () => {
+    const user = userEvent.setup()
+    store.projects = []
+
+    render(<ApprovalsModule />)
+
+    expect(
+      await screen.findByRole("heading", { name: "Queue is clear" })
+    ).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+
+    const search = screen.getByRole("textbox", { name: "Search projects" })
+    await user.type(search, "bridge")
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Queue is clear" })).not.toBeInTheDocument()
+
+    await user.clear(search)
+    expect(screen.getByRole("heading", { name: "Queue is clear" })).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /for revision/i }))
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Queue is clear" })).not.toBeInTheDocument()
+  })
+
+  it("should close an open approval dialog and restore the project when the name search changes", async () => {
+    const user = userEvent.setup()
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    const search = screen.getByRole("textbox", { name: "Search projects" })
+    const detail = screen.getByTestId("approval-detail-panel")
+
+    await user.click(within(card).getByRole("button", { name: /^approve$/i }))
+    expect(
+      await screen.findByRole("dialog", { name: /approve project completion/i })
+    ).toBeInTheDocument()
+    expect(within(detail).getByText("Review Ready Bridge")).toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: "zzz" } })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(within(detail).getByText("Select a project to review.")).toBeInTheDocument()
+    expect(within(detail).queryByText("Review Ready Bridge")).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: "" } })
+    expect(within(detail).getByText("Review Ready Bridge")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    const restored = screen.getByTestId("approval-card-1")
+    await user.click(within(restored).getByRole("button", { name: /^reject$/i }))
+    expect(
+      await screen.findByRole("dialog", { name: /reject project completion/i })
+    ).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: "zzz" } })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(within(detail).getByText("Select a project to review.")).toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: "ready" } })
+    expect(within(detail).getByText("Review Ready Bridge")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    await user.click(
+      within(screen.getByTestId("approval-card-1")).getByRole("button", {
+        name: /request revision/i,
+      })
+    )
+    expect(
+      await screen.findByRole("dialog", { name: /request revision/i })
+    ).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: "   " } })
+    expect(
+      screen.getByRole("dialog", { name: /request revision/i })
+    ).toBeInTheDocument()
+    expect(within(detail).getByText("Review Ready Bridge")).toBeInTheDocument()
+    fireEvent.change(search, { target: { value: "zzz" } })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(within(detail).getByText("Select a project to review.")).toBeInTheDocument()
+  })
+
+  it("should keep the open approval selected when a location filter hides its card", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "City Bridge",
+        category: "Infrastructure",
+        status: "For Completion",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+      {
+        id: "2",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Lasam School",
+        category: "Education",
+        status: "For Completion",
+        municipality: "Lasam",
+        barangay: "Centro",
+        budget_year: 2026,
+        progress_pct: 100,
+        approval_status: "pending",
+      },
+    ]
+
+    render(<ApprovalsModule />)
+
+    const card = await screen.findByTestId("approval-card-1")
+    await user.click(within(card).getByRole("button", { name: /view details/i }))
+    const detail = screen.getByTestId("approval-detail-panel")
+    expect(within(detail).getByText("City Bridge")).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText(/filter by municipality/i))
+    await user.click(await screen.findByRole("option", { name: "Lasam" }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("approval-card-1")).not.toBeInTheDocument()
+      expect(screen.getByTestId("approval-card-2")).toBeInTheDocument()
+    })
+    expect(within(detail).getByText("City Bridge")).toBeInTheDocument()
+    expect(screen.queryByText("Select a project to review.")).not.toBeInTheDocument()
+  })
 })

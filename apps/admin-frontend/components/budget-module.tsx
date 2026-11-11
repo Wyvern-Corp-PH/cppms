@@ -130,6 +130,11 @@ function uniqueOptions(values: readonly string[]) {
   return Array.from(new Set(values.filter(Boolean)))
 }
 
+function matchesProjectName(name: string, query: string) {
+  const needle = query.trim().toLowerCase()
+  return needle.length === 0 || name.toLowerCase().includes(needle)
+}
+
 function recordInDateRange(date: string | undefined, from: string, to: string) {
   if (!from && !to) return true
   if (!date) return false
@@ -164,6 +169,7 @@ export function BudgetModule() {
     municipality: "",
     barangay: "",
   })
+  const [nameQuery, setNameQuery] = useState("")
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [projectId, setProjectId] = useState("")
   const [amount, setAmount] = useState("")
@@ -280,7 +286,7 @@ export function BudgetModule() {
     locationFilteredProjects,
     locationFilteredAllocations,
     dateFilteredExpenses
-  )
+  ).filter((row) => matchesProjectName(row.name, nameQuery))
   const userDisplay = useMemo(
     () => buildUserDisplayMap(users, actor ? [actor] : []),
     [actor, users]
@@ -525,8 +531,16 @@ export function BudgetModule() {
         ]}
       />
 
+      <Input
+        aria-label="Search projects"
+        placeholder="Search by project name..."
+        value={nameQuery}
+        onChange={(event) => setNameQuery(event.target.value)}
+      />
+
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Project budget breakdown</h2>
+        {nameQuery.trim() && breakdown.length === 0 ? <p>No results found</p> : null}
         <ul className="space-y-3" data-testid="budget-breakdown">
           {breakdown.map((row) => (
             <li key={row.projectId} className="rounded-lg border border-border p-4">

@@ -1399,6 +1399,148 @@ describe("BudgetModule (V9, V10, V24)", () => {
       ).not.toBeInTheDocument()
     }
   )
+
+  it("should filter the budget breakdown by project name and leave the other budget figures in place", async () => {
+    const user = userEvent.setup()
+    store.projects = [
+      {
+        id: "p1",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "City Bridge",
+        description: "school wing",
+        category: "Infrastructure",
+        status: "Ongoing",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+        location: "north lot",
+        contractor: "Acme",
+        budget_year: 2026,
+        bid_price: 100_000,
+      },
+      {
+        id: "p2",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Lasam School",
+        description: "bridge approach",
+        category: "Education",
+        status: "Ongoing",
+        municipality: "Lasam",
+        barangay: "Centro",
+        location: "bridge road",
+        contractor: "Bridge Builders",
+        budget_year: 2026,
+        bid_price: 200_000,
+      },
+    ]
+    store.allocations = [
+      {
+        id: "a1",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p1",
+        amount: 10_000,
+        year: 2026,
+        date: "2026-06-17",
+        description: "City allocation",
+      },
+      {
+        id: "a2",
+        collectionId: "a",
+        collectionName: "budget_allocations",
+        project: "p2",
+        amount: 20_000,
+        year: 2026,
+        date: "2026-06-17",
+        description: "School allocation",
+      },
+    ]
+    store.expenses = [
+      {
+        id: "e1",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p2",
+        amount: 5_000,
+        year: 2026,
+        main_account: "General Fund",
+        date: "2026-06-17",
+      },
+    ]
+
+    render(<BudgetModule />)
+
+    const search = await screen.findByRole("textbox", { name: "Search projects" })
+    const breakdown = screen.getByTestId("budget-breakdown")
+    const heading = screen.getByRole("heading", {
+      name: "Project budget breakdown",
+    })
+    expect(search).toHaveAttribute("placeholder", "Search by project name...")
+    expect(
+      screen.getByTestId("budget-total").compareDocumentPosition(search) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      search.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(within(breakdown).getByText(/City Bridge/)).toBeInTheDocument()
+    expect(within(breakdown).getByText(/Lasam School/)).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+
+    await user.type(search, "BRIDGE")
+
+    expect(within(breakdown).getByText(/City Bridge/)).toBeInTheDocument()
+    expect(within(breakdown).queryByText(/Lasam School/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("budget-total")).toHaveTextContent("₱300,000")
+    expect(screen.getByTestId("budget-allocated")).toHaveTextContent("₱30,000")
+
+    const allocations = screen.getByRole("table")
+    expect(within(allocations).getByText("City Bridge")).toBeInTheDocument()
+    expect(within(allocations).getByText("Lasam School")).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText("Filter by project"))
+    expect(await screen.findByRole("option", { name: "City Bridge" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "Lasam School" })).toBeInTheDocument()
+    await user.keyboard("{Escape}")
+
+    expect(screen.getByLabelText("Filter by year")).toBeInTheDocument()
+    expect(screen.getByLabelText(/filter by municipality/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /pick date range/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("tab", { name: /released amount/i }))
+    expect(within(screen.getByRole("table")).getByText("Lasam School")).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "school")
+    expect(within(breakdown).getByText(/Lasam School/)).toBeInTheDocument()
+    expect(within(breakdown).queryByText(/City Bridge/)).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "   ")
+    expect(within(breakdown).getByText(/City Bridge/)).toBeInTheDocument()
+    expect(within(breakdown).getByText(/Lasam School/)).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, "nomatch")
+    expect(screen.getByText("No results found")).toBeInTheDocument()
+    expect(within(breakdown).queryByText(/City Bridge/)).not.toBeInTheDocument()
+    expect(within(breakdown).queryByText(/Lasam School/)).not.toBeInTheDocument()
+    expect(within(screen.getByRole("table")).getByText("Lasam School")).toBeInTheDocument()
+    expect(screen.getByTestId("budget-total")).toHaveTextContent("₱300,000")
+  })
+
+  it("should leave an empty budget breakdown without a no-results message", async () => {
+    render(<BudgetModule />)
+
+    expect(await screen.findByRole("textbox", { name: "Search projects" })).toHaveAttribute(
+      "placeholder",
+      "Search by project name..."
+    )
+    expect(screen.getByTestId("budget-breakdown")).toBeInTheDocument()
+    expect(screen.queryByText("No results found")).not.toBeInTheDocument()
+  })
 })
 
 describe("budget remaining and released amount writers", () => {

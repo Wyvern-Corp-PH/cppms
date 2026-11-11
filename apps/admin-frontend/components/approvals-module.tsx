@@ -108,6 +108,11 @@ function isRejectedProject(
   return project.approval_status === "rejected" || project.status === "Rejected"
 }
 
+function matchesProjectName(name: string, query: string) {
+  const needle = query.trim().toLowerCase()
+  return needle.length === 0 || name.toLowerCase().includes(needle)
+}
+
 function isForRevisionProject(project: Pick<ProjectRecord, "status">) {
   return project.status === "For Revision"
 }
@@ -225,6 +230,7 @@ export function ApprovalsModule() {
   })
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [nameQuery, setNameQuery] = useState("")
   const [dialog, setDialog] = useState<"approve" | "reject" | "request_revision" | null>(null)
   const [authorityName, setAuthorityName] = useState("")
   const [reason, setReason] = useState("")
@@ -318,6 +324,12 @@ export function ApprovalsModule() {
   const rejected = filteredProjects.filter(
     (project) => project.approval_status === "rejected" || project.status === "Rejected"
   )
+  const matchesName = (project: { name: string }) =>
+    matchesProjectName(project.name, nameQuery)
+  const visibleQueue = queue.filter(matchesName)
+  const visibleForRevision = forRevision.filter(matchesName)
+  const visibleCompleted = completed.filter(matchesName)
+  const visibleRejected = rejected.filter(matchesName)
 
   function projectBudget(project: ProjectRecord) {
     const breakdown = computeProjectBudgetBreakdown(
@@ -642,7 +654,22 @@ export function ApprovalsModule() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <Tabs defaultValue="queue">
+        <div className="space-y-3">
+          <Input
+            aria-label="Search projects"
+            placeholder="Search by project name..."
+            value={nameQuery}
+            onChange={(event) => {
+              const next = event.target.value
+              setNameQuery(next)
+              if (selected && !matchesProjectName(selected.name, next)) {
+                setDialog(null)
+                setCompletionDocError(null)
+                setActionError(null)
+              }
+            }}
+          />
+          <Tabs defaultValue="queue">
           <div className="-mx-1 overflow-x-auto pb-1">
             <TabsList className="w-max min-w-full">
               <TabsTrigger value="queue">Completion approval</TabsTrigger>
@@ -652,39 +679,56 @@ export function ApprovalsModule() {
             </TabsList>
           </div>
           <TabsContent value="queue" className="space-y-3">
-            {queue.length === 0 ? (
-              <div className="rounded-md border p-6 text-center">
-                <h2 className="font-semibold">Queue is clear</h2>
-              </div>
+            {visibleQueue.length === 0 ? (
+              nameQuery.trim() ? (
+                <p>No results found</p>
+              ) : (
+                <div className="rounded-md border p-6 text-center">
+                  <h2 className="font-semibold">Queue is clear</h2>
+                </div>
+              )
             ) : (
-              queue.map((project) => (
+              visibleQueue.map((project) => (
                 <ApprovalCard key={project.id} project={project} />
               ))
             )}
           </TabsContent>
           <TabsContent value="for-revision" className="space-y-3">
-            {forRevision.map((project) => (
-              <ApprovalCard key={project.id} project={project} />
-            ))}
+            {visibleForRevision.length === 0 ? (
+              nameQuery.trim() ? <p>No results found</p> : null
+            ) : (
+              visibleForRevision.map((project) => (
+                <ApprovalCard key={project.id} project={project} />
+              ))
+            )}
           </TabsContent>
           <TabsContent value="completed" className="space-y-3">
-            {completed.map((project) => (
-              <ApprovalCard key={project.id} project={project} />
-            ))}
+            {visibleCompleted.length === 0 ? (
+              nameQuery.trim() ? <p>No results found</p> : null
+            ) : (
+              visibleCompleted.map((project) => (
+                <ApprovalCard key={project.id} project={project} />
+              ))
+            )}
           </TabsContent>
           <TabsContent value="rejected" className="space-y-3">
-            {rejected.map((project) => (
-              <ApprovalCard key={project.id} project={project} />
-            ))}
+            {visibleRejected.length === 0 ? (
+              nameQuery.trim() ? <p>No results found</p> : null
+            ) : (
+              visibleRejected.map((project) => (
+                <ApprovalCard key={project.id} project={project} />
+              ))
+            )}
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
 
         <aside
           className="rounded-lg border border-border bg-card p-4"
           data-testid="approval-detail-panel"
         >
           <h2 className="font-semibold">Review detail</h2>
-          {selected ? (
+          {selected && matchesProjectName(selected.name, nameQuery) ? (
             <div className="mt-3 space-y-3 text-sm">
               <p className="font-medium">{selected.name}</p>
               <p className="text-muted-foreground">
