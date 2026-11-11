@@ -362,6 +362,86 @@ describe("project-mutate-completeness hook entrypoint", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
+  it("should accept a legacy provincial update without Main Account or Source of Fund", () => {
+    const next = vi.fn()
+    completenessHook.applyProjectMutateCompleteness(
+      {
+        next,
+        auth: { get: (field: string) => (field === "role" ? "Province" : "") },
+        record: recordGet({
+          name: "Road",
+          description: "Desc",
+          category: "Infrastructure",
+          municipality: "Tuguegarao City",
+          barangay: "Centro",
+          location: "East",
+          budget_year: 2026,
+          funding_year: 2025,
+          source_of_fund: "",
+          status: "Completed",
+          moa_file: ["moa.pdf"],
+          resolution_file: ["r.pdf"],
+          supporting_docs: ["s.pdf"],
+        }),
+      },
+      false
+    )
+    expect(next).toHaveBeenCalledOnce()
+  })
+
+  it("should accept a provincial update with General Fund and no sub account", () => {
+    expect(
+      completenessHook.validateProjectMutateCompleteness({
+        role: "Province",
+        isCreate: false,
+        submitted: {
+          name: "Road",
+          description: "Desc",
+          category: "Infrastructure",
+          municipality: "Tuguegarao City",
+          barangay: "Centro",
+          location: "East",
+          budget_year: 2026,
+          funding_year: 2025,
+          fund_source: "General Fund",
+          sub_account: "",
+          moa_file: ["moa.pdf"],
+          resolution_file: ["r.pdf"],
+          supporting_docs: ["s.pdf"],
+        },
+      })
+    ).toEqual({ ok: true })
+  })
+
+  it("should reject a provincial update with Source of Fund and zero Total Budget", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProjectMutateCompleteness(
+        {
+          next,
+          auth: { get: (field: string) => (field === "role" ? "Province" : "") },
+          record: recordGet({
+            name: "Road",
+            description: "Desc",
+            category: "Infrastructure",
+            municipality: "Tuguegarao City",
+            barangay: "Centro",
+            location: "East",
+            budget_year: 2026,
+            funding_year: 2025,
+            source_of_fund: "General Fund",
+            total_budget: 0,
+            moa_file: ["moa.pdf"],
+            resolution_file: ["r.pdf"],
+            supporting_docs: ["s.pdf"],
+          }),
+        },
+        false
+      )
+    ).toThrow("Total Budget must be greater than zero.")
+    expect(next).not.toHaveBeenCalled()
+  })
+
   it("should call next when provincial update keeps on-record documents", () => {
     const next = vi.fn()
     completenessHook.applyProjectMutateCompleteness(

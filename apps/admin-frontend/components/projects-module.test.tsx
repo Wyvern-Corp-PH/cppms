@@ -279,7 +279,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       account_status: "Active",
     }
     createMock.mockClear()
-    updateMock.mockClear()
+    updateMock.mockReset()
     vi.mocked(XLSX.read).mockClear()
     vi.mocked(XLSX.utils.aoa_to_sheet).mockClear()
     vi.mocked(XLSX.utils.book_new).mockClear()
@@ -1928,6 +1928,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       progress_pct: 25,
       funding_year: 2025,
       fund_source: "Special Education Fund",
+      source_of_fund: "General Fund",
+      total_budget: 500_000,
       period_of_implementation: "FY 2026 Q1–Q4",
       moa_file: ["moa.pdf"],
       resolution_file: ["resolution.pdf"],
@@ -1937,33 +1939,71 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     }
   }
 
-  it("keeps creation-only budget fields out of existing project edits", async () => {
+  it.each(["Province", "Super Admin"] as const)(
+    "lets %s edit Source of Fund and Total Budget like New Project",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = { id: `${role}-edit`, role, account_status: "Active" }
+      store.projects = [
+        catalogProject({
+          fund_source: "General Fund",
+          sub_account: "GF - Proper",
+          source_of_fund: "General Fund",
+          total_budget: 750_000,
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      const sourceOfFund = screen.getByLabelText(/^source of fund$/i)
+      expect(sourceOfFund).not.toBeDisabled()
+      expect(sourceOfFund).toHaveTextContent("1 General Fund")
+      expect(screen.getByLabelText(/^total budget$/i)).toHaveValue(750_000)
+      expect(screen.getByLabelText(/^total budget$/i)).not.toBeDisabled()
+      expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/period of implementation/i)).not.toBeInTheDocument()
+      expect(
+        screen.queryByTestId("document-upload-input-project-photos")
+      ).not.toBeInTheDocument()
+
+      await user.click(sourceOfFund)
+      expect(screen.getAllByRole("option")).toHaveLength(3)
+      await user.click(await screen.findByRole("option", { name: "3 Others (Specify)" }))
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      expect(await screen.findByText("Specify the source of fund.")).toBeInTheDocument()
+      expect(updateMock).not.toHaveBeenCalled()
+
+      await user.type(screen.getByLabelText(/specify source of fund/i), "Congressional fund")
+      await user.clear(screen.getByLabelText(/^total budget$/i))
+      await user.type(screen.getByLabelText(/^total budget$/i), "900000")
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+      await waitFor(() => expect(updateMock).toHaveBeenCalled())
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).toMatchObject({
+        source_of_fund: "Others",
+        source_of_fund_other: "Congressional fund",
+        total_budget: 900_000,
+      })
+      expect(payload).not.toHaveProperty("fund_source")
+      expect(payload).not.toHaveProperty("sub_account")
+    }
+  )
+
+  it("requires Source of Fund on a legacy provincial edit without copying Main Account", async () => {
     const user = userEvent.setup()
-    store.projects = [catalogProject()]
-    updateMock.mockResolvedValue({})
-
-    render(<ProjectsModule />)
-
-    await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
-    await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
-
-    expect(screen.queryByLabelText(/^source of fund$/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/^total budget$/i)).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: /^save$/i }))
-    await waitFor(() => expect(updateMock).toHaveBeenCalled())
-    const payload = updateMock.mock.calls[0]?.[1]
-    expect(payload).not.toHaveProperty("source_of_fund")
-    expect(payload).not.toHaveProperty("source_of_fund_other")
-    expect(payload).not.toHaveProperty("total_budget")
-  })
-
-  it("restores Main Account and Sub Account when editing an existing project", async () => {
-    const user = userEvent.setup()
+    store.authRecord = { id: "pp1", role: "Province", account_status: "Active" }
     store.projects = [
       catalogProject({
         fund_source: "General Fund",
-        sub_account: "GF - Proper",
+        sub_account: "",
+        source_of_fund: "",
+        total_budget: 0,
       }),
     ]
     updateMock.mockResolvedValue({})
@@ -1973,20 +2013,82 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
     await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
 
-    expect(screen.getByLabelText(/^main account$/i)).toHaveTextContent("General Fund")
-    expect(screen.getByLabelText(/^sub account$/i)).toHaveTextContent("GF - Proper")
-    await user.click(screen.getByLabelText(/^main account$/i))
-    await user.click(await screen.findByRole("option", { name: "Trust Fund" }))
-    await user.click(screen.getByLabelText(/^sub account$/i))
-    await user.click(await screen.findByRole("option", { name: "Trust Fund - Proper" }))
+    expect(screen.getByLabelText(/^source of fund$/i)).not.toHaveTextContent(
+      "General Fund"
+    )
+    expectRequiredMark("Source of Fund")
+    await user.click(screen.getByRole("button", { name: /^save$/i }))
+
+    expect(await screen.findByText("Source of Fund is required.")).toBeInTheDocument()
+    expect(screen.queryByText(/main account is required/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sub account is required/i)).not.toBeInTheDocument()
+    expect(updateMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByLabelText(/^source of fund$/i))
+    await user.click(
+      await screen.findByRole("option", { name: "2 20% LDF (Local Development Fund)" })
+    )
+    await user.type(screen.getByLabelText(/^total budget$/i), "500000")
     await user.click(screen.getByRole("button", { name: /^save$/i }))
 
     await waitFor(() => expect(updateMock).toHaveBeenCalled())
-    expect(updateMock.mock.calls[0]?.[1]).toMatchObject({
-      fund_source: "Trust Fund",
-      sub_account: "Trust Fund - Proper",
+    const payload = updateMock.mock.calls[0]?.[1]
+    expect(payload).toMatchObject({
+      source_of_fund: "20% LDF (Local Development Fund)",
+      total_budget: 500_000,
     })
+    expect(payload).not.toHaveProperty("fund_source")
   })
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "shows %s Edit with New Project fields and locked Source of Fund and Total Budget",
+    async (role) => {
+      const user = userEvent.setup()
+      store.authRecord = {
+        id: `${role}-lgu-edit`,
+        role,
+        account_status: "Active",
+        municipality: "Tuguegarao City",
+        barangay: "Centro 01 (Bagumbayan)",
+      }
+      store.projects = [
+        catalogProject({
+          source_of_fund: "General Fund",
+          total_budget: 750_000,
+          fund_source: "General Fund",
+          sub_account: "GF - Proper",
+        }),
+      ]
+      updateMock.mockResolvedValue({})
+
+      render(<ProjectsModule />)
+
+      await user.click(await screen.findByRole("button", { name: /actions for bridge/i }))
+      await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
+
+      expect(screen.getByLabelText(/^source of fund$/i)).toBeDisabled()
+      expect(screen.getByLabelText(/^source of fund$/i)).toHaveTextContent(
+        "1 General Fund"
+      )
+      expect(screen.getByLabelText(/^total budget$/i)).toBeDisabled()
+      expect(screen.getByLabelText(/^total budget$/i)).toHaveValue(750_000)
+      expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+      expect(screen.getByLabelText(/period of implementation/i)).not.toBeDisabled()
+      expect(
+        screen.getByTestId("document-upload-input-project-photos")
+      ).not.toBeDisabled()
+
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      await waitFor(() => expect(updateMock).toHaveBeenCalled())
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).not.toHaveProperty("source_of_fund")
+      expect(payload).not.toHaveProperty("source_of_fund_other")
+      expect(payload).not.toHaveProperty("total_budget")
+      expect(payload).not.toHaveProperty("fund_source")
+      expect(payload).not.toHaveProperty("sub_account")
+    }
+  )
 
   it.each([
     { role: "Super Admin", progress_pct: 50, status: "Ongoing" },
@@ -2360,7 +2462,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
   )
 
   it.each(["Super Admin", "Province"] as const)(
-    "should list existing Project photos as download links when Edit Project opens for %s",
+    "should omit Project Photos and keep them on record when %s saves Edit Project",
     async (role) => {
       const user = userEvent.setup()
       store.authRecord = {
@@ -2373,6 +2475,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
           project_photos: ["site.jpg", "front.webp"],
         }),
       ]
+      updateMock.mockResolvedValue({})
 
       render(<ProjectsModule />)
 
@@ -2381,15 +2484,16 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
       )
       await user.click(await screen.findByRole("menuitem", { name: /^edit$/i }))
 
+      expect(screen.queryByText("Project photos")).not.toBeInTheDocument()
       expect(
-        screen.getByRole("link", { name: /on record: site\.jpg/i })
-      ).toHaveAttribute("href", "http://localhost:8090/api/files/p/p1/site.jpg")
-      expect(
-        screen.getByRole("link", { name: /on record: front\.webp/i })
-      ).toHaveAttribute(
-        "href",
-        "http://localhost:8090/api/files/p/p1/front.webp"
-      )
+        screen.queryByRole("link", { name: /on record: site\.jpg/i })
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole("button", { name: /^save$/i }))
+      await waitFor(() => expect(updateMock).toHaveBeenCalled())
+      const payload = updateMock.mock.calls[0]?.[1]
+      expect(payload).not.toBeInstanceOf(FormData)
+      expect(payload).not.toHaveProperty("project_photos")
     }
   )
 
@@ -2788,7 +2892,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
   })
 
-  it("should keep all four empty upload slots visible when Super Admin edits a project with no files", async () => {
+  it("should keep the three empty provincial upload slots and omit Project Photos when Super Admin edits a project with no files", async () => {
     const user = userEvent.setup()
     store.projects = [
       catalogProject({
@@ -2808,8 +2912,8 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
 
     expect(screen.getByTestId("document-upload-input-moa-file")).toBeInTheDocument()
     expect(
-      screen.getByTestId("document-upload-input-project-photos")
-    ).toBeInTheDocument()
+      screen.queryByTestId("document-upload-input-project-photos")
+    ).not.toBeInTheDocument()
     expect(
       screen.getByTestId("document-upload-input-resolution-file")
     ).toBeInTheDocument()
@@ -2819,7 +2923,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.queryByText(/on record:/i)).not.toBeInTheDocument()
     expect(
       screen.getAllByText(/click to upload or drag files here/i).length
-    ).toBeGreaterThanOrEqual(4)
+    ).toBeGreaterThanOrEqual(3)
   })
 
   it("should keep the upload slot visible after Super Admin removes the last on-record file", async () => {
@@ -2847,7 +2951,7 @@ describe("ProjectsModule (J4)", { timeout: 20_000 }, () => {
     expect(screen.getByText("Supporting project documents")).toBeInTheDocument()
     expect(
       screen.getAllByText(/click to upload or drag files here/i).length
-    ).toBeGreaterThanOrEqual(4)
+    ).toBeGreaterThanOrEqual(3)
   })
 
   it.each(["Municipality", "Barangay"] as const)(

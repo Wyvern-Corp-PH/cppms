@@ -282,19 +282,73 @@ describe("validateProjectMutateCompleteness", () => {
     })
   })
 
-  it("should keep Main Account required on a legacy provincial edit", () => {
+  it("should accept a legacy provincial edit without Main Account or Sub Account", () => {
     const { fund_source: _fundSource, ...withoutMainAccount } = ppdoComplete
-    const result = validateProjectMutateCompleteness({
-      role: "Province",
-      isCreate: false,
-      submitted: withoutMainAccount,
-      original: ppdoComplete,
-    })
-    expect(result).toEqual({
-      ok: false,
-      field: "fund_source",
-      message: "Main account is required.",
-    })
+    expect(
+      validateProjectMutateCompleteness({
+        role: "Province",
+        isCreate: false,
+        submitted: withoutMainAccount,
+        original: ppdoComplete,
+      })
+    ).toEqual({ ok: true })
+    expect(
+      validateProjectMutateCompleteness({
+        role: "Province",
+        isCreate: false,
+        submitted: { ...ppdoComplete, fund_source: "General Fund", sub_account: "" },
+        original: ppdoComplete,
+      })
+    ).toEqual({ ok: true })
+  })
+
+  it("should accept a Province update that does not submit Source of Fund", () => {
+    const { fund_source: _fundSource, ...legacy } = ppdoComplete
+    expect(
+      validateProjectMutateCompleteness({
+        role: "Province",
+        isCreate: false,
+        submitted: { ...legacy, status: "Completed", approval_status: "approved" },
+        original: { ...legacy, source_of_fund: "" },
+      })
+    ).toEqual({ ok: true })
+  })
+
+  it.each([0, -1, undefined])(
+    "should reject a provincial update with Source of Fund and Total Budget %s",
+    (totalBudget) => {
+      expect(
+        validateProjectMutateCompleteness({
+          role: "Province",
+          isCreate: false,
+          submitted: {
+            ...ppdoComplete,
+            source_of_fund: "General Fund",
+            total_budget: totalBudget,
+          },
+          original: ppdoComplete,
+        })
+      ).toEqual({
+        ok: false,
+        field: "total_budget",
+        message: "Total Budget must be greater than zero.",
+      })
+    }
+  )
+
+  it("should accept a provincial update with Source of Fund and a positive Total Budget", () => {
+    expect(
+      validateProjectMutateCompleteness({
+        role: "Province",
+        isCreate: false,
+        submitted: {
+          ...ppdoComplete,
+          source_of_fund: "General Fund",
+          total_budget: 750_000,
+        },
+        original: ppdoComplete,
+      })
+    ).toEqual({ ok: true })
   })
 
   it("should require sub account only for General Fund, Trust Fund, and Others", () => {

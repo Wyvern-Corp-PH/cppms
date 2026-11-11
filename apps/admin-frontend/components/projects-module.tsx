@@ -726,13 +726,10 @@ export function ProjectsModule({
       funding_year: project.funding_year ? String(project.funding_year) : "",
       fund_source: project.fund_source ?? "",
       sub_account: project.sub_account ?? "",
-      source_of_fund: "",
-      source_of_fund_other: "",
+      source_of_fund: project.source_of_fund ?? "",
+      source_of_fund_other: project.source_of_fund_other ?? "",
       period_of_implementation: project.period_of_implementation ?? "",
-      total_budget:
-        project.total_budget === undefined || project.total_budget === null
-          ? ""
-          : "",
+      total_budget: project.total_budget ? String(project.total_budget) : "",
       bid_price:
         project.bid_price === undefined || project.bid_price === null
           ? ""
@@ -772,17 +769,13 @@ export function ProjectsModule({
           ? form.number_of_students || undefined
           : undefined,
       funding_year: form.funding_year || undefined,
-      fund_source: editing ? form.fund_source || undefined : undefined,
-      sub_account: editing ? form.sub_account || undefined : undefined,
-      source_of_fund: editing ? undefined : form.source_of_fund || undefined,
-      source_of_fund_other: editing
-        ? undefined
-        : form.source_of_fund_other || undefined,
+      source_of_fund: form.source_of_fund || undefined,
+      source_of_fund_other: form.source_of_fund_other || undefined,
       period_of_implementation:
         actorRole === "Municipality" || actorRole === "Barangay"
           ? form.period_of_implementation || undefined
           : undefined,
-      total_budget: editing ? undefined : form.total_budget || undefined,
+      total_budget: form.total_budget || undefined,
       bid_price: form.bid_price || undefined,
       start_date: form.start_date || undefined,
       target_end_date: form.target_end_date || undefined,
@@ -1600,50 +1593,48 @@ export function ProjectsModule({
                 yearLabel="Funding Year"
                 disabled={fieldLocked("funding_year")}
                 required={requirePpdo}
-                showAccountFields={Boolean(editing)}
+                showAccountFields={false}
               />
-              {!editing ? (
-                <Field data-invalid={Boolean(fieldErrors.source_of_fund)}>
-                  <FieldLabel
-                    htmlFor="project-source-of-fund"
-                    required={requirePpdo}
+              <Field data-invalid={Boolean(fieldErrors.source_of_fund)}>
+                <FieldLabel
+                  htmlFor="project-source-of-fund"
+                  required={requirePpdo}
+                >
+                  Source of Fund
+                </FieldLabel>
+                <FieldOwnerHint field="source_of_fund" />
+                <Select
+                  value={form.source_of_fund}
+                  onValueChange={(source_of_fund) =>
+                    setForm({
+                      ...form,
+                      source_of_fund,
+                      source_of_fund_other:
+                        source_of_fund === "Others"
+                          ? form.source_of_fund_other
+                          : "",
+                    })
+                  }
+                  disabled={fieldLocked("source_of_fund")}
+                >
+                  <SelectTrigger
+                    id="project-source-of-fund"
+                    aria-label="Source of Fund"
+                    aria-invalid={Boolean(fieldErrors.source_of_fund)}
                   >
-                    Source of Fund
-                  </FieldLabel>
-                  <FieldOwnerHint field="source_of_fund" />
-                  <Select
-                    value={form.source_of_fund}
-                    onValueChange={(source_of_fund) =>
-                      setForm({
-                        ...form,
-                        source_of_fund,
-                        source_of_fund_other:
-                          source_of_fund === "Others"
-                            ? form.source_of_fund_other
-                            : "",
-                      })
-                    }
-                    disabled={fieldLocked("source_of_fund")}
-                  >
-                    <SelectTrigger
-                      id="project-source-of-fund"
-                      aria-label="Source of Fund"
-                      aria-invalid={Boolean(fieldErrors.source_of_fund)}
-                    >
-                      <SelectValue placeholder="Select source of fund" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROJECT_SOURCE_OF_FUND_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldError>{fieldErrors.source_of_fund}</FieldError>
-                </Field>
-              ) : null}
-              {!editing && form.source_of_fund === "Others" ? (
+                    <SelectValue placeholder="Select source of fund" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_SOURCE_OF_FUND_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError>{fieldErrors.source_of_fund}</FieldError>
+              </Field>
+              {form.source_of_fund === "Others" ? (
                 <Field data-invalid={Boolean(fieldErrors.source_of_fund_other)}>
                   <FieldLabel htmlFor="project-source-of-fund-other">
                     Specify Source of Fund
@@ -1760,29 +1751,27 @@ export function ProjectsModule({
                   />
                   <FieldError>{fieldErrors.budget_year}</FieldError>
                 </Field>
-                {!editing ? (
-                  <Field data-invalid={Boolean(fieldErrors.total_budget)}>
-                    <FieldLabel
-                      htmlFor="project-total-budget"
-                      required={requirePpdo}
-                    >
-                      Total Budget
-                    </FieldLabel>
-                    <FieldOwnerHint field="total_budget" />
-                    <Input
-                      id="project-total-budget"
-                      type="number"
-                      min={0}
-                      value={form.total_budget}
-                      disabled={fieldLocked("total_budget")}
-                      aria-invalid={Boolean(fieldErrors.total_budget)}
-                      onChange={(event) =>
-                        setForm({ ...form, total_budget: event.target.value })
-                      }
-                    />
-                    <FieldError>{fieldErrors.total_budget}</FieldError>
-                  </Field>
-                ) : null}
+                <Field data-invalid={Boolean(fieldErrors.total_budget)}>
+                  <FieldLabel
+                    htmlFor="project-total-budget"
+                    required={requirePpdo}
+                  >
+                    Total Budget
+                  </FieldLabel>
+                  <FieldOwnerHint field="total_budget" />
+                  <Input
+                    id="project-total-budget"
+                    type="number"
+                    min={0}
+                    value={form.total_budget}
+                    disabled={fieldLocked("total_budget")}
+                    aria-invalid={Boolean(fieldErrors.total_budget)}
+                    onChange={(event) =>
+                      setForm({ ...form, total_budget: event.target.value })
+                    }
+                  />
+                  <FieldError>{fieldErrors.total_budget}</FieldError>
+                </Field>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.bid_price)}>
@@ -1827,7 +1816,7 @@ export function ProjectsModule({
                     error={fieldErrors.moa_file}
                   />
                 </div>
-                {requireLgu || editing ? (
+                {requireLgu ? (
                   <div className="space-y-1">
                     <FieldOwnerHint field="project_photos" />
                     <DocumentUploadField

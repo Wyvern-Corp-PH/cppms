@@ -13,6 +13,8 @@ const ALLOCATION_LIST_TRUNCATED_MESSAGE =
   "Too many allocations to validate against bid price."
 const ALLOCATION_LOCK_FAILED_MESSAGE =
   "Unable to validate allocation cap because the project lock could not be established."
+const TOTAL_BUDGET_BELOW_ALLOCATED_MESSAGE =
+  "Total Budget cannot be less than the amount already allocated."
 const ALLOCATION_QUERY_LIMIT = 500
 // tradeoff: PocketBase JSVM has no row-lock / SELECT FOR UPDATE API.
 // This no-op UPDATE takes a SQLite write lock on the project row until the
@@ -152,7 +154,69 @@ function applyAllocationBidPriceCap(event) {
   }
 }
 
+function fieldValue(record, field) {
+  return typeof record?.get === "function" ? record.get(field) : record?.[field]
+}
+
+function originalRecord(record) {
+  const original = record?.originalCopy || record?.original
+  if (typeof original === "function") return original.call(record)
+  return original || null
+}
+
+function projectBudgetUnchanged(record) {
+  const original = originalRecord(record)
+  if (!original) return false
+  return (
+    String(fieldValue(original, "source_of_fund") ?? "") ===
+      String(record.get("source_of_fund") ?? "") &&
+    Number(fieldValue(original, "total_budget")) ===
+      Number(record.get("total_budget"))
+  )
+}
+
+/** Projects model update: Total Budget may not drop below Σ allocations. */
+function applyProjectTotalBudgetFloor(event) {
+  const record = event.record
+  if (!record.get("source_of_fund") || projectBudgetUnchanged(record)) {
+    event.next()
+    return
+  }
+
+  const app = event.app
+  try {
+    app.runInTransaction((txApp) => {
+      event.app = txApp
+      const projectId = sanitizeId(recordId(record))
+      lockProjectRow(txApp, projectId)
+      const rows =
+        txApp.findRecordsByFilter(
+          "budget_allocations",
+          `project = "${projectId}"`,
+          "",
+          ALLOCATION_QUERY_LIMIT,
+          0
+        ) || []
+      if (rows.length >= ALLOCATION_QUERY_LIMIT) {
+        throw new BadRequestError(ALLOCATION_LIST_TRUNCATED_MESSAGE)
+      }
+      const allocated = sumAmounts(
+        rows.map((row) => ({ amount: Number(row.get("amount")) }))
+      )
+      const totalBudget = Number(record.get("total_budget"))
+      if (!Number.isFinite(totalBudget) || totalBudget < allocated) {
+        throw new BadRequestError(TOTAL_BUDGET_BELOW_ALLOCATED_MESSAGE)
+      }
+      event.next()
+    })
+  } finally {
+    event.app = app
+  }
+}
+
 module.exports = {
+  TOTAL_BUDGET_BELOW_ALLOCATED_MESSAGE,
+  applyProjectTotalBudgetFloor,
   ALLOCATION_EXCEEDS_BID_PRICE_MESSAGE,
   ALLOCATION_EXCEEDS_BUDGET_MESSAGE,
   ALLOCATION_AMOUNT_INVALID_MESSAGE,

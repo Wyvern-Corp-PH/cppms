@@ -62,21 +62,32 @@ function requireAttachment(
   return { ok: false, field, message }
 }
 
+function refineUpdateTotalBudget(
+  submitted: Record<string, unknown>
+): ProjectMutateCompletenessResult | null {
+  if (!trimText(submitted.source_of_fund)) return null
+  const totalBudget = Number(submitted.total_budget)
+  if (Number.isFinite(totalBudget) && totalBudget > 0) return null
+  return {
+    ok: false,
+    field: "total_budget",
+    message: "Total Budget must be greater than zero.",
+  }
+}
+
 function refineSubAccount(
   isCreate: boolean,
   submitted: Record<string, unknown>
 ): ProjectMutateCompletenessResult | null {
+  if (!isCreate) return refineUpdateTotalBudget(submitted)
   const main = trimText(submitted.fund_source)
   if (!main) {
     if (trimText(submitted.source_of_fund)) return null
-    if (isCreate) {
-      return {
-        ok: false,
-        field: "source_of_fund",
-        message: "Source of Fund is required.",
-      }
+    return {
+      ok: false,
+      field: "source_of_fund",
+      message: "Source of Fund is required.",
     }
-    return { ok: false, field: "fund_source", message: "Main account is required." }
   }
   const sub = trimText(submitted.sub_account)
   if (main === "Others" && !sub) {

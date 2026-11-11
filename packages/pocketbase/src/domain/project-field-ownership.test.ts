@@ -597,10 +597,42 @@ describe("project field ownership", () => {
   })
 
   it.each(["Province", "Super Admin"] as const)(
-    "rejects %s changing Source of Fund or Total Budget after project creation",
+    "lets %s change Source of Fund and Total Budget after project creation",
     (role) => {
       const original = {
         ...ppdoCreate,
+        source_of_fund: "General Fund",
+        source_of_fund_other: "",
+        total_budget: 750_000,
+      }
+      for (const [field, value] of [
+        ["source_of_fund", "20% LDF (Local Development Fund)"],
+        ["source_of_fund_other", "New source"],
+        ["total_budget", 800_000],
+      ] as const) {
+        const options = {
+          role,
+          isCreate: false,
+          original,
+          submitted: { [field]: value },
+        }
+        const result = evaluateProjectFieldWrite(options)
+        expect(result).toEqual({ ok: true, setLguEncodedAt: false })
+        expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+        expect(
+          projectPayloadForActor(role, original, false, { [field]: value })
+        ).toEqual({ [field]: value })
+        expect(isProjectFieldEditable(role, field, original, false)).toBe(true)
+      }
+    }
+  )
+
+  it.each(["Municipality", "Barangay"] as const)(
+    "rejects %s changing Source of Fund or Total Budget on edit",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        status: "Ongoing",
         source_of_fund: "General Fund",
         source_of_fund_other: "",
         total_budget: 750_000,
@@ -629,6 +661,54 @@ describe("project field ownership", () => {
       }
     }
   )
+
+  it.each(["Province", "Super Admin"] as const)(
+    "rejects %s clearing a Source of Fund that is already set",
+    (role) => {
+      const original = {
+        ...ppdoCreate,
+        source_of_fund: "General Fund",
+        total_budget: 750_000,
+      }
+      const options = {
+        role,
+        isCreate: false,
+        original,
+        submitted: { source_of_fund: "" },
+      }
+      const result = evaluateProjectFieldWrite(options)
+      expect(result).toEqual({
+        ok: false,
+        error: "Source of Fund cannot be cleared.",
+      })
+      expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual(result)
+    }
+  )
+
+  it("leaves Source of Fund alone when a Province update omits it", () => {
+    const original = {
+      ...ppdoCreate,
+      source_of_fund: "General Fund",
+      total_budget: 750_000,
+    }
+    const options = {
+      role: "Province",
+      isCreate: false,
+      original,
+      submitted: { name: "Renamed" },
+    }
+    expect(evaluateProjectFieldWrite(options)).toEqual({
+      ok: true,
+      setLguEncodedAt: false,
+    })
+    expect(jsOwnership.evaluateProjectFieldWrite(options)).toEqual({
+      ok: true,
+      setLguEncodedAt: false,
+    })
+    expect(
+      projectPayloadForActor("Province", original, false, { name: "Renamed" })
+    ).not.toHaveProperty("source_of_fund")
+  })
 
   it("lets LGU write start and end dates", () => {
     const original = {

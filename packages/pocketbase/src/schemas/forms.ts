@@ -266,7 +266,7 @@ export function projectMutateSchemaForActor(
 ) {
   const requirePpdo = PROJECT_FORM_OWNERS.has(role ?? "")
   const requirePpdoForm = Boolean(options?.form) && requirePpdo
-  const requireNewBudgetFields = requirePpdo && isCreate
+  const requireBudgetFields = requirePpdo && (isCreate || requirePpdoForm)
   const requireLgu = LGU_DATE_OWNERS.has(role ?? "")
 
   if (!requirePpdo && !requireLgu) {
@@ -344,7 +344,7 @@ export function projectMutateSchemaForActor(
           message: "Funding year is required.",
         })
       }
-      if (requireNewBudgetFields) {
+      if (requireBudgetFields) {
         if (!value.source_of_fund) {
           ctx.addIssue({
             code: "custom",
@@ -369,17 +369,6 @@ export function projectMutateSchemaForActor(
             message: "Specify the source of fund.",
           })
         }
-      } else if (requirePpdoForm && !isCreate && !value.fund_source) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["fund_source"],
-          message: "Main account is required.",
-        })
-      } else if (requirePpdoForm && !isCreate && value.fund_source) {
-        refineBudgetExpenseSubAccount(
-          { main_account: value.fund_source, sub_account: value.sub_account },
-          ctx
-        )
       }
       if (requirePpdoForm) {
         if (

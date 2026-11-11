@@ -21,3 +21,9 @@ globalThis.onRecordUpdate((event) => {
     event
   )
 }, "budget_allocations")
+
+globalThis.onRecordUpdate((event) => {
+  require(`${globalThis.__hooks}/cap-budget-allocation.js`).applyProjectTotalBudgetFloor(
+    event
+  )
+}, "projects")

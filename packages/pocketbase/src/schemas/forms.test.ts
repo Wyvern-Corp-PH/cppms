@@ -270,9 +270,37 @@ describe("projectMutateSchema (V34)", () => {
       const errors = fieldErrorsFromZod(missing.error)
       expect(errors.description).toMatch(/required/i)
       expect(errors.location).toMatch(/required/i)
-      expect(errors.source_of_fund).toBeUndefined()
-      expect(errors.total_budget).toBeUndefined()
+      expect(errors.source_of_fund).toBe("Source of Fund is required.")
+      expect(errors.total_budget).toBe("Total Budget must be greater than zero.")
+      expect(errors.fund_source).toBeUndefined()
+      expect(errors.sub_account).toBeUndefined()
       expect(errors.funding_year).toBe("Funding year is required.")
+    }
+  })
+
+  it("requires Specify Source of Fund for Others on Province form edit", () => {
+    const schema = projectMutateSchemaForActor("Province", false, { form: true })
+    const result = schema.safeParse({
+      name: "Charter Road",
+      description: "Span",
+      category: "Infrastructure",
+      status: "Planning",
+      budget_year: 2026,
+      municipality: "Tuguegarao City",
+      barangay: "Centro",
+      location: "Hall",
+      funding_year: 2025,
+      source_of_fund: "Others",
+      total_budget: 750000,
+      existing_moa_file: ["moa.pdf"],
+      existing_resolution_file: ["res.pdf"],
+      existing_supporting_docs: ["sup.pdf"],
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(fieldErrorsFromZod(result.error).source_of_fund_other).toBe(
+        "Specify the source of fund."
+      )
     }
   })
 
@@ -341,7 +369,8 @@ describe("projectMutateSchema (V34)", () => {
       barangay: "Centro",
       location: "Hall",
       funding_year: 2025,
-      fund_source: "Special Education Fund",
+      source_of_fund: "General Fund",
+      total_budget: 750000,
       existing_moa_file: ["moa.pdf"],
       existing_resolution_file: ["res.pdf"],
       existing_supporting_docs: ["sup.pdf"],

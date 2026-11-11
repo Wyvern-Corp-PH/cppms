@@ -354,7 +354,154 @@ describe("applyAllocationBidPriceCap", () => {
   })
 })
 
+const floorHook = loadHook<{
+  TOTAL_BUDGET_BELOW_ALLOCATED_MESSAGE: string
+  PROJECT_ROW_LOCK_SQL: string
+  applyProjectTotalBudgetFloor: (event: unknown) => void
+}>("cap-budget-allocation.js")
+
+function projectUpdateEvent(options: {
+  sourceOfFund: string
+  totalBudget: number
+  original: { source_of_fund: string; total_budget: number }
+  allocated: number[]
+}) {
+  const callOrder: string[] = []
+  const lockQueries: Array<{ sql: string; params: { id: string } }> = []
+  const saved = vi.fn()
+  const fields: Record<string, unknown> = {
+    source_of_fund: options.sourceOfFund,
+    total_budget: options.totalBudget,
+  }
+  const txApp = {
+    db: () => ({
+      newQuery: (sql: string) => ({
+        bind: (params: { id: string }) => ({
+          execute: () => {
+            callOrder.push("lock")
+            lockQueries.push({ sql, params })
+          },
+        }),
+      }),
+    }),
+    findRecordsByFilter: vi.fn(() => {
+      callOrder.push("read")
+      return options.allocated.map((amount, index) => row(`a${index}`, amount))
+    }),
+    save: saved,
+  }
+  const app = {
+    runInTransaction: vi.fn((work: (tx: typeof txApp) => void) => {
+      callOrder.push("tx")
+      work(txApp)
+    }),
+  }
+  const event = {
+    app: app as unknown,
+    record: {
+      id: "proj1",
+      get: (field: string) => fields[field],
+      originalCopy: {
+        get: (field: string) =>
+          (options.original as Record<string, unknown>)[field],
+      },
+    },
+    next: vi.fn(() => {
+      callOrder.push(event.app === txApp ? "next" : "next-outside-tx")
+    }),
+  }
+  return { event, app, txApp, saved, callOrder, lockQueries }
+}
+
+describe("applyProjectTotalBudgetFloor", () => {
+  it("should reject a Total Budget below the allocated sum under the project row lock", () => {
+    const { event, saved, callOrder, lockQueries } = projectUpdateEvent({
+      sourceOfFund: "General Fund",
+      totalBudget: 500_000,
+      original: { source_of_fund: "General Fund", total_budget: 750_000 },
+      allocated: [400_000, 200_000],
+    })
+
+    expect(() => floorHook.applyProjectTotalBudgetFloor(event)).toThrow(
+      "Total Budget cannot be less than the amount already allocated."
+    )
+    expect(callOrder).toEqual(["tx", "lock", "read"])
+    expect(lockQueries).toEqual([
+      { sql: floorHook.PROJECT_ROW_LOCK_SQL, params: { id: "proj1" } },
+    ])
+    expect(event.next).not.toHaveBeenCalled()
+    expect(saved).not.toHaveBeenCalled()
+  })
+
+  it("should save a Total Budget at or above the allocated sum without touching allocations", () => {
+    const { event, saved, callOrder } = projectUpdateEvent({
+      sourceOfFund: "General Fund",
+      totalBudget: 600_000,
+      original: { source_of_fund: "General Fund", total_budget: 750_000 },
+      allocated: [400_000, 200_000],
+    })
+
+    floorHook.applyProjectTotalBudgetFloor(event)
+
+    expect(callOrder).toEqual(["tx", "lock", "read", "next"])
+    expect(saved).not.toHaveBeenCalled()
+  })
+
+  it("should not create an allocation when a legacy project gains Source of Fund on edit", () => {
+    const { event, saved, callOrder } = projectUpdateEvent({
+      sourceOfFund: "20% LDF (Local Development Fund)",
+      totalBudget: 900_000,
+      original: { source_of_fund: "", total_budget: 0 },
+      allocated: [],
+    })
+
+    floorHook.applyProjectTotalBudgetFloor(event)
+
+    expect(callOrder).toEqual(["tx", "lock", "read", "next"])
+    expect(saved).not.toHaveBeenCalled()
+  })
+
+  it("should skip the floor when neither Source of Fund nor Total Budget changes", () => {
+    const { event, app, txApp } = projectUpdateEvent({
+      sourceOfFund: "General Fund",
+      totalBudget: 750_000,
+      original: { source_of_fund: "General Fund", total_budget: 750_000 },
+      allocated: [900_000],
+    })
+
+    floorHook.applyProjectTotalBudgetFloor(event)
+
+    expect(app.runInTransaction).not.toHaveBeenCalled()
+    expect(txApp.findRecordsByFilter).not.toHaveBeenCalled()
+    expect(event.next).toHaveBeenCalledOnce()
+  })
+
+  it("should skip the floor for projects without Source of Fund", () => {
+    const { event, app } = projectUpdateEvent({
+      sourceOfFund: "",
+      totalBudget: 0,
+      original: { source_of_fund: "", total_budget: 10 },
+      allocated: [900_000],
+    })
+
+    floorHook.applyProjectTotalBudgetFloor(event)
+
+    expect(app.runInTransaction).not.toHaveBeenCalled()
+    expect(event.next).toHaveBeenCalledOnce()
+  })
+})
+
 describe("cap-budget-allocation hook entrypoint", () => {
+  it("should run the Total Budget floor on the projects model update", () => {
+    const entry = readFileSync(
+      resolve(hooksDir, "cap-budget-allocation.pb.js"),
+      "utf8"
+    )
+    expect(entry).toMatch(
+      /onRecordUpdate\(\(event\) => \{\s*require\([^)]*cap-budget-allocation\.js`\)\.applyProjectTotalBudgetFloor\(\s*event\s*\)\s*\}, "projects"\)/
+    )
+  })
+
   it("should enforce the cap on budget_allocations create and update requests", () => {
     const entry = readFileSync(
       resolve(hooksDir, "cap-budget-allocation.pb.js"),
