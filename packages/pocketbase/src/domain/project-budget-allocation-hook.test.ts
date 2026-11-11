@@ -145,7 +145,9 @@ function createRequestEvent(auth?: unknown) {
   allocation.set("amount", 750_000)
   allocation.set("year", 2026)
   allocation.set("description", SYSTEM_ALLOCATION_DESCRIPTION)
+  Object.assign(allocation, { id: "alloc1" })
   const calls: string[] = []
+  const updates: Array<{ sql: string; params: Record<string, string> }> = []
   const transactionApp = {
     findRecordsByFilter: vi.fn(() => {
       calls.push("find")
@@ -153,6 +155,16 @@ function createRequestEvent(auth?: unknown) {
     }),
     save: vi.fn(() => {
       calls.push("save")
+    }),
+    db: () => ({
+      newQuery: (sql: string) => ({
+        bind: (params: Record<string, string>) => ({
+          execute: () => {
+            calls.push("update")
+            updates.push({ sql, params })
+          },
+        }),
+      }),
     }),
   }
   const app = {
@@ -169,19 +181,19 @@ function createRequestEvent(auth?: unknown) {
       calls.push("next")
     }),
   }
-  return { allocation, app, calls, event, transactionApp }
+  return { allocation, app, calls, event, transactionApp, updates }
 }
 
 describe("setAllocatedByFromCreateRequest", () => {
   it("should set allocated_by from the signed-in user after the allocation is created", () => {
-    const { allocation, app, calls, event, transactionApp } = createRequestEvent({
+    const { app, calls, event, transactionApp, updates } = createRequestEvent({
       id: "user1",
       collection: () => ({ name: "users" }),
     })
 
     hook.setAllocatedByFromCreateRequest(event)
 
-    expect(calls).toEqual(["tx", "next", "find", "save"])
+    expect(calls).toEqual(["tx", "next", "find", "update"])
     expect(event.app).toBe(app)
     expect(transactionApp.findRecordsByFilter).toHaveBeenCalledWith(
       "budget_allocations",
@@ -190,14 +202,13 @@ describe("setAllocatedByFromCreateRequest", () => {
       1,
       0
     )
-    expect(transactionApp.save).toHaveBeenCalledWith(allocation)
-    expect(allocation.fields).toMatchObject({
-      project: "proj1",
-      amount: 750_000,
-      year: 2026,
-      description: SYSTEM_ALLOCATION_DESCRIPTION,
-      allocated_by: "user1",
-    })
+    expect(transactionApp.save).not.toHaveBeenCalled()
+    expect(updates).toEqual([
+      {
+        sql: "UPDATE budget_allocations SET allocated_by = {:by} WHERE id = {:id}",
+        params: { by: "user1", id: "alloc1" },
+      },
+    ])
   })
 
   it("should leave allocated_by empty when the actor is a superuser", () => {

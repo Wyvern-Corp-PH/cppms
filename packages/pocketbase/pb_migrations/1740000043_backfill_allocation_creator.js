@@ -2,10 +2,11 @@
  * Backfill allocated_by on system-generated budget allocations from the
  * earliest successful project-create activity log.
  * Idempotent: skips manual rows and any allocated_by that is already set.
- * Writes allocated_by only.
+ * Writes allocated_by only, via bound SQL (no record hooks).
  *
  * @see pickAllocationCreator in packages/pocketbase/src/domain/pick-allocation-creator.ts
- * PB migrations cannot import TS — keep this picker in sync.
+ * PB migrations cannot import TS. pick-allocation-creator.test.ts loads this
+ * file and runs the same creator fixtures against both copies.
  *
  * Note: migration findRecordsByFilter rejects sort field "created" (PB serve
  * error). Fetch unsorted and pick earliest via created/created_at/id in JS.
@@ -101,10 +102,15 @@ function backfillAllocationCreators(app) {
     if (String(row.get("allocated_by") || "").trim()) continue
     const creator = pickAllocationCreator(app, row.get("project"))
     if (!creator) continue
-    row.set("allocated_by", creator)
-    // No request context: request cap and completeness hooks do not run.
-    // Amount is unchanged, so the model cap check does not raise the total.
-    app.save(row)
+    // Bound SQL, not app.save: the cap and audit hooks must not run, so one
+    // over-cap legacy row cannot abort the migration.
+    app
+      .db()
+      .newQuery(
+        "UPDATE budget_allocations SET allocated_by = {:by} WHERE id = {:id} AND (allocated_by IS NULL OR allocated_by = '')"
+      )
+      .bind({ by: creator, id: row.id })
+      .execute()
   }
 }
 

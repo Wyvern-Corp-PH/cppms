@@ -86,8 +86,14 @@ function setAllocatedByFromCreateRequest(event) {
       const allocation = rows[0]
       if (!allocation) return
 
-      allocation.set("allocated_by", userId)
-      txApp.save(allocation)
+      // Bound SQL, not txApp.save: no second audit row, no second cap check.
+      txApp
+        .db()
+        .newQuery(
+          "UPDATE budget_allocations SET allocated_by = {:by} WHERE id = {:id}"
+        )
+        .bind({ by: userId, id: allocation.id })
+        .execute()
     })
   } finally {
     event.app = app

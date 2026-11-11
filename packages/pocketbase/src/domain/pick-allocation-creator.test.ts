@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { runInNewContext } from "node:vm"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -20,9 +24,17 @@ function createLog(
   }
 }
 
-describe("pickAllocationCreator", () => {
-  it("should return the earliest successful project creator when that user exists", () => {
-    const logs = [
+type CreatorCase = {
+  name: string
+  logs: AllocationCreatorLog[]
+  userExists: (userId: string) => boolean
+  expected: string
+}
+
+const creatorCases: CreatorCase[] = [
+  {
+    name: "should return the earliest successful project creator when that user exists",
+    logs: [
       createLog({
         id: "later",
         actor_user: "later-user",
@@ -68,15 +80,13 @@ describe("pickAllocationCreator", () => {
         actor_user: " creator ",
         created: "2026-01-15T00:00:00.000Z",
       }),
-    ]
-
-    expect(
-      pickAllocationCreator(logs, "proj1", (userId) => userId === "creator")
-    ).toBe("creator")
-  })
-
-  it("should use created_at when created is missing", () => {
-    const logs = [
+    ],
+    userExists: (userId) => userId === "creator",
+    expected: "creator",
+  },
+  {
+    name: "should use created_at when created is missing",
+    logs: [
       createLog({
         id: "late",
         actor_user: "late-user",
@@ -89,13 +99,13 @@ describe("pickAllocationCreator", () => {
         created: "",
         created_at: "2026-01-01T00:00:00.000Z",
       }),
-    ]
-
-    expect(pickAllocationCreator(logs, "proj1", () => true)).toBe("early-user")
-  })
-
-  it("should return empty when the earliest creator is blank", () => {
-    const logs = [
+    ],
+    userExists: () => true,
+    expected: "early-user",
+  },
+  {
+    name: "should return empty when the earliest creator is blank",
+    logs: [
       createLog({
         id: "blank",
         actor_user: "  ",
@@ -106,18 +116,116 @@ describe("pickAllocationCreator", () => {
         actor_user: "later-user",
         created: "2026-02-01T00:00:00.000Z",
       }),
-    ]
+    ],
+    userExists: () => true,
+    expected: "",
+  },
+  {
+    name: "should return empty when the creator user is missing",
+    logs: [createLog({})],
+    userExists: () => false,
+    expected: "",
+  },
+  {
+    name: "should return empty when no successful project create log matches",
+    logs: [],
+    userExists: () => true,
+    expected: "",
+  },
+]
 
-    expect(pickAllocationCreator(logs, "proj1", () => true)).toBe("")
+describe("pickAllocationCreator", () => {
+  it.each(creatorCases)("$name", ({ logs, userExists, expected }) => {
+    expect(pickAllocationCreator(logs, "proj1", userExists)).toBe(expected)
+  })
+})
+
+const migrationFile = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../pb_migrations/1740000043_backfill_allocation_creator.js"
+)
+
+type BoundUpdate = { sql: string; params: { by: string; id: string } }
+
+function runBackfill(
+  logs: AllocationCreatorLog[],
+  userExists: (userId: string) => boolean,
+  allocatedBy = ""
+) {
+  let up: ((app: unknown) => void) | undefined
+  runInNewContext(readFileSync(migrationFile, "utf8"), {
+    migrate: (upFn: (app: unknown) => void) => {
+      up = upFn
+    },
+  })
+  const updates: BoundUpdate[] = []
+  const saved: unknown[] = []
+  const wrap = (fields: Record<string, unknown>) => ({
+    id: String(fields.id ?? ""),
+    get: (field: string) => fields[field] ?? "",
+  })
+  const app = {
+    findCollectionByNameOrId: (name: string) => ({ name }),
+    findRecordById: (collection: string, id: string) => {
+      if (collection === "users" && userExists(id)) return { id }
+      throw new Error("missing")
+    },
+    // The migration filters server-side; mirror that predicate for the fake.
+    findRecordsByFilter: (collection: string, filter: string) => {
+      if (collection === "budget_allocations") {
+        return [wrap({ id: "alloc1", project: "proj1", allocated_by: allocatedBy })]
+      }
+      return logs
+        .filter(
+          (log) =>
+            log.resource === "projects" &&
+            log.action === "create" &&
+            log.outcome === "success" &&
+            filter.includes(`resource_id = "${log.resource_id}"`)
+        )
+        .map((log) => wrap({ ...log }))
+    },
+    save: (record: unknown) => saved.push(record),
+    db: () => ({
+      newQuery: (sql: string) => ({
+        bind: (params: BoundUpdate["params"]) => ({
+          execute: () => updates.push({ sql, params }),
+        }),
+      }),
+    }),
+  }
+  up?.(app)
+  return { updates, saved }
+}
+
+describe("backfill allocation creator migration", () => {
+  it.each(creatorCases)(
+    "should pick the same creator as the domain picker: $name",
+    ({ logs, userExists, expected }) => {
+      const { updates } = runBackfill(logs, userExists)
+
+      expect(updates.map((update) => update.params.by)).toEqual(
+        expected ? [expected] : []
+      )
+    }
+  )
+
+  it("should write allocated_by with a bound update and never save the record", () => {
+    const { updates, saved } = runBackfill([createLog({})], () => true)
+
+    expect(saved).toEqual([])
+    expect(updates).toEqual([
+      {
+        sql: "UPDATE budget_allocations SET allocated_by = {:by} WHERE id = {:id} AND (allocated_by IS NULL OR allocated_by = '')",
+        params: { by: "creator", id: "alloc1" },
+      },
+    ])
   })
 
-  it("should return empty when the creator user is missing", () => {
-    expect(pickAllocationCreator([createLog({})], "proj1", () => false)).toBe(
-      ""
-    )
-  })
+  it("should skip an allocation whose allocated_by is already set", () => {
+    const { updates, saved } = runBackfill([createLog({})], () => true, "someone")
 
-  it("should return empty when no successful project create log matches", () => {
-    expect(pickAllocationCreator([], "proj1", () => true)).toBe("")
+    expect(updates).toEqual([])
+    expect(saved).toEqual([])
   })
 })
