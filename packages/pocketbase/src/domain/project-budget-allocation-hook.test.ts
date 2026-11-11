@@ -36,6 +36,14 @@ const hook = (() => {
       record: { id: string; get: (field: string) => unknown }
       next: () => void
     }) => void
+    setAllocatedByFromCreateRequest: (event: {
+      app: {
+        runInTransaction: (work: (txApp: unknown) => void) => void
+      }
+      record: { id: string }
+      auth?: unknown
+      next: () => void
+    }) => void
   }
 })()
 
@@ -80,6 +88,7 @@ describe("createBudgetAllocationForProject", () => {
       year: 2026,
       description: "System-generated from Provincial project creation.",
     })
+    expect(allocation.fields.allocated_by).toBeUndefined()
   })
 
   it("propagates allocation errors so the transaction can roll back", () => {
@@ -124,5 +133,93 @@ describe("createBudgetAllocationForProject", () => {
 
     expect(event.next).toHaveBeenCalledTimes(1)
     expect(event.app.runInTransaction).not.toHaveBeenCalled()
+  })
+})
+
+const SYSTEM_ALLOCATION_DESCRIPTION =
+  "System-generated from Provincial project creation."
+
+function createRequestEvent(auth?: unknown) {
+  const allocation = new RecordModel("budget_allocations")
+  allocation.set("project", "proj1")
+  allocation.set("amount", 750_000)
+  allocation.set("year", 2026)
+  allocation.set("description", SYSTEM_ALLOCATION_DESCRIPTION)
+  const calls: string[] = []
+  const transactionApp = {
+    findRecordsByFilter: vi.fn(() => {
+      calls.push("find")
+      return [allocation]
+    }),
+    save: vi.fn(() => {
+      calls.push("save")
+    }),
+  }
+  const app = {
+    runInTransaction: vi.fn((work: (txApp: typeof transactionApp) => void) => {
+      calls.push("tx")
+      work(transactionApp)
+    }),
+  }
+  const event = {
+    app,
+    record: { id: "proj1" },
+    auth,
+    next: vi.fn(() => {
+      calls.push("next")
+    }),
+  }
+  return { allocation, app, calls, event, transactionApp }
+}
+
+describe("setAllocatedByFromCreateRequest", () => {
+  it("should set allocated_by from the signed-in user after the allocation is created", () => {
+    const { allocation, app, calls, event, transactionApp } = createRequestEvent({
+      id: "user1",
+      collection: () => ({ name: "users" }),
+    })
+
+    hook.setAllocatedByFromCreateRequest(event)
+
+    expect(calls).toEqual(["tx", "next", "find", "save"])
+    expect(event.app).toBe(app)
+    expect(transactionApp.findRecordsByFilter).toHaveBeenCalledWith(
+      "budget_allocations",
+      `project = "proj1" && description = "${SYSTEM_ALLOCATION_DESCRIPTION}"`,
+      "",
+      1,
+      0
+    )
+    expect(transactionApp.save).toHaveBeenCalledWith(allocation)
+    expect(allocation.fields).toMatchObject({
+      project: "proj1",
+      amount: 750_000,
+      year: 2026,
+      description: SYSTEM_ALLOCATION_DESCRIPTION,
+      allocated_by: "user1",
+    })
+  })
+
+  it("should leave allocated_by empty when the actor is a superuser", () => {
+    const { allocation, calls, event, transactionApp } = createRequestEvent({
+      id: "super1",
+      collection: () => ({ name: "_superusers" }),
+    })
+
+    hook.setAllocatedByFromCreateRequest(event)
+
+    expect(calls).toEqual(["tx", "next"])
+    expect(transactionApp.save).not.toHaveBeenCalled()
+    expect(allocation.fields.allocated_by).toBeUndefined()
+  })
+
+  it("should leave allocated_by empty when the create has no request auth", () => {
+    const { allocation, calls, event, transactionApp } = createRequestEvent()
+
+    hook.setAllocatedByFromCreateRequest(event)
+
+    expect(calls).toEqual(["tx", "next"])
+    expect(transactionApp.save).not.toHaveBeenCalled()
+    expect(allocation.fields.allocated_by).toBeUndefined()
   })
 })
