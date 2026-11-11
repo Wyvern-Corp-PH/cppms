@@ -406,31 +406,132 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(breakdown).toHaveTextContent("Rem ₱6,000")
   })
 
-  it("shows the canonical sub account for legacy General Fund releases with a blank child value", async () => {
+  it("should show the project source of fund on released amounts and omit account columns", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
-        id: "p1",
+        id: "p-general",
         collectionId: "p",
         collectionName: "projects",
-        name: "Bridge",
+        name: "General Bridge",
         category: "Infrastructure",
         status: "Ongoing",
         budget_year: 2026,
         bid_price: 200_000,
+        source_of_fund: "General Fund",
+      },
+      {
+        id: "p-ldf",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "LDF Road",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+        source_of_fund: "20% LDF (Local Development Fund)",
+      },
+      {
+        id: "p-other",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Other Hall",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+        source_of_fund: "Others",
+        source_of_fund_other: "  Congressional fund  ",
+      },
+      {
+        id: "p-other-blank",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Blank Other",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+        source_of_fund: "Others",
+        source_of_fund_other: "   ",
+      },
+      {
+        id: "p-none",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Legacy School",
+        category: "Education",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
+        fund_source: "Special Education Fund",
       },
     ]
     store.expenses = [
       {
-        id: "e1",
+        id: "e-general",
         collectionId: "e",
         collectionName: "budget_expenses",
-        project: "p1",
-        amount: 25_000,
+        project: "p-general",
+        amount: 10_000,
+        year: 2026,
+        main_account: "Trust Fund",
+        sub_account: "Road materials",
+        receipt_number: "OR-1",
+        date: "2026-06-17",
+        description: "General release",
+      },
+      {
+        id: "e-ldf",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p-ldf",
+        amount: 20_000,
         year: 2026,
         main_account: "General Fund",
-        sub_account: "",
+        sub_account: "20% DF",
+        receipt_number: "OR-2",
         date: "2026-06-17",
+        description: "LDF release",
+      },
+      {
+        id: "e-other",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p-other",
+        amount: 30_000,
+        year: 2026,
+        main_account: "Others",
+        sub_account: "Calamity reserve",
+        receipt_number: "OR-3",
+        date: "2026-06-17",
+        description: "Other release",
+      },
+      {
+        id: "e-other-blank",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p-other-blank",
+        amount: 40_000,
+        year: 2026,
+        main_account: "Special Education Fund",
+        sub_account: "School supplies",
+        receipt_number: "OR-4",
+        date: "2026-06-17",
+        description: "Blank release",
+      },
+      {
+        id: "e-none",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p-none",
+        amount: 50_000,
+        year: 2026,
+        main_account: "Special Health Fund",
+        sub_account: "Hospital Serv.",
+        receipt_number: "OR-9",
+        date: "2026-06-17",
+        description: "Legacy release",
       },
     ]
 
@@ -438,7 +539,55 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await user.click(await screen.findByRole("tab", { name: /released amount/i }))
 
-    expect(await screen.findByText("GF - Proper")).toBeInTheDocument()
+    const table = await screen.findByRole("table")
+    expect(within(table).getByRole("columnheader", { name: "Project" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "Amount" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "Year" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "Fund Source" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "Date" })).toBeInTheDocument()
+    expect(within(table).getByRole("columnheader", { name: "Description" })).toBeInTheDocument()
+    expect(within(table).queryByRole("columnheader", { name: /main account/i })).not.toBeInTheDocument()
+    expect(within(table).queryByRole("columnheader", { name: /sub account/i })).not.toBeInTheDocument()
+    expect(within(table).queryByRole("columnheader", { name: /receipt/i })).not.toBeInTheDocument()
+
+    function rowFor(projectName: string) {
+      const row = within(table).getByRole("cell", { name: projectName }).closest("tr")
+      expect(row).toBeTruthy()
+      return within(row as HTMLElement)
+    }
+
+    const general = rowFor("General Bridge")
+    expect(general.getByText("General Fund")).toBeInTheDocument()
+    expect(general.queryByText("Trust Fund")).not.toBeInTheDocument()
+    expect(general.queryByText("Road materials")).not.toBeInTheDocument()
+    expect(general.queryByText("OR-1")).not.toBeInTheDocument()
+    expect(general.getByText("General release")).toBeInTheDocument()
+
+    const ldf = rowFor("LDF Road")
+    expect(ldf.getByText("20% LDF", { exact: true })).toBeInTheDocument()
+    expect(ldf.queryByText("20% LDF (Local Development Fund)")).not.toBeInTheDocument()
+    expect(ldf.queryByText("General Fund")).not.toBeInTheDocument()
+    expect(ldf.queryByText("20% DF")).not.toBeInTheDocument()
+    expect(ldf.getByText("LDF release")).toBeInTheDocument()
+
+    const other = rowFor("Other Hall")
+    expect(other.getByText("Others: Congressional fund")).toBeInTheDocument()
+    expect(other.queryByText("Calamity reserve")).not.toBeInTheDocument()
+    expect(other.getByText("Other release")).toBeInTheDocument()
+
+    const blank = rowFor("Blank Other")
+    expect(blank.getByText("Others", { exact: true })).toBeInTheDocument()
+    expect(blank.queryByText(/^Others:/)).not.toBeInTheDocument()
+    expect(blank.queryByText("Special Education Fund")).not.toBeInTheDocument()
+    expect(blank.getByText("Blank release")).toBeInTheDocument()
+
+    const legacy = rowFor("Legacy School")
+    expect(legacy.getByText("—")).toBeInTheDocument()
+    expect(legacy.queryByText("Special Health Fund")).not.toBeInTheDocument()
+    expect(legacy.queryByText("Special Education Fund")).not.toBeInTheDocument()
+    expect(legacy.queryByText("Hospital Serv.")).not.toBeInTheDocument()
+    expect(legacy.queryByText("OR-9")).not.toBeInTheDocument()
+    expect(legacy.getByText("Legacy release")).toBeInTheDocument()
   })
 
   it("keeps released amount records visible when auxiliary lookups are denied", async () => {
@@ -539,7 +688,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await user.click(screen.getByRole("tab", { name: /released amount/i }))
     expect(screen.getByRole("table")).toHaveAttribute("data-slot", "table")
-    expect(screen.getByRole("columnheader", { name: /main account/i })).toHaveAttribute(
+    expect(screen.getByRole("columnheader", { name: "Fund Source" })).toHaveAttribute(
       "data-slot",
       "table-head"
     )
@@ -725,7 +874,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     })
   })
 
-  it("uses Released Amount year, main account, and sub account fields", async () => {
+  it("keeps year on released amounts and drops account columns", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -769,14 +918,15 @@ describe("BudgetModule (V9, V10, V24)", () => {
 
     await waitFor(() => {
       expect(screen.queryByRole("columnheader", { name: /category/i })).not.toBeInTheDocument()
-      expect(screen.queryByRole("columnheader", { name: /fund source/i })).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /funding years/i })).not.toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: /fund type/i })).not.toBeInTheDocument()
       expect(screen.getByRole("columnheader", { name: /^year$/i })).toBeInTheDocument()
-      expect(screen.getByRole("columnheader", { name: /main account/i })).toBeInTheDocument()
-      expect(screen.getByRole("columnheader", { name: /sub account/i })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Fund Source" })).toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /main account/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /sub account/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: /receipt/i })).not.toBeInTheDocument()
       expect(screen.getAllByText("2026").length).toBeGreaterThan(0)
-      expect(screen.getByText("Calamity reserve")).toBeInTheDocument()
+      expect(screen.queryByText("Calamity reserve")).not.toBeInTheDocument()
     })
   })
 

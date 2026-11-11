@@ -100,19 +100,18 @@ const SUB_ACCOUNT_OPTIONS: Record<string, readonly string[]> = {
   "Trust Fund": ["Trust Fund - Proper", "LDRRMF - SA"],
 }
 
-const DEFAULT_SUB_ACCOUNT_BY_MAIN_ACCOUNT: Record<string, string> = {
-  "General Fund": "GF - Proper",
-  "Trust Fund": "Trust Fund - Proper",
-}
-
 function normalizeMainAccountName(value: string) {
   return value === "Other" ? "Others" : value
 }
 
-function displaySubAccount(record: BudgetExpenseRecord) {
-  const value = record.sub_account?.trim()
-  if (value) return value
-  return DEFAULT_SUB_ACCOUNT_BY_MAIN_ACCOUNT[record.main_account] ?? "—"
+function releasedFundSourceLabel(project: ProjectRecord | undefined) {
+  const source = project?.source_of_fund
+  if (source === "20% LDF (Local Development Fund)") return "20% LDF"
+  if (source === "Others") {
+    const specified = project?.source_of_fund_other?.trim()
+    return specified ? `Others: ${specified}` : "Others"
+  }
+  return source || "—"
 }
 
 function optionNames(
@@ -405,23 +404,17 @@ export function BudgetModule() {
       header: "Year",
     },
     {
-      accessorKey: "main_account",
-      header: "Main Account",
-    },
-    {
-      accessorKey: "sub_account",
-      header: "Sub Account",
-      cell: ({ row }) => displaySubAccount(row.original),
+      id: "fund_source",
+      header: "Fund Source",
+      cell: ({ row }) =>
+        releasedFundSourceLabel(
+          projects.find((project) => project.id === row.original.project)
+        ),
     },
     {
       accessorKey: "date",
       header: "Date",
       cell: ({ row }) => formatDisplayDate(row.original.date),
-    },
-    {
-      accessorKey: "receipt_number",
-      header: "Receipt #",
-      cell: ({ row }) => row.original.receipt_number ?? "—",
     },
     {
       accessorKey: "description",
