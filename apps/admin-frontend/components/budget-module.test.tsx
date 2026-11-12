@@ -406,7 +406,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(breakdown).toHaveTextContent("Rem ₱6,000")
   })
 
-  it("should show the project source of fund on released amounts and omit account columns", async () => {
+  it("should show the project source of fund, else the legacy fund source, on released amounts and omit account columns", async () => {
     const user = userEvent.setup()
     store.projects = [
       {
@@ -419,6 +419,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         budget_year: 2026,
         bid_price: 200_000,
         source_of_fund: "General Fund",
+        fund_source: "Trust Fund",
       },
       {
         id: "p-ldf",
@@ -454,6 +455,7 @@ describe("BudgetModule (V9, V10, V24)", () => {
         bid_price: 200_000,
         source_of_fund: "Others",
         source_of_fund_other: "   ",
+        fund_source: "Trust Fund",
       },
       {
         id: "p-none",
@@ -465,6 +467,16 @@ describe("BudgetModule (V9, V10, V24)", () => {
         budget_year: 2026,
         bid_price: 200_000,
         fund_source: "Special Education Fund",
+      },
+      {
+        id: "p-unset",
+        collectionId: "p",
+        collectionName: "projects",
+        name: "Unset Clinic",
+        category: "Health",
+        status: "Ongoing",
+        budget_year: 2026,
+        bid_price: 200_000,
       },
     ]
     store.expenses = [
@@ -533,6 +545,19 @@ describe("BudgetModule (V9, V10, V24)", () => {
         date: "2026-06-17",
         description: "Legacy release",
       },
+      {
+        id: "e-unset",
+        collectionId: "e",
+        collectionName: "budget_expenses",
+        project: "p-unset",
+        amount: 60_000,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "Clinic supplies",
+        receipt_number: "OR-10",
+        date: "2026-06-17",
+        description: "Unset release",
+      },
     ]
 
     render(<BudgetModule />)
@@ -579,15 +604,20 @@ describe("BudgetModule (V9, V10, V24)", () => {
     expect(blank.getByText("Others", { exact: true })).toBeInTheDocument()
     expect(blank.queryByText(/^Others:/)).not.toBeInTheDocument()
     expect(blank.queryByText("Special Education Fund")).not.toBeInTheDocument()
+    expect(blank.queryByText("Trust Fund")).not.toBeInTheDocument()
     expect(blank.getByText("Blank release")).toBeInTheDocument()
 
     const legacy = rowFor("Legacy School")
-    expect(legacy.getByText("—")).toBeInTheDocument()
+    expect(legacy.getByText("Special Education Fund")).toBeInTheDocument()
     expect(legacy.queryByText("Special Health Fund")).not.toBeInTheDocument()
-    expect(legacy.queryByText("Special Education Fund")).not.toBeInTheDocument()
     expect(legacy.queryByText("Hospital Serv.")).not.toBeInTheDocument()
     expect(legacy.queryByText("OR-9")).not.toBeInTheDocument()
     expect(legacy.getByText("Legacy release")).toBeInTheDocument()
+
+    const unset = rowFor("Unset Clinic")
+    expect(unset.getByText("—")).toBeInTheDocument()
+    expect(unset.queryByText("General Fund")).not.toBeInTheDocument()
+    expect(unset.getByText("Unset release")).toBeInTheDocument()
   })
 
   it("keeps released amount records visible when auxiliary lookups are denied", async () => {

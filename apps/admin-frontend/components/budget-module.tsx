@@ -111,7 +111,7 @@ function releasedFundSourceLabel(project: ProjectRecord | undefined) {
     const specified = project?.source_of_fund_other?.trim()
     return specified ? `Others: ${specified}` : "Others"
   }
-  return source || "—"
+  return source || project?.fund_source || "—"
 }
 
 function optionNames(
