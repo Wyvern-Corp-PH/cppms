@@ -128,8 +128,7 @@ describe("PublicProjectDetail", () => {
     expect(screen.getByText("2026")).toBeInTheDocument()
     expect(screen.getByText("Fund Source")).toBeInTheDocument()
     expect(screen.getByText("Funding Year")).toBeInTheDocument()
-    expect(screen.getByText("Main Account")).toBeInTheDocument()
-    expect(screen.getByText("Sub Account")).toBeInTheDocument()
+    expect(screen.getByText("Source of Fund")).toBeInTheDocument()
     expect(screen.getByText("₱2,500,000")).toBeInTheDocument()
     expect(screen.getByText("42%")).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
@@ -144,29 +143,82 @@ describe("PublicProjectDetail", () => {
     expect(screen.queryByText(/unpublished/i)).not.toBeInTheDocument()
   })
 
-  it("should show fund source year, main, and sub separately from budget year", async () => {
-    store.project = {
-      ...publishedProject,
+  async function renderSourceOfFund(fields: Record<string, unknown>) {
+    store.project = { ...publishedProject, ...fields }
+    render(<PublicProjectDetail projectId="bridge-1" />)
+    await waitFor(() => {
+      expect(screen.getByText("Source of Fund")).toBeInTheDocument()
+    })
+    return screen.getByText("Source of Fund").closest("div")
+  }
+
+  it("should show funding year and source of fund without main or sub account when legacy fund data exists", async () => {
+    const field = await renderSourceOfFund({
       budget_year: 2026,
       funding_year: 2025,
-      fund_source: "General Fund",
+      source_of_fund: "General Fund",
+      fund_source: "Trust Fund",
       sub_account: "GF - Proper",
-    }
-
-    render(<PublicProjectDetail projectId="bridge-1" />)
-
-    await waitFor(() => {
-      expect(screen.getByText("Budget Year")).toBeInTheDocument()
     })
 
     expect(screen.getByText("Budget Year").closest("div")).toHaveTextContent("2026")
     expect(screen.getByText("Funding Year").closest("div")).toHaveTextContent("2025")
-    expect(screen.getByText("Main Account").closest("div")).toHaveTextContent(
-      "General Fund"
-    )
-    expect(screen.getByText("Sub Account").closest("div")).toHaveTextContent(
-      "GF - Proper"
-    )
+    expect(field).toHaveTextContent("General Fund")
+    expect(screen.queryByText("Trust Fund")).not.toBeInTheDocument()
+    expect(screen.queryByText("GF - Proper")).not.toBeInTheDocument()
+    expect(screen.queryByText("Main Account")).not.toBeInTheDocument()
+    expect(screen.queryByText("Sub Account")).not.toBeInTheDocument()
+  })
+
+  it("should show the full LDF label when source of fund is 20% LDF", async () => {
+    const field = await renderSourceOfFund({
+      source_of_fund: "20% LDF (Local Development Fund)",
+    })
+
+    expect(field).toHaveTextContent("20% LDF (Local Development Fund)")
+  })
+
+  it("should ignore stale other text when source of fund is not Others", async () => {
+    const field = await renderSourceOfFund({
+      source_of_fund: "General Fund",
+      source_of_fund_other: "Provincial Trust",
+    })
+
+    expect(field).toHaveTextContent("General Fund")
+    expect(screen.queryByText("Provincial Trust")).not.toBeInTheDocument()
+  })
+
+  it("should show trimmed other text when source of fund is Others with text", async () => {
+    const field = await renderSourceOfFund({
+      source_of_fund: "Others",
+      source_of_fund_other: "  Provincial Trust  ",
+    })
+
+    expect(field?.querySelector("dd")).toHaveTextContent(/^Provincial Trust$/)
+  })
+
+  it("should show Others when source of fund is Others with blank other text", async () => {
+    const field = await renderSourceOfFund({
+      source_of_fund: "Others",
+      source_of_fund_other: "   ",
+    })
+
+    expect(field?.querySelector("dd")).toHaveTextContent(/^Others$/)
+  })
+
+  it("should fall back to legacy fund source when source of fund is unset", async () => {
+    const field = await renderSourceOfFund({ fund_source: "Trust Fund" })
+
+    expect(field).toHaveTextContent("Trust Fund")
+  })
+
+  it("should show other text when legacy fund source is Others with text", async () => {
+    const field = await renderSourceOfFund({
+      fund_source: "Others",
+      source_of_fund_other: "Provincial Trust",
+    })
+
+    expect(field?.querySelector("dd")).toHaveTextContent(/^Provincial Trust$/)
   })
 
   it("should show dashes for missing start and end dates", async () => {
@@ -186,16 +238,11 @@ describe("PublicProjectDetail", () => {
     expect(screen.getByText("End Date").closest("div")).toHaveTextContent("—")
   })
 
-  it("should show dashes for empty fund source parts on legacy rows", async () => {
-    render(<PublicProjectDetail projectId="bridge-1" />)
-
-    await waitFor(() => {
-      expect(screen.getByText("Funding Year")).toBeInTheDocument()
-    })
+  it("should show dashes for funding year and source of fund when both fund sources are unset", async () => {
+    const field = await renderSourceOfFund({})
 
     expect(screen.getByText("Funding Year").closest("div")).toHaveTextContent("—")
-    expect(screen.getByText("Main Account").closest("div")).toHaveTextContent("—")
-    expect(screen.getByText("Sub Account").closest("div")).toHaveTextContent("—")
+    expect(field).toHaveTextContent("—")
   })
 
   it("should list MOA as a named download and never embed it as an image", async () => {

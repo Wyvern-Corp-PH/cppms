@@ -38,6 +38,17 @@ function fileNames(value: string[] | string | undefined): string[] {
   return value ? [value] : []
 }
 
+function sourceOfFundLabel(
+  sourceOfFund: string | null | undefined,
+  sourceOfFundOther?: string | null,
+  legacyFundSource?: string | null
+): string {
+  const other = sourceOfFundOther?.trim() ?? ""
+  const catalog = sourceOfFund?.trim() || legacyFundSource?.trim() || ""
+  if (catalog === "Others" && other) return other
+  return catalog || "—"
+}
+
 function compareByRecencyDesc(
   a: Pick<ProgressUpdateRecord, "created" | "updated_at" | "id">,
   b: Pick<ProgressUpdateRecord, "created" | "updated_at" | "id">
@@ -162,8 +173,14 @@ export function PublicProjectDetail({ projectId }: { projectId: string }) {
               project.funding_year != null ? String(project.funding_year) : "—"
             }
           />
-          <DetailField label="Main Account" value={project.fund_source || "—"} />
-          <DetailField label="Sub Account" value={project.sub_account || "—"} />
+          <DetailField
+            label="Source of Fund"
+            value={sourceOfFundLabel(
+              project.source_of_fund,
+              project.source_of_fund_other,
+              project.fund_source
+            )}
+          />
         </dl>
       </section>
       <div className="space-y-2">
