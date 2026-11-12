@@ -326,8 +326,7 @@ export type ReleasedAmountFieldsProps = {
   required?: boolean
   showReceiptNumber?: boolean
   showExpenseDate?: boolean
-  lockFundSource?: boolean
-  fundSourceValue?: string
+  showFundSource?: boolean
 }
 
 export function ReleasedAmountFields({
@@ -344,8 +343,7 @@ export function ReleasedAmountFields({
   required = false,
   showReceiptNumber = true,
   showExpenseDate = true,
-  lockFundSource = false,
-  fundSourceValue = "",
+  showFundSource = true,
 }: ReleasedAmountFieldsProps) {
   function patchValue(patch: Partial<ReleasedAmountFormValue>) {
     onChange({ ...value, ...patch })
@@ -408,36 +406,26 @@ export function ReleasedAmountFields({
           <FieldError>{fieldErrors.receipt_number}</FieldError>
         </Field>
       ) : null}
-      {lockFundSource ? (
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-fund-source`}>Fund Source</FieldLabel>
-          <Input
-            id={`${idPrefix}-fund-source`}
-            aria-label="Fund Source"
-            value={fundSourceValue.trim() ? fundSourceValue : "—"}
-            readOnly
-          />
-        </Field>
+      {showFundSource ? (
+        <FundSourceFields
+          value={{
+            year: value.releaseYear,
+            mainAccount: value.mainAccount,
+            subAccount: value.subAccount,
+          }}
+          onChange={(fundSource) =>
+            patchValue({
+              releaseYear: fundSource.year,
+              mainAccount: fundSource.mainAccount,
+              subAccount: fundSource.subAccount,
+            })
+          }
+          fieldErrors={fieldErrors}
+          idPrefix={idPrefix}
+          loadOptions={loadOptions}
+          required={required}
+        />
       ) : null}
-      <FundSourceFields
-        value={{
-          year: value.releaseYear,
-          mainAccount: value.mainAccount,
-          subAccount: value.subAccount,
-        }}
-        onChange={(fundSource) =>
-          patchValue({
-            releaseYear: fundSource.year,
-            mainAccount: fundSource.mainAccount,
-            subAccount: fundSource.subAccount,
-          })
-        }
-        fieldErrors={fieldErrors}
-        idPrefix={idPrefix}
-        loadOptions={loadOptions}
-        required={required}
-        showAccountFields={!lockFundSource}
-      />
       {showExpenseDate ? (
         <Field>
           <FieldLabel

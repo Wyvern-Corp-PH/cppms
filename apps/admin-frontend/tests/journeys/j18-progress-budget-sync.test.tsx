@@ -333,10 +333,6 @@ describe("J18 progress update syncs released amount to budget module", () => {
       )
       await user.type(screen.getByLabelText(/^amount \(php\)$/i), "2500")
       await user.type(screen.getByLabelText(/^description$/i), "J18 release")
-      await user.click(screen.getByLabelText(/^main account$/i))
-      await user.click(screen.getByRole("option", { name: "General Fund" }))
-      await user.click(screen.getByLabelText(/^sub account$/i))
-      await user.click(screen.getByRole("option", { name: "GF - Proper" }))
       await user.click(screen.getByRole("button", { name: /save update/i }))
 
       await waitFor(() => {
@@ -344,13 +340,13 @@ describe("J18 progress update syncs released amount to budget module", () => {
         expect(synced).toMatchObject({
           project: "p1",
           amount: "2500",
-          year: "2026",
+          year: String(new Date().getFullYear()),
           date: generatedExpenseDate,
           description: "J18 release",
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
+          main_account: "",
           progress_update: "pu-sync",
         })
+        expect(synced?.sub_account).toBeUndefined()
         expect(synced).not.toHaveProperty("receipt_number")
       })
       expect(
@@ -377,10 +373,10 @@ describe("J18 progress update syncs released amount to budget module", () => {
 
       if (seesOutOfScope) {
         expect(screen.getByText("Lasam School")).toBeInTheDocument()
-        expect(screen.getByText("OUT-1")).toBeInTheDocument()
+        expect(screen.getByText("Out of scope release")).toBeInTheDocument()
       } else {
         expect(screen.queryByText("Lasam School")).not.toBeInTheDocument()
-        expect(screen.queryByText("OUT-1")).not.toBeInTheDocument()
+        expect(screen.queryByText("Out of scope release")).not.toBeInTheDocument()
       }
     },
     20_000

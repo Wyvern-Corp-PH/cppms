@@ -119,6 +119,7 @@ describe("ReleasedAmountDialog (release cap)", () => {
       />
     )
 
+    expect(screen.getByLabelText(/^year$/i)).toBeInTheDocument()
     await user.clear(screen.getByLabelText(/^amount \(php\)$/i))
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "15000")
     await user.click(screen.getByLabelText(/main account/i))

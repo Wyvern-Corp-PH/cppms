@@ -110,6 +110,16 @@ function expectRequiredMark(
   expect(label).toHaveAttribute("data-required", "true")
 }
 
+function expectNoFundSourceControls(root: HTMLElement) {
+  const scope = within(root)
+  expect(scope.queryByText("Fund Source")).not.toBeInTheDocument()
+  expect(scope.queryByLabelText(/^fund source$/i)).not.toBeInTheDocument()
+  expect(scope.queryByLabelText(/^year$/i)).not.toBeInTheDocument()
+  expect(scope.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+  expect(scope.queryByLabelText(/^sub account$/i)).not.toBeInTheDocument()
+  expect(scope.queryByLabelText(/^other purpose$/i)).not.toBeInTheDocument()
+}
+
 async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
   await user.click(screen.getByRole("button", { name: /pick date range/i }))
   await user.type(screen.getByLabelText(/from date/i), from)
@@ -330,13 +340,6 @@ describe("ProgressModule (V81, V84)", () => {
   ) {
     await user.type(screen.getByLabelText(/^update notes$/i), "Progress notes")
     await user.type(screen.getByLabelText(/^amount \(php\)$/i), "1500")
-    const mainAccount = screen.queryByLabelText(/^main account$/i)
-    if (mainAccount) {
-      await user.click(mainAccount)
-      await user.click(screen.getByRole("option", { name: "General Fund" }))
-      await user.click(screen.getByLabelText(/^sub account$/i))
-      await user.click(screen.getByRole("option", { name: "GF - Proper" }))
-    }
     await user.type(screen.getByLabelText(/^description$/i), "Release for progress")
   }
 
@@ -3091,9 +3094,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1000)
     expect(within(editor).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(within(editor).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    expect(within(editor).getByLabelText(/^sub account$/i)).toHaveTextContent(
-      "GF - Proper"
-    )
+    expectNoFundSourceControls(editor)
     expect(within(editor).getByLabelText(/^description$/i)).toHaveValue(
       "Band A release"
     )
@@ -3177,6 +3178,8 @@ describe("ProgressModule (V81, V84)", () => {
       "be-a",
       expect.objectContaining({
         amount: 1100,
+        year: 2026,
+        main_account: "General Fund",
         sub_account: "GF - Proper",
       })
     )
@@ -3230,12 +3233,60 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(editor).getByTestId("progress-released-amount-fields")).toBeInTheDocument()
     expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toBeInTheDocument()
     expect(within(editor).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
-    expect(within(editor).getByText("Fund Source")).toBeInTheDocument()
+    expectNoFundSourceControls(editor)
     expect(within(editor).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
     expect(within(editor).getByLabelText(/^description$/i)).toBeInTheDocument()
     expect(
       screen.queryByRole("dialog", { name: /^update progress$/i })
     ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["Super Admin", useSuperAdminActor],
+    ["Province", () => {}],
+    ["Municipality", useMunicipalityActor],
+    ["Barangay", useBarangayActor],
+  ] as const)(
+    "should hide fund source controls in update and edit progress when %s records a released amount",
+    async (_role, useActor) => {
+      const user = userEvent.setup()
+      useActor()
+      twoIsolatedRanges()
+
+      render(<ProgressModule />)
+      await user.click(await screen.findByRole("button", { name: /update progress/i }))
+      const updateDialog = await screen.findByRole("dialog")
+      expect(within(updateDialog).getByLabelText(/^amount \(php\)$/i)).toBeInTheDocument()
+      expect(within(updateDialog).getByLabelText(/^description$/i)).toBeInTheDocument()
+      expectNoFundSourceControls(updateDialog)
+      await user.click(within(updateDialog).getByRole("button", { name: /cancel/i }))
+
+      const editor = await openFilteredRangeEdit(user, "band A notes")
+      expect(within(editor).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1000)
+      expect(within(editor).getByLabelText(/^description$/i)).toHaveValue(
+        "Band A release"
+      )
+      expectNoFundSourceControls(editor)
+    }
+  )
+
+  it("should show the sub account error when an edited bound expense has no sub account", async () => {
+    const user = userEvent.setup()
+    useSuperAdminActor()
+    twoIsolatedRanges()
+    store.expenses = store.expenses.map((row) =>
+      row.id === "be-a" ? { ...row, sub_account: "" } : row
+    )
+
+    render(<ProgressModule />)
+    const editor = await openFilteredRangeEdit(user, "band A notes")
+    await user.click(within(editor).getByRole("button", { name: /save update/i }))
+
+    expect(
+      await within(editor).findByText("Sub account is required.")
+    ).toBeInTheDocument()
+    expect(progressUpdateMock).not.toHaveBeenCalled()
+    expect(expenseUpdateMock).not.toHaveBeenCalled()
   })
 
   const COMPLETION_DOC_FIELDS = [
@@ -4035,11 +4086,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(sourceOfFund).toHaveValue("20% LDF (Local Development Fund)")
     expect(sourceOfFund).toHaveAttribute("readonly")
     expect(sourceOfFund).toBeDisabled()
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
-      "20% LDF (Local Development Fund)"
-    )
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
-    expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+    expectNoFundSourceControls(screen.getByRole("dialog"))
     expect(screen.queryByTestId("update-released-amount")).not.toBeInTheDocument()
 
     await user.upload(
@@ -4057,12 +4104,14 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          year: 2026,
+          year: new Date().getFullYear(),
+          main_account: "",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
           description: "Bridge materials",
           progress_update: "pu-new",
         })
       )
+      expect(expenseCreateMock.mock.calls[0]?.[0].sub_account).toBeUndefined()
       expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
         "receipt_number"
       )
@@ -4245,14 +4294,14 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          year: 2026,
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
+          year: new Date().getFullYear(),
+          main_account: "",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
           description: "Release for progress",
           progress_update: "pu-new",
         })
       )
+      expect(expenseCreateMock.mock.calls[0]?.[0].sub_account).toBeUndefined()
       expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
         "receipt_number"
       )
@@ -4387,14 +4436,14 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 1500,
-          year: 2026,
-          main_account: "General Fund",
-          sub_account: "GF - Proper",
+          year: new Date().getFullYear(),
+          main_account: "",
           date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
           description: "Release for progress",
           progress_update: "pu-new",
         })
       )
+      expect(expenseCreateMock.mock.calls[0]?.[0].sub_account).toBeUndefined()
       expect(expenseCreateMock.mock.calls[0]?.[0]).not.toHaveProperty(
         "receipt_number"
       )
@@ -4448,11 +4497,8 @@ describe("ProgressModule (V81, V84)", () => {
     await expect(user.clear(sourceOfFund)).rejects.toThrow()
     await user.type(sourceOfFund, "Other fund")
     expect(sourceOfFund).toHaveValue("General Fund")
-    const releasedFundSource = screen.getByLabelText(/^fund source$/i)
-    expect(releasedFundSource).toHaveValue("General Fund")
-    expect(releasedFundSource).toHaveAttribute("readonly")
-    expect(releasedFundSource).not.toBeDisabled()
-    expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText(/source of fund/i)).toHaveLength(1)
+    expectNoFundSourceControls(screen.getByRole("dialog"))
     }
   )
 
@@ -4491,11 +4537,7 @@ describe("ProgressModule (V81, V84)", () => {
       expect(sourceOfFund).toHaveValue("Congressional fund")
       expect(sourceOfFund).toHaveAttribute("readonly")
       expect(sourceOfFund).toBeDisabled()
-      expect(screen.getByLabelText(/^fund source$/i)).toHaveValue(
-        "Congressional fund"
-      )
-      expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
-      expect(screen.queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+      expectNoFundSourceControls(screen.getByRole("dialog"))
     }
   )
 
@@ -4529,10 +4571,10 @@ describe("ProgressModule (V81, V84)", () => {
     expect(sourceOfFund).toHaveValue("Others")
     expect(sourceOfFund).toHaveAttribute("readonly")
     expect(sourceOfFund).toBeDisabled()
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("Others")
+    expectNoFundSourceControls(screen.getByRole("dialog"))
   })
 
-  it("shows an em dash for both fund fields when Source of Fund is empty", async () => {
+  it("shows an em dash for Source of Fund when the project value is empty", async () => {
     const user = userEvent.setup()
     useMunicipalityActor()
     store.projects = [
@@ -4563,8 +4605,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(sourceOfFund).toBeDisabled()
     sourceOfFund.focus()
     expect(sourceOfFund).not.toHaveFocus()
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("—")
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveAttribute("readonly")
+    expectNoFundSourceControls(screen.getByRole("dialog"))
   })
 
   it("shows the selected fund source from a PocketBase-shaped project row", async () => {
@@ -4619,7 +4660,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(sourceOfFund).toHaveValue("General Fund")
     expect(sourceOfFund).toHaveAttribute("readonly")
     expect(sourceOfFund).toBeDisabled()
-    expect(screen.getByLabelText(/^fund source$/i)).toHaveValue("General Fund")
+    expectNoFundSourceControls(screen.getByRole("dialog"))
   })
 
   it("should show FieldError when Barangay submits Released Amount with whitespace-only description", async () => {
@@ -4854,10 +4895,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(within(dialog).getByLabelText(/^amount \(php\)$/i)).toHaveValue(1500)
     expect(within(dialog).queryByLabelText(/^receipt number$/i)).not.toBeInTheDocument()
     expect(within(dialog).queryByLabelText(/^expense date$/i)).not.toBeInTheDocument()
-    expect(within(dialog).getByLabelText(/^fund source$/i)).toHaveAttribute(
-      "readonly"
-    )
-    expect(within(dialog).queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+    expectNoFundSourceControls(dialog)
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
@@ -5225,10 +5263,7 @@ describe("ProgressModule (V81, V84)", () => {
     )
 
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByLabelText(/^fund source$/i)).toHaveAttribute(
-      "readonly"
-    )
-    expect(within(dialog).queryByLabelText(/^main account$/i)).not.toBeInTheDocument()
+    expectNoFundSourceControls(dialog)
     await user.clear(within(dialog).getByLabelText(/update notes/i))
     await user.type(
       within(dialog).getByLabelText(/update notes/i),
@@ -5386,6 +5421,9 @@ describe("ProgressModule (V81, V84)", () => {
         expect.objectContaining({
           project: "1",
           amount: 2000,
+          year: 2026,
+          main_account: "General Fund",
+          sub_account: "GF - Proper",
         })
       )
     })

@@ -307,19 +307,27 @@ function emptyProgressReleasedAmountFormValue() {
 }
 
 function releasedAmountHasInput(value: ReleasedAmountFormValue) {
-  return (
-    value.amount.trim() !== "" ||
-    value.mainAccount.trim() !== "" ||
-    value.subAccount.trim() !== "" ||
-    value.expenseDescription.trim() !== ""
-  )
+  return value.amount.trim() !== "" || value.expenseDescription.trim() !== ""
 }
+
+const HIDDEN_RELEASED_AMOUNT_ERROR_KEYS = new Set([
+  "releasedAmount.year",
+  "releasedAmount.main_account",
+  "releasedAmount.sub_account",
+  "latestReleasedAmount.year",
+  "latestReleasedAmount.main_account",
+  "latestReleasedAmount.sub_account",
+])
 
 function splitProgressFieldErrors(errors: Record<string, string>) {
   const releasedAmountErrors: Record<string, string> = {}
   const progressErrors: Record<string, string> = {}
+  let hiddenReleasedAmountError: string | undefined
 
   for (const [key, message] of Object.entries(errors)) {
+    if (HIDDEN_RELEASED_AMOUNT_ERROR_KEYS.has(key)) {
+      hiddenReleasedAmountError ??= message
+    }
     if (key.startsWith("releasedAmount.")) {
       releasedAmountErrors[key.replace("releasedAmount.", "")] = message
       continue
@@ -327,7 +335,7 @@ function splitProgressFieldErrors(errors: Record<string, string>) {
     progressErrors[key] = message
   }
 
-  return { progressErrors, releasedAmountErrors }
+  return { progressErrors, releasedAmountErrors, hiddenReleasedAmountError }
 }
 
 function toReleasedAmountInput(value: ReleasedAmountFormValue) {
@@ -1299,16 +1307,20 @@ export function ProgressModule() {
 
     if (!parsed.success) {
       const nextFieldErrors = fieldErrorsFromZod(parsed.error)
-      const { progressErrors, releasedAmountErrors: nextReleasedAmountErrors } =
-        splitProgressFieldErrors(nextFieldErrors)
+      const {
+        progressErrors,
+        releasedAmountErrors: nextReleasedAmountErrors,
+        hiddenReleasedAmountError,
+      } = splitProgressFieldErrors(nextFieldErrors)
       const nextFormError = firstZodError(parsed.error)
 
       setFieldErrors(progressErrors)
       setReleasedAmountErrors(nextReleasedAmountErrors)
       setFormError(
-        Object.values(nextFieldErrors).includes(nextFormError)
-          ? null
-          : nextFormError
+        hiddenReleasedAmountError ??
+          (Object.values(nextFieldErrors).includes(nextFormError)
+            ? null
+            : nextFormError)
       )
       return
     }
@@ -1927,12 +1939,10 @@ export function ProgressModule() {
                     fieldErrors={releasedAmountErrors}
                     idPrefix="progress-released"
                     sectionTestId="progress-released-amount-fields"
-                    loadOptions={dialogOpen}
                     required={includeReleasedAmount}
                     showReceiptNumber={false}
                     showExpenseDate={false}
-                    lockFundSource={requiresReleasedAmount}
-                    fundSourceValue={sourceOfFundLabel}
+                    showFundSource={false}
                   />
                 </FieldSet>
               </FieldSet>
