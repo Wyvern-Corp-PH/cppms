@@ -321,7 +321,6 @@ export type ReleasedAmountFieldsProps = {
   projectId?: string
   lockProject?: boolean
   onProjectChange?: (projectId: string) => void
-  loadOptions?: boolean
   sectionTestId?: string
   required?: boolean
   showReceiptNumber?: boolean
@@ -338,7 +337,6 @@ export function ReleasedAmountFields({
   projectId = "",
   lockProject = false,
   onProjectChange,
-  loadOptions = true,
   sectionTestId = "released-amount-fields",
   required = false,
   showReceiptNumber = true,
@@ -422,7 +420,6 @@ export function ReleasedAmountFields({
           }
           fieldErrors={fieldErrors}
           idPrefix={idPrefix}
-          loadOptions={loadOptions}
           required={required}
         />
       ) : null}

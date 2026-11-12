@@ -429,7 +429,7 @@ V80: Allocate modal: project, amount, year (default current), description, 3 doc
 V81: Progress summary = 4 cards: active projects (status ∈ Planning|Procurement|Ongoing|For Revision), on track (V8), needs attention (V7), updates today (progress_updates dated today).
 V82: Progress list row: status badge, location, lgu_level, progress %, dates, contractor, last_updated; inline preview last 3 updates + "View all N updates" link.
 V83: Progress detail panel: full project context + chronological update history; admin Update Progress CTA at bottom.
-V84: Progress update modal: slider 0–100% w/ markers 0/25/50/75/100; site_photo required (V6); notes textarea; Barangay/Municipality actors also see embedded Released Amount section (V80, project locked, required every save) per V216.
+V84: Progress update modal: slider 0–100% w/ markers 0/25/50/75/100; site_photo required (V6); notes textarea; Barangay/Municipality actors also see embedded Released Amount section (Amount (PHP) + Description per V216, project locked, required every save) per V216.
 V85: Approvals summary = 4 cards: pending approval count, for revision count, approved count, rejected count.
 V86: Approvals tabs: Completion Approval | For Revision | Approved | Rejected.
 V87: Approval queue card: budget utilization bar (spent + saved), progress update count, site photo carousel (V96) when photos on file.
