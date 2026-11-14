@@ -269,6 +269,51 @@ describe("progress-mutate-completeness hook entrypoint", () => {
     expect(next).not.toHaveBeenCalled()
   })
 
+  it("should treat a later updated_at as newer than a later id", () => {
+    const next = vi.fn()
+    expect(() =>
+      completenessHook.applyProgressMutateCompleteness(
+        {
+          next,
+          app: {
+            findRecordById() {
+              return progressRow({ id: "p1", progress_pct: 10 })
+            },
+            findRecordsByFilter() {
+              return [
+                {
+                  id: "z-later-id",
+                  get(field: string) {
+                    if (field === "updated_at") return "2026-01-01 00:00:00.000Z"
+                    if (field === "to_pct") return 10
+                    return undefined
+                  },
+                },
+                {
+                  id: "a-earlier-id",
+                  get(field: string) {
+                    if (field === "updated_at") return "2026-08-01 00:00:00.000Z"
+                    if (field === "to_pct") return 70
+                    return undefined
+                  },
+                },
+              ]
+            },
+          },
+          record: recordGet({
+            project: "p1",
+            notes: "Notes",
+            site_photo: ["site.jpg"],
+            from_pct: 0,
+            to_pct: 20,
+          }),
+        },
+        true
+      )
+    ).toThrow("Progress cannot be lower than the current value (70%).")
+    expect(next).not.toHaveBeenCalled()
+  })
+
   it("should reject create when to_pct is below the newest saved progress", () => {
     const next = vi.fn()
     const findRecordsByFilter = vi.fn(() => [

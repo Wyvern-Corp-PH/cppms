@@ -1449,7 +1449,10 @@ export function ProgressModule() {
     dialogMode === "history-edit" || updateSliderDisabled ? 0 : dialogProgress
   const progressSliderMarkers =
     dialogMode === "update" && dialogProgress >= 1 && dialogProgress < 100
-      ? SLIDER_MARKERS.filter((marker) => marker >= dialogProgress)
+      ? [
+          dialogProgress,
+          ...SLIDER_MARKERS.filter((marker) => marker > dialogProgress),
+        ]
       : SLIDER_MARKERS
   const selectedProgress = selected
     ? effectiveProgressPct(selected, selectedUpdates)

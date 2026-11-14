@@ -1973,6 +1973,7 @@ describe("ProgressModule (V81, V84)", () => {
     expect(slider).toHaveAttribute("aria-valuemin", "55")
     expect(slider).toHaveAttribute("aria-valuemax", "100")
     expect(slider).toHaveAttribute("aria-valuenow", "55")
+    expect(within(dialog).getAllByText(/^\d+%$/)[0]).toHaveTextContent("55%")
     expect(within(dialog).queryByText("0%")).not.toBeInTheDocument()
 
     await user.upload(

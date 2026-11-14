@@ -9,6 +9,7 @@ const note = (
     action?: string
     reason?: string
     created?: string
+    created_at?: string
   } = {}
 ) => ({
   id,
@@ -16,6 +17,7 @@ const note = (
   action: overrides.action ?? "request_revision",
   reason: overrides.reason ?? "Fix the photos",
   created: overrides.created,
+  created_at: overrides.created_at,
 })
 
 describe("latestRevisionAction", () => {
@@ -77,5 +79,24 @@ describe("latestRevisionAction", () => {
     )
 
     expect(picked?.reason).toBe("New created")
+  })
+
+  it("should return the later created_at even when its id sorts first", () => {
+    const picked = latestRevisionAction(
+      [
+        note("z-later-id", {
+          created_at: "2026-01-01T00:00:00.000Z",
+          reason: "Older stamp",
+        }),
+        note("a-earlier-id", {
+          created_at: "2026-06-01T00:00:00.000Z",
+          reason: "Newer stamp",
+        }),
+      ],
+      "p1"
+    )
+
+    expect(picked?.id).toBe("a-earlier-id")
+    expect(picked?.reason).toBe("Newer stamp")
   })
 })

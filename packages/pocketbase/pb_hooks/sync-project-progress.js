@@ -61,7 +61,13 @@ function sanitizeId(value) {
 }
 
 function recordRecencyKey(row) {
-  return String(row.get("created") || row.get("updated") || row.id || "")
+  return String(
+    row.get("created") ||
+      row.get("updated_at") ||
+      row.get("updated") ||
+      row.id ||
+      ""
+  )
 }
 
 function pickLatestProgressUpdate(rows) {
