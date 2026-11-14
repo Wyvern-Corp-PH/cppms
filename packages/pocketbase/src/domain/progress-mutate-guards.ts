@@ -40,11 +40,39 @@ export function effectiveProgressSitePhotos(
   return normalizeFileNames(submitted)
 }
 
+const PROGRESS_PCT_REQUIRED = "Progress percentage is required."
+
+function finiteProgressPct(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null
+  const pct = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(pct) ? pct : null
+}
+
+/** Reject toPct below the saved current percent. Equal to current is allowed. */
+export function validateProgressNotBelowCurrent(input: {
+  toPct: unknown
+  currentPct: number
+}): ProgressMutateCompletenessResult {
+  const toPct = finiteProgressPct(input.toPct)
+  if (toPct === null) {
+    return { ok: false, field: "to_pct", message: PROGRESS_PCT_REQUIRED }
+  }
+  if (toPct < input.currentPct) {
+    return {
+      ok: false,
+      field: "to_pct",
+      message: `Progress cannot be lower than the current value (${input.currentPct}%).`,
+    }
+  }
+  return { ok: true }
+}
+
 /** Completeness for progress_updates create/update (UI + direct API). */
 export function validateProgressMutateCompleteness(input: {
   isCreate: boolean
   submitted: Record<string, unknown>
   original?: Record<string, unknown> | null
+  currentPct?: number
 }): ProgressMutateCompletenessResult {
   const submitted = input.submitted
   const original = input.original
@@ -77,6 +105,16 @@ export function validateProgressMutateCompleteness(input: {
         field: "from_pct",
         message: "Progress from percentage is required.",
       }
+    }
+    const currentPct = input.currentPct
+    if (typeof currentPct === "number" && Number.isFinite(currentPct)) {
+      return validateProgressNotBelowCurrent({
+        toPct: submitted.to_pct,
+        currentPct,
+      })
+    }
+    if (finiteProgressPct(submitted.to_pct) === null) {
+      return { ok: false, field: "to_pct", message: PROGRESS_PCT_REQUIRED }
     }
   }
 

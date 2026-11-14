@@ -98,6 +98,8 @@ vi.mock("@/lib/pocketbase", () => ({
   }),
 }))
 
+import { validateProgressNotBelowCurrent } from "@workspace/pocketbase/domain/progress-mutate-guards"
+
 import { ProgressModule } from "./progress-module"
 
 function expectRequiredMark(
@@ -125,6 +127,24 @@ async function chooseDateRange(user: ReturnType<typeof userEvent.setup>, from: s
   await user.type(screen.getByLabelText(/from date/i), from)
   await user.type(screen.getByLabelText(/to date/i), to)
 }
+
+describe("progress floor", () => {
+  it("should reject a percent below the current progress", () => {
+    expect(
+      validateProgressNotBelowCurrent({ toPct: 39, currentPct: 40 })
+    ).toEqual({
+      ok: false,
+      field: "to_pct",
+      message: "Progress cannot be lower than the current value (40%).",
+    })
+  })
+
+  it("should allow a percent equal to the current progress", () => {
+    expect(
+      validateProgressNotBelowCurrent({ toPct: 40, currentPct: 40 })
+    ).toEqual({ ok: true })
+  })
+})
 
 describe("ProgressModule (V81, V84)", () => {
   beforeAll(() => {
@@ -1877,6 +1897,209 @@ describe("ProgressModule (V81, V84)", () => {
       })
     ).toBeInTheDocument()
     expect(screen.queryByText("Try")).not.toBeInTheDocument()
+  })
+
+  it("should floor the update slider at the newest progress and save that same percent", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Bridge",
+        category: "Infrastructure",
+        status: "Ongoing",
+        budget_year: 2026,
+        progress_pct: 10,
+        ...barangayScope,
+      },
+    ]
+    store.updates = [
+      {
+        id: "u-older",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-01-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 20,
+        notes: "Older",
+        site_photo: ["old.jpg"],
+      },
+      {
+        id: "u-55",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-08-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 20,
+        to_pct: 55,
+        notes: "Current band",
+        site_photo: ["site.jpg"],
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
+    const slider = within(dialog).getByRole("slider")
+    expect(within(dialog).getByText(/current 55%/i)).toBeInTheDocument()
+    expect(slider).toBeEnabled()
+    expect(slider).toHaveAttribute("aria-valuemin", "55")
+    expect(slider).toHaveAttribute("aria-valuemax", "100")
+    expect(slider).toHaveAttribute("aria-valuenow", "55")
+    expect(within(dialog).queryByText("0%")).not.toBeInTheDocument()
+
+    await user.upload(
+      screen.getByTestId("document-upload-input-site-photo"),
+      makeFile("site.jpg", "image/jpeg")
+    )
+    await fillRequiredReleasedAmount(user)
+    await user.click(within(dialog).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1)
+    })
+    const payload = createMock.mock.calls[0]?.[0] as FormData
+    expect(payload.get("to_pct")).toBe("55")
+  })
+
+  it("should floor a For Revision update slider at the latest progress row", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Bridge",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 20,
+        ...barangayScope,
+      },
+    ]
+    store.updates = [
+      {
+        id: "pu-older",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-01-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 20,
+        notes: "Older",
+        site_photo: ["old.jpg"],
+      },
+      {
+        id: "pu-latest",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-07-20T12:00:00.000Z",
+        project: "1",
+        from_pct: 20,
+        to_pct: 62,
+        notes: "Latest revision",
+        site_photo: ["site-on-record.jpg"],
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
+    const slider = within(dialog).getByRole("slider")
+    expect(slider).toBeEnabled()
+    expect(slider).toHaveAttribute("aria-valuemin", "62")
+    expect(slider).toHaveAttribute("aria-valuemax", "100")
+    expect(slider).toHaveAttribute("aria-valuenow", "62")
+    expect(within(dialog).queryByText("0%")).not.toBeInTheDocument()
+  })
+
+  it("should save 100 percent while the update slider is disabled", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [
+      {
+        id: "1",
+        collectionId: "p",
+        collectionName: "projects",
+        created: "",
+        updated: "",
+        name: "Revision Bridge",
+        category: "Infrastructure",
+        status: "For Revision",
+        budget_year: 2026,
+        progress_pct: 100,
+        ...barangayScope,
+      },
+    ]
+    store.updates = [
+      {
+        id: "pu-latest",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-07-20T12:00:00.000Z",
+        project: "1",
+        from_pct: 90,
+        to_pct: 100,
+        notes: "Ready to resubmit",
+        site_photo: ["site-on-record.jpg"],
+      },
+    ]
+    store.expenses = [
+      {
+        id: "be-latest",
+        collectionId: "budget_expenses",
+        collectionName: "budget_expenses",
+        created: "2026-07-20T12:00:00.000Z",
+        updated: "",
+        project: "1",
+        progress_update: "pu-latest",
+        amount: 1500,
+        year: 2026,
+        main_account: "General Fund",
+        sub_account: "GF - Proper",
+        date: "2026-07-20",
+        receipt_number: "R-100",
+        description: "Prior release",
+      },
+    ]
+
+    render(<ProgressModule />)
+    await user.click(
+      within(await screen.findByTestId("progress-row-1")).getByRole("button", {
+        name: /update progress/i,
+      })
+    )
+    const dialog = await screen.findByRole("dialog", { name: /update progress/i })
+    const slider = within(dialog).getByRole("slider")
+    expect(slider).toHaveAttribute("data-disabled")
+    expect(slider).toHaveAttribute("aria-valuenow", "100")
+    expect(slider).not.toHaveAttribute("aria-valuemin", "100")
+    await user.click(within(dialog).getByRole("button", { name: /save update/i }))
+
+    await waitFor(() => {
+      expect(progressUpdateMock).toHaveBeenCalledTimes(1)
+    })
+    expect(progressUpdateMock).toHaveBeenCalledWith(
+      "pu-latest",
+      expect.objectContaining({ to_pct: 100 })
+    )
+    expect(createMock).not.toHaveBeenCalled()
   })
 
   it("opens Update Progress modal for For Revision at 100%", async () => {

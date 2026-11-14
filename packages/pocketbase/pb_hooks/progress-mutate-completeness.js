@@ -44,6 +44,65 @@ function trimText(value) {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function finiteProgressPct(value) {
+  if (value === undefined || value === null || value === "") return null
+  const pct = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(pct) ? pct : null
+}
+
+// tradeoff: JSVM cannot import TS — mirror validateProgressNotBelowCurrent.
+function validateProgressNotBelowCurrent(input) {
+  const toPct = finiteProgressPct(input.toPct)
+  if (toPct === null) {
+    return {
+      ok: false,
+      field: "to_pct",
+      message: "Progress percentage is required.",
+    }
+  }
+  if (toPct < input.currentPct) {
+    return {
+      ok: false,
+      field: "to_pct",
+      message:
+        "Progress cannot be lower than the current value (" +
+        input.currentPct +
+        "%).",
+    }
+  }
+  return { ok: true }
+}
+
+function serverProgressCurrent(app, projectId) {
+  const id = String(projectId ?? "").trim()
+  if (!id || !app || typeof app.findRecordById !== "function") {
+    return { ok: false, message: "Project could not be read." }
+  }
+  let project
+  try {
+    project = app.findRecordById("projects", id)
+  } catch (error) {
+    return { ok: false, message: "Project could not be read." }
+  }
+  if (!project || typeof project.get !== "function") {
+    return { ok: false, message: "Project could not be read." }
+  }
+  // tradeoff: two simultaneous creates can both pass this read-then-write floor; upgrade = unique constraint or transactional check.
+  // tradeoff: ceiling is 500 unsorted rows; upgrade is to page the filter. Do not fail the create when that list is truncated.
+  let latest = null
+  try {
+    const sync = require(`${globalThis.__hooks}/sync-project-progress.js`)
+    const rows = sync.progressRowsForProject(app, id) || []
+    latest = sync.pickLatestProgressUpdate(rows)
+  } catch (error) {
+    return { ok: false, message: "Project could not be read." }
+  }
+  const latestTo = latest ? finiteProgressPct(latest.get("to_pct")) : null
+  if (latestTo !== null) return { ok: true, currentPct: latestTo }
+  const stored = finiteProgressPct(project.get("progress_pct"))
+  return { ok: true, currentPct: stored === null ? 0 : stored }
+}
+
 function unwrapDateValue(value) {
   if (value && typeof value.string === "function") {
     return String(value.string()).trim()
@@ -82,6 +141,20 @@ function validateProgressMutateCompleteness(input) {
         ok: false,
         field: "from_pct",
         message: "Progress from percentage is required.",
+      }
+    }
+    const currentPct = input.currentPct
+    if (typeof currentPct === "number" && Number.isFinite(currentPct)) {
+      return validateProgressNotBelowCurrent({
+        toPct: submitted.to_pct,
+        currentPct,
+      })
+    }
+    if (finiteProgressPct(submitted.to_pct) === null) {
+      return {
+        ok: false,
+        field: "to_pct",
+        message: "Progress percentage is required.",
       }
     }
   }
@@ -159,15 +232,32 @@ function originalRecord(record) {
 }
 
 function applyProgressMutateCompleteness(event, isCreate) {
-  const result = validateProgressMutateCompleteness({
+  const submitted = recordToObject(event.record, PROGRESS_FIELDS)
+  const original = isCreate
+    ? null
+    : recordToObject(originalRecord(event.record), PROGRESS_FIELDS)
+  const shape = validateProgressMutateCompleteness({
     isCreate,
-    submitted: recordToObject(event.record, PROGRESS_FIELDS),
-    original: isCreate
-      ? null
-      : recordToObject(originalRecord(event.record), PROGRESS_FIELDS),
+    submitted,
+    original,
   })
-  if (!result.ok) {
-    throw new BadRequestError(result.message)
+  if (!shape.ok) {
+    throw new BadRequestError(shape.message)
+  }
+  if (isCreate) {
+    const loaded = serverProgressCurrent(event.app, submitted.project)
+    if (!loaded.ok) {
+      throw new BadRequestError(loaded.message)
+    }
+    const floor = validateProgressMutateCompleteness({
+      isCreate,
+      submitted,
+      original,
+      currentPct: loaded.currentPct,
+    })
+    if (!floor.ok) {
+      throw new BadRequestError(floor.message)
+    }
   }
   if (typeof event.next === "function") {
     event.next()

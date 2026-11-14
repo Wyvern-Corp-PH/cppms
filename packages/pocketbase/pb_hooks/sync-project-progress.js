@@ -275,6 +275,7 @@ module.exports = {
   projectProgressPatchFromHistoryHighWater,
   latestProgressUpdate,
   pickLatestProgressUpdate,
+  progressRowsForProject,
   syncProjectFromProgressUpdate,
   syncProjectFromProgressHistoryEdit,
   handleProgressUpdateAfterUpdate,

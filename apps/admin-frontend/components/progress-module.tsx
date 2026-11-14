@@ -31,6 +31,7 @@ import {
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "@workspace/pocketbase/domain/progress-summary"
+import { validateProgressNotBelowCurrent } from "@workspace/pocketbase/domain/progress-mutate-guards"
 import { persistErrorMessage } from "@workspace/pocketbase/domain/upload-size"
 import {
   COMPLETION_DOCUMENTS,
@@ -1305,6 +1306,22 @@ export function ProgressModule() {
       skipReleasedAmount,
     })
 
+    if (!isHistoryEdit) {
+      const currentPct = effectiveProgressPct(
+        project,
+        updates.filter((row) => row.project === project.id)
+      )
+      const floor = validateProgressNotBelowCurrent({
+        toPct,
+        currentPct,
+      })
+      if (!floor.ok) {
+        setFieldErrors({ toPct: floor.message })
+        setFormError(floor.message)
+        return
+      }
+    }
+
     if (!parsed.success) {
       const nextFieldErrors = fieldErrorsFromZod(parsed.error)
       const {
@@ -1399,6 +1416,14 @@ export function ProgressModule() {
         updates.filter((update) => update.project === dialogProject.id)
       )
     : 0
+  const updateSliderDisabled =
+    dialogMode === "update" && dialogProgress >= 100
+  const updateSliderMin =
+    dialogMode === "history-edit" || updateSliderDisabled ? 0 : dialogProgress
+  const progressSliderMarkers =
+    dialogMode === "update" && dialogProgress >= 1 && dialogProgress < 100
+      ? SLIDER_MARKERS.filter((marker) => marker >= dialogProgress)
+      : SLIDER_MARKERS
   const selectedProgress = selected
     ? effectiveProgressPct(selected, selectedUpdates)
     : 0
@@ -1825,9 +1850,13 @@ export function ProgressModule() {
                   <Slider
                     id="saved-progress-range"
                     value={[toPct]}
-                    onValueChange={(value) => setToPct(value[0] ?? 0)}
+                    onValueChange={(value) =>
+                      setToPct(value[0] ?? updateSliderMin)
+                    }
+                    min={updateSliderMin}
                     max={100}
                     step={1}
+                    disabled={updateSliderDisabled}
                     aria-label={
                       dialogMode === "history-edit"
                         ? "Saved progress range"
@@ -1836,7 +1865,7 @@ export function ProgressModule() {
                     aria-invalid={Boolean(fieldErrors.toPct)}
                   />
                   <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                    {SLIDER_MARKERS.map((marker) => (
+                    {progressSliderMarkers.map((marker) => (
                       <span key={marker}>{marker}%</span>
                     ))}
                   </div>

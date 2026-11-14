@@ -5,6 +5,7 @@ import {
   normalizeProgressFileNames,
   validateProgressLinkedExpenseCompleteness,
   validateProgressMutateCompleteness,
+  validateProgressNotBelowCurrent,
 } from "./progress-mutate-guards"
 
 const progressComplete = {
@@ -162,6 +163,68 @@ describe("validateProgressMutateCompleteness", () => {
     expect(result).toEqual({ ok: true })
   })
 
+  it("should reject create when to_pct is below the current progress", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: true,
+      currentPct: 40,
+      submitted: { ...progressComplete, from_pct: 0, to_pct: 39 },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "to_pct",
+      message: "Progress cannot be lower than the current value (40%).",
+    })
+  })
+
+  it("should accept create when to_pct equals the current progress", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: true,
+      currentPct: 40,
+      submitted: { ...progressComplete, from_pct: 10, to_pct: 40 },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it("should reject create when to_pct is absent", () => {
+    const { to_pct: _omit, ...withoutToPct } = progressComplete
+    const result = validateProgressMutateCompleteness({
+      isCreate: true,
+      currentPct: 40,
+      submitted: withoutToPct,
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "to_pct",
+      message: "Progress percentage is required.",
+    })
+  })
+
+  it("should reject create when to_pct is not numeric", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: true,
+      currentPct: 40,
+      submitted: { ...progressComplete, to_pct: "soon" },
+    })
+    expect(result).toEqual({
+      ok: false,
+      field: "to_pct",
+      message: "Progress percentage is required.",
+    })
+  })
+
+  it("should accept an update that lowers to_pct below the current progress", () => {
+    const result = validateProgressMutateCompleteness({
+      isCreate: false,
+      currentPct: 90,
+      submitted: {
+        notes: "Revised notes",
+        site_photo: ["site-on-record.jpg"],
+        to_pct: 80,
+      },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
   it("should reject update when site photo is explicitly cleared despite original", () => {
     const result = validateProgressMutateCompleteness({
       isCreate: false,
@@ -177,6 +240,24 @@ describe("validateProgressMutateCompleteness", () => {
       field: "site_photo",
       message: "Site photo is required.",
     })
+  })
+})
+
+describe("validateProgressNotBelowCurrent", () => {
+  it("should reject a percent below the given current progress", () => {
+    expect(
+      validateProgressNotBelowCurrent({ toPct: 39, currentPct: 40 })
+    ).toEqual({
+      ok: false,
+      field: "to_pct",
+      message: "Progress cannot be lower than the current value (40%).",
+    })
+  })
+
+  it("should allow a percent equal to the given current progress", () => {
+    expect(
+      validateProgressNotBelowCurrent({ toPct: 40, currentPct: 40 })
+    ).toEqual({ ok: true })
   })
 })
 
