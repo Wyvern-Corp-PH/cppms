@@ -7,6 +7,7 @@ import {
   filterProjectsForUser,
 } from "@workspace/pocketbase/domain/access-control"
 import { computeProjectBudgetBreakdown } from "@workspace/pocketbase/domain/budget-summary"
+import { latestRevisionAction } from "@workspace/pocketbase/domain/latest-revision-action"
 import { formatPhp } from "@workspace/pocketbase/domain/format-currency"
 import { formatDisplayDateTime } from "@workspace/pocketbase/domain/format-display-date"
 import {
@@ -350,23 +351,6 @@ export function ApprovalsModule() {
     return updates.filter((update) => update.project === projectId)
   }
 
-  function latestRevisionAction(projectId: string) {
-    return (
-      actions
-        .filter(
-          (action) =>
-            action.project === projectId &&
-            action.action === "request_revision" &&
-            action.reason
-        )
-        .sort((a, b) => {
-          const aKey = a.created ?? a.id
-          const bKey = b.created ?? b.id
-          return bKey.localeCompare(aKey)
-        })[0] ?? null
-    )
-  }
-
   function openApprovalDialog(
     kind: "approve" | "reject" | "request_revision",
     project?: ProjectRecord
@@ -476,7 +460,7 @@ export function ApprovalsModule() {
     )
     const isReviewed = isReviewedProject(project)
     const isRejected = isRejectedProject(project)
-    const revisionAction = latestRevisionAction(project.id)
+    const revisionAction = latestRevisionAction(actions, project.id)
     const completionStatus = completionDocumentStatus(projectUpdateList)
 
     return (
@@ -778,11 +762,11 @@ export function ApprovalsModule() {
                   </p>
                 </div>
               ) : null}
-              {latestRevisionAction(selected.id)?.reason ? (
+              {latestRevisionAction(actions, selected.id)?.reason ? (
                 <div className="rounded-md border border-warning/30 bg-warning/10 p-3">
                   <p className="font-medium text-warning">Revision notes</p>
                   <p className="mt-1 text-muted-foreground">
-                    {latestRevisionAction(selected.id)?.reason}
+                    {latestRevisionAction(actions, selected.id)?.reason}
                   </p>
                 </div>
               ) : null}

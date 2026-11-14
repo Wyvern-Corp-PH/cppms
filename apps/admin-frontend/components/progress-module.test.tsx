@@ -10,6 +10,7 @@ const store = {
   allocations: null as Array<Record<string, unknown>> | null,
   locations: [] as Array<Record<string, unknown>>,
   users: [] as Array<Record<string, unknown>>,
+  actions: [] as Array<Record<string, unknown>>,
   deniedCollections: [] as string[],
   listOptions: {} as Record<string, unknown>,
   fundingYears: [] as Array<Record<string, unknown>>,
@@ -23,6 +24,19 @@ const store = {
     account_status: "Active",
   } as Record<string, unknown> | null,
 }
+
+const realtimeSubscribe = vi.hoisted(() => ({
+  collections: [] as string[],
+  refresh: () => {},
+}))
+
+vi.mock("@/hooks/use-pocketbase-realtime", () => ({
+  usePocketBaseRealtime: (collections: string[], onEvent: () => void) => {
+    realtimeSubscribe.collections = [...collections]
+    realtimeSubscribe.refresh = onEvent
+    return { live: false }
+  },
+}))
 
 const createMock = vi.fn()
 const projectUpdateMock = vi.fn()
@@ -67,6 +81,7 @@ vi.mock("@/lib/pocketbase", () => ({
         }
         if (name === "locations") return store.locations
         if (name === "users") return store.users
+        if (name === "approval_actions") return store.actions
         if (name === "budget_funding_years") return store.fundingYears
         if (name === "budget_fund_main_accounts") return store.mainAccounts
         if (name === "budget_fund_sub_accounts") return store.subAccounts
@@ -229,7 +244,10 @@ describe("ProgressModule (V81, V84)", () => {
       },
     ]
     store.users = []
+    store.actions = []
     store.deniedCollections = []
+    realtimeSubscribe.collections = []
+    realtimeSubscribe.refresh = () => {}
     store.listOptions = {}
     store.fundingYears = [
       {
@@ -5934,5 +5952,259 @@ describe("ProgressModule (V81, V84)", () => {
       expect(expenseCreateMock).toHaveBeenCalledTimes(1)
     })
     expect(progressUpdateMock).not.toHaveBeenCalled()
+  })
+
+  function forRevisionProject(status = "For Revision") {
+    return {
+      id: "1",
+      collectionId: "p",
+      collectionName: "projects",
+      created: "",
+      updated: "",
+      name: "Revision Bridge",
+      category: "Infrastructure",
+      status,
+      budget_year: 2026,
+      progress_pct: 40,
+      ...barangayScope,
+    }
+  }
+
+  function revisionAction(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "a-new",
+      collectionId: "actions",
+      collectionName: "approval_actions",
+      project: "1",
+      action: "request_revision",
+      authority_name: "Provincial Engineer",
+      reason: "Please upload clearer liquidation docs.",
+      created: "2026-06-25T00:00:00.000Z",
+      ...overrides,
+    }
+  }
+
+  async function openProjectDetail(user: ReturnType<typeof userEvent.setup>) {
+    render(<ProgressModule />)
+    const row = await screen.findByTestId("progress-row-1")
+    await user.click(within(row).getByRole("button", { name: /view details/i }))
+    const dialog = await screen.findByRole("dialog", { name: /project detail/i })
+    return { dialog, panel: screen.getByTestId("progress-detail-panel") }
+  }
+
+  function expectRevisionNote(root: HTMLElement, reason: string) {
+    const heading = within(root).getByRole("heading", {
+      name: "Revision notes",
+      hidden: true,
+    })
+    expect(heading.parentElement).toHaveTextContent(reason)
+    expect(heading.parentElement).not.toHaveTextContent("Pouring concrete")
+    expect(
+      within(root).queryByText("Older note", { hidden: true })
+    ).not.toBeInTheDocument()
+    expect(
+      within(root).queryByRole("textbox", { hidden: true })
+    ).not.toBeInTheDocument()
+  }
+
+  function expectNoRevisionNote(root: HTMLElement) {
+    expect(
+      within(root).queryByRole("heading", {
+        name: "Revision notes",
+        hidden: true,
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      within(root).queryByText("Please upload clearer liquidation docs.", {
+        hidden: true,
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      within(root).queryByRole("textbox", { hidden: true })
+    ).not.toBeInTheDocument()
+  }
+
+  const revisionHistory = [
+    revisionAction({
+      id: "a-old",
+      created: "2026-01-01T00:00:00.000Z",
+      reason: "Older note",
+    }),
+    revisionAction({
+      id: "a-new",
+      created: "2026-06-25T00:00:00.000Z",
+      reason: "Please upload clearer liquidation docs.",
+    }),
+    revisionAction({
+      id: "a-blank",
+      created: "2026-07-01T00:00:00.000Z",
+      reason: "",
+    }),
+    revisionAction({
+      id: "a-other",
+      project: "other",
+      created: "2026-08-01T00:00:00.000Z",
+      reason: "Other project",
+    }),
+  ]
+
+  it.each([
+    ["Barangay", useBarangayActor],
+    ["Municipality", useMunicipalityActor],
+    ["Province", () => {}],
+    ["Super Admin", useSuperAdminActor],
+  ] as const)(
+    "should show only the latest revision note on project detail for %s",
+    async (_role, useActor) => {
+      const user = userEvent.setup()
+      useActor()
+      store.projects = [forRevisionProject()]
+      store.actions = revisionHistory
+      store.updates = [
+        {
+          id: "u1",
+          collectionId: "updates",
+          collectionName: "progress_updates",
+          created: "2026-05-01 00:00:00.000Z",
+          project: "1",
+          from_pct: 0,
+          to_pct: 40,
+          notes: "Pouring concrete",
+        },
+      ]
+
+      const { dialog, panel } = await openProjectDetail(user)
+
+      expectRevisionNote(panel, "Please upload clearer liquidation docs.")
+      expectRevisionNote(dialog, "Please upload clearer liquidation docs.")
+    }
+  )
+
+  it.each(["Completed", "Rejected", "Ongoing"] as const)(
+    "should hide revision notes when the project status is %s",
+    async (status) => {
+      const user = userEvent.setup()
+      store.projects = [forRevisionProject(status)]
+      store.actions = revisionHistory
+
+      const { dialog, panel } = await openProjectDetail(user)
+
+      expectNoRevisionNote(panel)
+      expectNoRevisionNote(dialog)
+    }
+  )
+
+  it("should hide revision notes when the request has no reason", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [forRevisionProject()]
+    store.actions = [revisionAction({ reason: "" })]
+    store.updates = [
+      {
+        id: "u1",
+        collectionId: "updates",
+        collectionName: "progress_updates",
+        created: "2026-05-01 00:00:00.000Z",
+        project: "1",
+        from_pct: 0,
+        to_pct: 40,
+        notes: "Pouring concrete",
+      },
+    ]
+
+    const { dialog, panel } = await openProjectDetail(user)
+
+    expectNoRevisionNote(panel)
+    expectNoRevisionNote(dialog)
+    expect(
+      within(panel).getByText(/Pouring concrete/, { hidden: true })
+    ).toBeInTheDocument()
+  })
+
+  it("should keep the progress page up without a note when approval actions fail to load", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.deniedCollections = ["approval_actions"]
+    store.projects = [forRevisionProject()]
+    store.actions = revisionHistory
+
+    const { dialog, panel } = await openProjectDetail(user)
+
+    expect(screen.getByTestId("progress-row-1")).toHaveTextContent(
+      "Revision Bridge"
+    )
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    expectNoRevisionNote(panel)
+    expectNoRevisionNote(dialog)
+  })
+
+  it("should refresh the revision note when approval actions or the project change", async () => {
+    const user = userEvent.setup()
+    useBarangayActor()
+    store.projects = [forRevisionProject()]
+    store.actions = [
+      revisionAction({
+        id: "a-old",
+        created: "2026-01-01T00:00:00.000Z",
+        reason: "First note",
+      }),
+    ]
+
+    const { panel } = await openProjectDetail(user)
+
+    expect(
+      within(panel).getByText("First note", { hidden: true })
+    ).toBeInTheDocument()
+    expect(realtimeSubscribe.collections).toEqual(
+      expect.arrayContaining(["projects", "approval_actions"])
+    )
+
+    store.actions = [
+      revisionAction({
+        id: "a-old",
+        created: "2026-01-01T00:00:00.000Z",
+        reason: "First note",
+      }),
+      revisionAction({
+        id: "a-new",
+        created: "2026-08-01T00:00:00.000Z",
+        reason: "Updated note",
+      }),
+    ]
+    realtimeSubscribe.refresh()
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId("progress-detail-panel")).getByText(
+          "Updated note",
+          { hidden: true }
+        )
+      ).toBeInTheDocument()
+    })
+    expect(
+      within(screen.getByRole("dialog", { name: /project detail/i })).getByText(
+        "Updated note",
+        { hidden: true }
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText("First note", { hidden: true })).not.toBeInTheDocument()
+
+    store.projects = [forRevisionProject("Completed")]
+    realtimeSubscribe.refresh()
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByTestId("progress-detail-panel")).queryByRole(
+          "heading",
+          { name: "Revision notes", hidden: true }
+        )
+      ).not.toBeInTheDocument()
+    })
+    expect(
+      within(screen.getByRole("dialog", { name: /project detail/i })).queryByRole(
+        "heading",
+        { name: "Revision notes", hidden: true }
+      )
+    ).not.toBeInTheDocument()
   })
 })

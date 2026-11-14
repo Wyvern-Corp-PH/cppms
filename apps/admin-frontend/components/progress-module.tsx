@@ -31,12 +31,14 @@ import {
   isStuckAt100NeedingReadyForReview,
   projectProgressPatchFromUpdate,
 } from "@workspace/pocketbase/domain/progress-summary"
+import { latestRevisionAction } from "@workspace/pocketbase/domain/latest-revision-action"
 import { validateProgressNotBelowCurrent } from "@workspace/pocketbase/domain/progress-mutate-guards"
 import { persistErrorMessage } from "@workspace/pocketbase/domain/upload-size"
 import {
   COMPLETION_DOCUMENTS,
   LIQUIDATION_DOCUMENTS,
   type ProgressDocumentField,
+  approvalActionRecordSchema,
   budgetAllocationRecordSchema,
   budgetExpenseRecordSchema,
   fieldErrorsFromZod,
@@ -51,6 +53,7 @@ import {
   projectRecordSchema,
 } from "@workspace/pocketbase/schemas"
 import type {
+  ApprovalActionRecord,
   BudgetAllocationRecord,
   BudgetExpenseRecord,
   LocationRecord,
@@ -508,6 +511,16 @@ function existingCompletionDocNamesFromUpdate(
   }
 }
 
+function RevisionNotes({ reason }: { reason: string | null }) {
+  if (!reason) return null
+  return (
+    <div className="rounded-md border border-warning/30 bg-warning/10 p-2">
+      <h3 className="font-medium text-warning">Revision notes</h3>
+      <p className="mt-1 text-muted-foreground">{reason}</p>
+    </div>
+  )
+}
+
 export function ProgressModule() {
   const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [updates, setUpdates] = useState<ProgressUpdateRecord[]>([])
@@ -515,6 +528,9 @@ export function ProgressModule() {
   const [allocations, setAllocations] = useState<BudgetAllocationRecord[]>([])
   const [locations, setLocations] = useState<LocationRecord[]>([])
   const [users, setUsers] = useState<UserDisplayRecord[]>([])
+  const [approvalActions, setApprovalActions] = useState<ApprovalActionRecord[]>(
+    []
+  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [locationFilters, setLocationFilters] = useState<LocationFilterValue>({
     municipality: "",
@@ -591,6 +607,7 @@ export function ProgressModule() {
         allocationResult,
         locationRows,
         userRows,
+        actionRows,
       ] = await Promise.all([
           pb.collection("projects").getFullList(),
           pb.collection("progress_updates").getFullList({ expand: "updated_by" }),
@@ -616,6 +633,7 @@ export function ProgressModule() {
               (rows) => ({ ok: true as const, rows }),
               () => ({ ok: false as const })
             ),
+          pb.collection("approval_actions").getFullList().catch(() => []),
         ])
       const parsedUpdates = parseRecordList(
         progressUpdateRecordSchema,
@@ -630,6 +648,9 @@ export function ProgressModule() {
       setProjects(parsedProjects)
       setLocations(parseRecordList(locationRecordSchema, locationRows))
       setUpdates(parsedUpdates)
+      setApprovalActions(
+        parseRecordList(approvalActionRecordSchema, actionRows)
+      )
       const expandedUsers = usersFromExpandedRows(updateRows)
       setUsers((prev) =>
         userRows.ok
@@ -687,7 +708,13 @@ export function ProgressModule() {
   }, [load])
 
   const { live } = usePocketBaseRealtime(
-    ["projects", "progress_updates", "budget_expenses", "budget_allocations"],
+    [
+      "projects",
+      "progress_updates",
+      "budget_expenses",
+      "budget_allocations",
+      "approval_actions",
+    ],
     () => {
       void load()
     }
@@ -1427,6 +1454,10 @@ export function ProgressModule() {
   const selectedProgress = selected
     ? effectiveProgressPct(selected, selectedUpdates)
     : 0
+  const revisionReason =
+    selected?.status === "For Revision"
+      ? (latestRevisionAction(approvalActions, selected.id)?.reason ?? null)
+      : null
   const canEditSelectedHistory = selected
     ? canEditProgressHistoryEntry(actor, selected)
     : false
@@ -1619,6 +1650,7 @@ export function ProgressModule() {
                 )}{" "}
                 · {selected.status}
               </p>
+              <RevisionNotes reason={revisionReason} />
               <div>
                 <p className="mb-1">
                   Overall progress: {selectedProgress}%
@@ -1688,6 +1720,7 @@ export function ProgressModule() {
                 )}{" "}
                 · {selected.status}
               </p>
+              <RevisionNotes reason={revisionReason} />
               <div>
                 <p className="mb-1">Overall progress: {selectedProgress}%</p>
                 <Progress value={selectedProgress} />
